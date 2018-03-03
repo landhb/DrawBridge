@@ -1,4 +1,6 @@
-obj-m += xt_knock.o
+obj-m += knock.o
+knock-objs := xt_knock.o listen.o
+
 KDIR := /lib/modules/$(shell uname -r)/build
 PWD := $(shell pwd)
 

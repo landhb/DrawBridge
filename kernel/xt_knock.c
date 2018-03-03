@@ -6,6 +6,7 @@
 #include <linux/module.h>
 #include <linux/kernel.h>
 #include <linux/netfilter/x_tables.h>
+#include <linux/kthread.h>
 #include "xt_knock.h"
 
 MODULE_LICENSE("GPL");
@@ -41,6 +42,10 @@ static struct xt_target knock_tg_reg[] __read_mostly = {
 
 // Init function to register target
 static int __init knock_xt_init(void) {
+
+	// struct task_struct * thread;
+	// Call
+
 	return xt_register_targets(knock_tg_reg, ARRAY_SIZE(knock_tg_reg));
 }
 
