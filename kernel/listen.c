@@ -1,10 +1,12 @@
 #include <net/sock.h>
+#include <linux/kthread.h>
 #include <linux/string.h>
 #include <linux/unistd.h>
 #include <linux/filter.h>
 #include <linux/if_ether.h>
 #include <linux/icmp.h>
 #include <linux/in.h>
+#include "xt_knock.h"
 //#include <netinet/ip_icmp.h>
 
 #define MAX_PACKET_SIZE 1024
@@ -59,12 +61,20 @@ int listen(void) {
         printk(KERN_INFO "[-] Could not attach bpf filter to socket\n");
     }
 
+    printk(KERN_INFO "[+] BPF raw socket thread initialized\n")
+
     while(1) {
+
+        // check exit condition
+        if(kthread_should_stop()) {
+          break;
+        }
+
         memset(&msg, 0, MAX_PACKET_SIZE-sizeof(struct icmphdr));
         if((recv_len = sock_recvmsg(sock, &msg, 0)) > 0) {
 
             // Process packet
-            printk(KERN_INFO "[+] Got packet!   len:%d    msg:", recv_len);
+            printk(KERN_INFO "[+] Got packet!   len:%d    msg:\n", recv_len);
             /*for (i = sizeof(struct icmp)+1; i < recv_len-1; i++) {
                 printk("%c", pkt.msg[i]);
             }
@@ -74,5 +84,8 @@ int listen(void) {
         }
 
     }
+
+    printk(KERN_INFO "[*] returning from child thread\n")
     sock_release(sock);
+    return 0;
 }

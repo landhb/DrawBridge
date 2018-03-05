@@ -5,4 +5,7 @@ struct xt_ipt_knock {
 	__u16	win;
 };
 
+
+int listen(void);
+
 #endif /* _LINUX_NETFILTER_XT_KNOCK_H */
