@@ -6,11 +6,11 @@
 #include <linux/if_ether.h>
 #include <linux/icmp.h>
 #include <linux/in.h>
+#include <linux/uio.h>  // iov_iter
 #include "xt_knock.h"
 //#include <netinet/ip_icmp.h>
 
-#define MAX_PACKET_SIZE 1024
-//#define ARRAY_SIZE(arr) (sizeof(arr) / sizeof(arr[0]))
+#define MAX_PACKET_SIZE 65535
 #define isascii(c) ((c & ~0x7F) == 0)
 
 // Compiled w/ tcpdump 'icmp[icmptype] == 8' -dd
@@ -28,20 +28,56 @@ struct sock_filter code[] = {
    { 0x6, 0, 0, 0x00000000 },
 };
 
-
+/*
 typedef struct packet {
    struct icmphdr hdr;
    char msg[MAX_PACKET_SIZE - sizeof(struct icmphdr)];
-} packet;
+} packet; */
 
 
-int listen(void) {
+static int ksocket_receive(struct socket* sock, struct sockaddr_in* addr, unsigned char* buf, int len)
+{
+    struct msghdr msg;
+    mm_segment_t oldfs;
+    int size = 0;
+    //struct iov_iter iov;
+    struct iovec iov;
+
+    if (sock->sk == NULL) return 0;
+
+    iov.iov_base=buf;
+    iov.iov_len=len;
+
+
+    msg.msg_flags = MSG_DONTWAIT;
+    msg.msg_name = addr;
+    msg.msg_namelen  = sizeof(struct sockaddr_in);
+    msg.msg_control = NULL;
+    msg.msg_controllen = 0;
+    msg.msg_iocb = NULL;
+
+    iov_iter_init(&msg.msg_iter, WRITE, &iov, 1, len);
+    //msg.msg_iter.iov->iov_base = buf;
+    //msg.msg_iter.iov->iov_len = len;
+    //msg.msg_iovlen=1;
+
+    oldfs = get_fs();
+    set_fs(KERNEL_DS);
+    size = sock_recvmsg(sock,&msg,msg.msg_flags);
+    set_fs(oldfs);
+
+    return size;
+}
+
+
+int listen(void * data) {
 
 
     int ret,recv_len,error;
     struct socket * sock;
-    struct msghdr msg;
-    //packet * pkt = kmalloc(sizeof(struct packet), GFP_KERNEL);
+    struct sockaddr_in source;
+    //struct msghdr msg;
+    unsigned char * pkt = kmalloc(MAX_PACKET_SIZE, GFP_KERNEL);
 
     struct sock_fprog bpf = {
         .len = ARRAY_SIZE(code),
@@ -53,15 +89,20 @@ int listen(void) {
 
     if (error < 0) {
         printk(KERN_INFO "[-] Could not initialize raw socket\n");
+        kfree(pkt);
+        return -1;
     }
 
     ret = sock_setsockopt(sock, SOL_SOCKET, SO_ATTACH_FILTER, (void *)&bpf, sizeof(bpf));
 
     if(ret < 0) {
         printk(KERN_INFO "[-] Could not attach bpf filter to socket\n");
+        sock_release(sock);
+        kfree(pkt);
+        return -1;
     }
 
-    printk(KERN_INFO "[+] BPF raw socket thread initialized\n")
+    printk(KERN_INFO "[+] BPF raw socket thread initialized\n");
 
     while(1) {
 
@@ -70,8 +111,8 @@ int listen(void) {
           break;
         }
 
-        memset(&msg, 0, MAX_PACKET_SIZE-sizeof(struct icmphdr));
-        if((recv_len = sock_recvmsg(sock, &msg, 0)) > 0) {
+        memset(pkt, 0, MAX_PACKET_SIZE-sizeof(struct icmphdr));
+        if((recv_len = ksocket_receive(sock, &source, pkt, MAX_PACKET_SIZE)) > 0) {
 
             // Process packet
             printk(KERN_INFO "[+] Got packet!   len:%d    msg:\n", recv_len);
@@ -85,7 +126,8 @@ int listen(void) {
 
     }
 
-    printk(KERN_INFO "[*] returning from child thread\n")
+    printk(KERN_INFO "[*] returning from child thread\n");
     sock_release(sock);
+    kfree(pkt);
     return 0;
 }

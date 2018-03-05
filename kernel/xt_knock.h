@@ -6,6 +6,6 @@ struct xt_ipt_knock {
 };
 
 
-int listen(void);
+int listen(void * data);
 
 #endif /* _LINUX_NETFILTER_XT_KNOCK_H */

