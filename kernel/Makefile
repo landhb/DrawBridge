@@ -1,3 +1,5 @@
+CONFIG_MODULE_SIG=n
+
 obj-m += knock.o
 knock-objs := xt_knock.o listen.o
 
