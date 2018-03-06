@@ -24,7 +24,7 @@ MODULE_VERSION("0.1");
 #define MODULE_NAME "knock"
 
 // Companion thread
-struct task_struct * thread;
+struct task_struct * raw_thread;
 
 static unsigned int knock_tg(struct sk_buff *skb, const struct xt_action_param *par) {
 	return XT_CONTINUE;
@@ -54,22 +54,29 @@ static struct xt_target knock_tg_reg[] __read_mostly = {
 // Init function to register target
 static int __init knock_xt_init(void) {
 
-	thread = NULL;
+	raw_thread = NULL;
 
 	// Start kernel thread raw socket to listen for triggers
-	thread = kthread_run(&listen, NULL, MODULE_NAME);
+	raw_thread = kthread_create(&listen, NULL, MODULE_NAME);
 
-	if(IS_ERR(thread)) {
+	// Increments usage counter - preserve structure even on exit
+	get_task_struct(raw_thread);
+
+	if(IS_ERR(raw_thread)) {
 		printk(KERN_INFO "[-] Unable to start child thread\n");
-		return PTR_ERR(thread);
+		return PTR_ERR(raw_thread);
 	}
 
 
-	printk(KERN_INFO "[+] Started child thread\n");
-	wake_up_process(thread);
+	// Now it is safe to start kthread - exiting from it doesn't destroy its struct.
+	wake_up_process(raw_thread);
 
+
+	printk(KERN_INFO "[+] Started child thread\n");
+
+	xt_register_targets(knock_tg_reg, ARRAY_SIZE(knock_tg_reg));
 	printk(KERN_INFO "[+] Loaded Knock Netfilter module into kernel\n");
-	return xt_register_targets(knock_tg_reg, ARRAY_SIZE(knock_tg_reg));
+	return 0;
 }
 
 
@@ -78,19 +85,20 @@ static void __exit knock_xt_exit(void) {
 
 	int err = 0;
 
-	if(thread==NULL) {
-		printk(KERN_INFO "[!] no kernel thread to kill\n");
-	} else {
+	if(raw_thread) {
 		//lock_kernel();
-		err = kthread_stop(thread);
-		thread = NULL;
+		err = kthread_stop(raw_thread);
+		put_task_struct(raw_thread);
+		raw_thread = NULL;
 		printk(KERN_INFO "[*] Stopped counterpart thread\n");
 		//unlock_kernel();
+	} else {
+		printk(KERN_INFO "[!] no kernel thread to kill\n");
 	}
 
-
+	xt_unregister_targets(knock_tg_reg, ARRAY_SIZE(knock_tg_reg));
 	printk(KERN_INFO "[*] Unloaded Knock Netfilter module from kernel\n");
-	return xt_unregister_targets(knock_tg_reg, ARRAY_SIZE(knock_tg_reg));
+	return;
 }
 
 
