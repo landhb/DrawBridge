@@ -2,6 +2,7 @@
 #include <linux/kthread.h>
 #include <linux/string.h>
 #include <linux/unistd.h>
+#include <linux/wait.h> // DECLARE_WAITQUEUE
 #include <linux/filter.h>
 #include <linux/if_ether.h>
 #include <linux/icmp.h>
@@ -15,17 +16,17 @@
 
 // Compiled w/ tcpdump 'icmp[icmptype] == 8' -dd
 struct sock_filter code[] = {
-   { 0x28, 0, 0, 0x0000000c },
-   { 0x15, 0, 8, 0x00000800 },
-   { 0x30, 0, 0, 0x00000017 },
-   { 0x15, 0, 6, 0x00000001 },
-   { 0x28, 0, 0, 0x00000014 },
-   { 0x45, 4, 0, 0x00001fff },
-   { 0xb1, 0, 0, 0x0000000e },
-   { 0x50, 0, 0, 0x0000000e },
-   { 0x15, 0, 1, 0x00000008 },
-   { 0x6, 0, 0, 0x00040000 },
-   { 0x6, 0, 0, 0x00000000 },
+	{ 0x28, 0, 0, 0x0000000c },
+	{ 0x15, 0, 8, 0x00000800 },
+	{ 0x30, 0, 0, 0x00000017 },
+	{ 0x15, 0, 6, 0x00000001 },
+	{ 0x28, 0, 0, 0x00000014 },
+	{ 0x45, 4, 0, 0x00001fff },
+	{ 0xb1, 0, 0, 0x0000000e },
+	{ 0x50, 0, 0, 0x0000000e },
+	{ 0x15, 0, 1, 0x00000008 },
+	{ 0x6, 0, 0, 0x00040000 },
+	{ 0x6, 0, 0, 0x00000000 },
 };
 
 /*
@@ -37,97 +38,116 @@ typedef struct packet {
 
 static int ksocket_receive(struct socket* sock, struct sockaddr_in* addr, unsigned char* buf, int len)
 {
-    struct msghdr msg;
-    mm_segment_t oldfs;
-    int size = 0;
-    //struct iov_iter iov;
-    struct iovec iov;
+	struct msghdr msg;
+	mm_segment_t oldfs;
+	int size = 0;
+	//struct iov_iter iov;
+	struct iovec iov;
 
-    if (sock->sk == NULL) return 0;
+	if (sock->sk == NULL) return 0;
 
-    iov.iov_base=buf;
-    iov.iov_len=len;
+	iov.iov_base=buf;
+	iov.iov_len=len;
 
 
-    msg.msg_flags = MSG_DONTWAIT;
-    msg.msg_name = addr;
-    msg.msg_namelen  = sizeof(struct sockaddr_in);
-    msg.msg_control = NULL;
-    msg.msg_controllen = 0;
-    msg.msg_iocb = NULL;
+	msg.msg_flags = MSG_DONTWAIT;
+	msg.msg_name = addr;
+	msg.msg_namelen  = sizeof(struct sockaddr_in);
+	msg.msg_control = NULL;
+	msg.msg_controllen = 0;
+	msg.msg_iocb = NULL;
 
-    iov_iter_init(&msg.msg_iter, WRITE, &iov, 1, len);
-    //msg.msg_iter.iov->iov_base = buf;
-    //msg.msg_iter.iov->iov_len = len;
-    //msg.msg_iovlen=1;
+	iov_iter_init(&msg.msg_iter, WRITE, &iov, 1, len);
+	//msg.msg_iter.iov->iov_base = buf;
+	//msg.msg_iter.iov->iov_len = len;
+	//msg.msg_iovlen=1;
 
-    oldfs = get_fs();
-    set_fs(KERNEL_DS);
-    size = sock_recvmsg(sock,&msg,msg.msg_flags);
-    set_fs(oldfs);
+	oldfs = get_fs();
+	set_fs(KERNEL_DS);
+	size = sock_recvmsg(sock,&msg,msg.msg_flags);
+	set_fs(oldfs);
 
-    return size;
+	return size;
 }
 
 
 int listen(void * data) {
 
 
-    int ret,recv_len,error;
-    struct socket * sock;
-    struct sockaddr_in source;
-    //struct msghdr msg;
-    unsigned char * pkt = kmalloc(MAX_PACKET_SIZE, GFP_KERNEL);
+	int ret,recv_len,error;
+	struct socket * sock;
+	struct sockaddr_in source;
+	//struct msghdr msg;
+	unsigned char * pkt = kmalloc(MAX_PACKET_SIZE, GFP_KERNEL);
 
-    struct sock_fprog bpf = {
-        .len = ARRAY_SIZE(code),
-        .filter = code,
-    };
+	struct sock_fprog bpf = {
+		.len = ARRAY_SIZE(code),
+		.filter = code,
+	};
 
-    //sock = socket(PF_PACKET, SOCK_RAW, htons(ETH_P_ALL));
-    error = sock_create(PF_PACKET, SOCK_RAW, htons(ETH_P_ALL), &sock);
+	// Initialize wait queue
+	DECLARE_WAITQUEUE(recv_wait, current);
 
-    if (error < 0) {
-        printk(KERN_INFO "[-] Could not initialize raw socket\n");
-        kfree(pkt);
-        return -1;
-    }
+	//sock = socket(PF_PACKET, SOCK_RAW, htons(ETH_P_ALL));
+	error = sock_create(PF_PACKET, SOCK_RAW, htons(ETH_P_ALL), &sock);
 
-    ret = sock_setsockopt(sock, SOL_SOCKET, SO_ATTACH_FILTER, (void *)&bpf, sizeof(bpf));
+	if (error < 0) {
+		printk(KERN_INFO "[-] Could not initialize raw socket\n");
+		kfree(pkt);
+		return -1;
+	}
 
-    if(ret < 0) {
-        printk(KERN_INFO "[-] Could not attach bpf filter to socket\n");
-        sock_release(sock);
-        kfree(pkt);
-        return -1;
-    }
+	ret = sock_setsockopt(sock, SOL_SOCKET, SO_ATTACH_FILTER, (void *)&bpf, sizeof(bpf));
 
-    printk(KERN_INFO "[+] BPF raw socket thread initialized\n");
+	if(ret < 0) {
+		printk(KERN_INFO "[-] Could not attach bpf filter to socket\n");
+		sock_release(sock);
+		kfree(pkt);
+		return -1;
+	}
 
-    while(1) {
 
-        // check exit condition
-        if(kthread_should_stop()) {
-          break;
-        }
 
-        memset(pkt, 0, MAX_PACKET_SIZE-sizeof(struct icmphdr));
-        if((recv_len = ksocket_receive(sock, &source, pkt, MAX_PACKET_SIZE)) > 0) {
+	printk(KERN_INFO "[+] BPF raw socket thread initialized\n");
 
-            // Process packet
-            printk(KERN_INFO "[+] Got packet!   len:%d    msg:\n", recv_len);
-            /*for (i = sizeof(struct icmp)+1; i < recv_len-1; i++) {
-                printk("%c", pkt.msg[i]);
-            }
-            printk("\n"); */
+	while(1) {
 
-            continue;
-        }
 
-    }
+		add_wait_queue(&sock->sk->sk_wq->wait, &recv_wait);
 
-    printk(KERN_INFO "[*] returning from child thread\n");
-    sock_release(sock);
-    kfree(pkt);
-    return 0;
+		// Socket recv queue empty, set interruptable
+		// release CPU and allow scheduling
+		while(skb_queue_empty(&sock->sk->sk_receive_queue)) {
+
+			set_current_state(TASK_INTERRUPTIBLE);
+			schedule_timeout(2*HZ);
+
+			// check exit condition
+			if(kthread_should_stop()) {
+				printk(KERN_INFO "[*] returning from child thread\n");
+				sock_release(sock);
+				kfree(pkt);
+				return 0;
+			}
+
+		}
+
+		set_current_state(TASK_RUNNING);
+		remove_wait_queue(&sock->sk->sk_wq->wait, &recv_wait);
+
+		memset(pkt, 0, MAX_PACKET_SIZE-sizeof(struct icmphdr));
+		if((recv_len = ksocket_receive(sock, &source, pkt, MAX_PACKET_SIZE)) > 0) {
+
+			// Process packet
+			printk(KERN_INFO "[+] Got packet!   len:%d    msg:\n", recv_len);
+
+			continue;
+		}
+
+	}
+
+	printk(KERN_INFO "[*] returning from child thread\n");
+	sock_release(sock);
+	kfree(pkt);
+	return 0;
 }
