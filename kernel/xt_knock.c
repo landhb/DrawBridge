@@ -79,7 +79,7 @@ static void __exit knock_xt_exit(void) {
 	int err = 0;
 
 	if(thread==NULL) {
-		printk(KERN_INFO MODULE_NAME": no kernel thread to kill\n");
+		printk(KERN_INFO "[!] no kernel thread to kill\n");
 	} else {
 		//lock_kernel();
 		err = kthread_stop(thread);

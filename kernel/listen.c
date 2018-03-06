@@ -116,7 +116,7 @@ int listen(void * data) {
 		add_wait_queue(&sock->sk->sk_wq->wait, &recv_wait);
 
 		// Socket recv queue empty, set interruptable
-		// release CPU and allow scheduling
+		// release CPU and allow scheduler to preempt the thread
 		while(skb_queue_empty(&sock->sk->sk_receive_queue)) {
 
 			set_current_state(TASK_INTERRUPTIBLE);
