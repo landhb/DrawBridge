@@ -112,7 +112,7 @@ int listen(void * data) {
 
 	while(1) {
 
-
+		// Add socket to wait queue
 		add_wait_queue(&sock->sk->sk_wq->wait, &recv_wait);
 
 		// Socket recv queue empty, set interruptable
@@ -124,14 +124,20 @@ int listen(void * data) {
 
 			// check exit condition
 			if(kthread_should_stop()) {
+
+				// Crucial to remove the wait queue before exiting
+				set_current_state(TASK_RUNNING);
+				remove_wait_queue(&sock->sk->sk_wq->wait, &recv_wait);
+
+				// Cleanup and exit thread
 				printk(KERN_INFO "[*] returning from child thread\n");
 				sock_release(sock);
 				kfree(pkt);
-				return 0;
+				do_exit(0);
 			}
-
 		}
 
+		// Return to running state and remove socket from wait queue
 		set_current_state(TASK_RUNNING);
 		remove_wait_queue(&sock->sk->sk_wq->wait, &recv_wait);
 
@@ -139,9 +145,7 @@ int listen(void * data) {
 		if((recv_len = ksocket_receive(sock, &source, pkt, MAX_PACKET_SIZE)) > 0) {
 
 			// Process packet
-			printk(KERN_INFO "[+] Got packet!   len:%d    msg:\n", recv_len);
-
-			continue;
+			printk(KERN_INFO "[+] Got packet!   len:%d\n", recv_len);
 		}
 
 	}
