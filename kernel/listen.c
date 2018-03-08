@@ -153,5 +153,5 @@ int listen(void * data) {
 	printk(KERN_INFO "[*] returning from child thread\n");
 	sock_release(sock);
 	kfree(pkt);
-	return 0;
+	do_exit(0);
 }
