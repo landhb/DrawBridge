@@ -1,3 +1,4 @@
+#include <linux/kernel.h>
 #include <net/sock.h>
 #include <linux/kthread.h>
 #include <linux/string.h>
@@ -6,6 +7,7 @@
 #include <linux/filter.h>
 #include <linux/if_ether.h>
 #include <linux/icmp.h>
+#include <linux/ip.h>
 #include <linux/in.h>
 #include <linux/uio.h>  // iov_iter
 #include "xt_knock.h"
@@ -29,11 +31,29 @@ struct sock_filter code[] = {
 	{ 0x6, 0, 0, 0x00000000 },
 };
 
-/*
-typedef struct packet {
-   struct icmphdr hdr;
-   char msg[MAX_PACKET_SIZE - sizeof(struct icmphdr)];
-} packet; */
+
+struct packet {
+	struct ethhdr eth_h;
+	struct iphdr ip_h;
+	struct icmphdr icmp_h;
+	char msg[MAX_PACKET_SIZE - sizeof(struct icmphdr) - sizeof(struct iphdr) - sizeof(struct ethhdr)];
+} __attribute__( ( packed ) ); 
+
+
+static void inet_ntoa(char * str_ip, __be32 int_ip)
+{
+
+	if(!str_ip)
+		return;
+	else
+		memset(str_ip, 0, 16);
+
+
+	sprintf(str_ip, "%d.%d.%d.%d", (int_ip) & 0xFF, (int_ip >> 8) & 0xFF,
+							(int_ip >> 16) & 0xFF, (int_ip >> 24) & 0xFF);
+
+	return;
+}
 
 
 static int ksocket_receive(struct socket* sock, struct sockaddr_in* addr, unsigned char* buf, int len)
@@ -73,12 +93,13 @@ static int ksocket_receive(struct socket* sock, struct sockaddr_in* addr, unsign
 
 int listen(void * data) {
 
-
+	
 	int ret,recv_len,error;
 	struct socket * sock;
 	struct sockaddr_in source;
-	//struct msghdr msg;
+	struct packet * res;
 	unsigned char * pkt = kmalloc(MAX_PACKET_SIZE, GFP_KERNEL);
+	char * src = kmalloc(16 * sizeof(char), GFP_KERNEL);
 
 	struct sock_fprog bpf = {
 		.len = ARRAY_SIZE(code),
@@ -110,6 +131,7 @@ int listen(void * data) {
 
 	printk(KERN_INFO "[+] BPF raw socket thread initialized\n");
 
+
 	while(1) {
 
 		// Add socket to wait queue
@@ -133,6 +155,7 @@ int listen(void * data) {
 				printk(KERN_INFO "[*] returning from child thread\n");
 				sock_release(sock);
 				kfree(pkt);
+				kfree(src);
 				do_exit(0);
 			}
 		}
@@ -144,8 +167,14 @@ int listen(void * data) {
 		memset(pkt, 0, MAX_PACKET_SIZE-sizeof(struct icmphdr));
 		if((recv_len = ksocket_receive(sock, &source, pkt, MAX_PACKET_SIZE)) > 0) {
 
+
+			res = (struct packet *)pkt;
+			inet_ntoa(src, res->ip_h.saddr);
+
 			// Process packet
-			printk(KERN_INFO "[+] Got packet!   len:%d\n", recv_len);
+			printk(KERN_INFO "[+] Got packet!   len:%d    from:%s\n", recv_len, src);
+
+
 		}
 
 	}
@@ -153,5 +182,6 @@ int listen(void * data) {
 	printk(KERN_INFO "[*] returning from child thread\n");
 	sock_release(sock);
 	kfree(pkt);
+	kfree(src);
 	do_exit(0);
 }
