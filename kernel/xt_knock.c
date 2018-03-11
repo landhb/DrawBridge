@@ -9,8 +9,13 @@
 #include <linux/sched.h>
 #include <linux/kthread.h>
 #include <linux/errno.h>   // https://github.com/torvalds/linux/blob/master/include/uapi/asm-generic/errno-base.h for relevent error codes
+#include <linux/byteorder/generic.h>
+
+// Protocol headers
 #include <linux/ip.h>
 #include <linux/tcp.h>
+
+// Netfilter headers
 #include <linux/netfilter.h>
 #include <linux/netfilter/x_tables.h>
 #include "xt_knock.h"
@@ -19,42 +24,49 @@ MODULE_LICENSE("GPL");
 MODULE_AUTHOR("Bradley Landherr https://github.com/landhb");
 MODULE_DESCRIPTION("NetFilter Kernel Module to Support BPF Based Port Knocking");
 MODULE_VERSION("0.1");
-
+MODULE_ALIAS("trigger");
+MODULE_ALIAS("ip_conntrack_knock");
 
 #define MODULE_NAME "knock"
+#define MAX_PORTS 10
+#define DEFAULT_PORT 1234
 
 // Companion thread
 struct task_struct * raw_thread;
 
-static unsigned int knock_tg(struct sk_buff *skb, const struct xt_action_param *par) {
-	return XT_CONTINUE;
+
+
+
+static unsigned	int pkt_hook(void * priv, struct sk_buff * skb, const struct nf_hook_state * state) {
+
+	unsigned int ret = NF_ACCEPT;
+	struct iphdr * ip_header = (struct iphdr *)skb_network_header(skb);
+	struct tcphdr * tcp_header = (struct tcphdr *)skb_transport_header(skb);
+
+	if(tcp_header->dest == htons(DEFAULT_PORT)) {
+			printk(KERN_INFO	"[*] Hook called\n");
+			return NF_DROP;
+	}
+
+	return	ret;	
 }
 
-static int knock_tg_check(const struct xt_tgchk_param *par) {
-	return 0;
-}
 
 
-// Define the iptables TARGET
-static struct xt_target knock_tg_reg[] __read_mostly = {
-	{
-		.name		= "KNOCK",
-		.revision 	= 0,
-		.family 	= NFPROTO_UNSPEC,
-		.target 	= knock_tg,
-		.targetsize	= sizeof(struct xt_ipt_knock),
-		.table 		= "filter",
-		.checkentry	= knock_tg_check,
-		.me 		= THIS_MODULE,
-	},
+static struct nf_hook_ops pkt_hook_ops __read_mostly	= {
+	.pf 		= NFPROTO_IPV4,
+	.priority	= 1,
+	.hooknum	= NF_INET_LOCAL_OUT,
+	.hook		= &pkt_hook,
 };
 
 
-
 // Init function to register target
-static int __init knock_xt_init(void) {
+static int __init nf_conntrack_knock_init(void) {
 
+	int ret;
 	raw_thread = NULL;
+
 
 	// Start kernel thread raw socket to listen for triggers
 	raw_thread = kthread_create(&listen, NULL, MODULE_NAME);
@@ -74,14 +86,23 @@ static int __init knock_xt_init(void) {
 
 	printk(KERN_INFO "[+] Started child thread\n");
 
-	xt_register_targets(knock_tg_reg, ARRAY_SIZE(knock_tg_reg));
+
+
+	ret = nf_register_hook(&pkt_hook_ops);
+
+	if(ret) {
+		printk(KERN_INFO "[-] Failed to register hook\n");
+		return ret;
+	} 
+		
+
 	printk(KERN_INFO "[+] Loaded Knock Netfilter module into kernel\n");
 	return 0;
 }
 
 
 // Exit function to unregister target
-static void __exit knock_xt_exit(void) {
+static void __exit nf_conntrack_knock_exit(void) {
 
 	int err = 0;
 
@@ -96,12 +117,13 @@ static void __exit knock_xt_exit(void) {
 		printk(KERN_INFO "[!] no kernel thread to kill\n");
 	}
 
-	xt_unregister_targets(knock_tg_reg, ARRAY_SIZE(knock_tg_reg));
+
+	nf_unregister_hook(&pkt_hook_ops);
 	printk(KERN_INFO "[*] Unloaded Knock Netfilter module from kernel\n");
 	return;
 }
 
 
 // Register the initialization and exit functions
-module_init(knock_xt_init);
-module_exit(knock_xt_exit);
+module_init(nf_conntrack_knock_init);
+module_exit(nf_conntrack_knock_exit);
