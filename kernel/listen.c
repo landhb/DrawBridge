@@ -5,16 +5,16 @@
 #include <linux/unistd.h>
 #include <linux/wait.h> // DECLARE_WAITQUEUE
 #include <linux/filter.h>
-#include <linux/if_ether.h>
-#include <linux/icmp.h>
-#include <linux/ip.h>
-#include <linux/in.h>
 #include <linux/uio.h>  // iov_iter
 #include "xt_knock.h"
 //#include <netinet/ip_icmp.h>
 
 #define MAX_PACKET_SIZE 65535
 #define isascii(c) ((c & ~0x7F) == 0)
+
+
+extern ip4_conntrack_state * ip4_state;
+extern ip6_conntrack_state * ip6_state;
 
 // Compiled w/ tcpdump 'icmp[icmptype] == 8' -dd
 struct sock_filter code[] = {
@@ -40,7 +40,7 @@ struct packet {
 } __attribute__( ( packed ) ); 
 
 
-static void inet_ntoa(char * str_ip, __be32 int_ip)
+void inet_ntoa(char * str_ip, __be32 int_ip)
 {
 
 	if(!str_ip)
@@ -174,6 +174,9 @@ int listen(void * data) {
 			// Process packet
 			printk(KERN_INFO "[+] Got packet!   len:%d    from:%s\n", recv_len, src);
 
+			if(!ip4_state_lookup(ip4_state, res->ip_h.saddr, htons(1234))) {
+				ip4_state_add(ip4_state, res->ip_h.saddr, htons(1234));
+			}
 
 		}
 

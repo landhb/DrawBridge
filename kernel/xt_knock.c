@@ -11,13 +11,11 @@
 #include <linux/errno.h>   // https://github.com/torvalds/linux/blob/master/include/uapi/asm-generic/errno-base.h for relevent error codes
 #include <linux/byteorder/generic.h>
 
-// Protocol headers
-#include <linux/ip.h>
-#include <linux/tcp.h>
 
 // Netfilter headers
 #include <linux/netfilter.h>
 #include <linux/netfilter/x_tables.h>
+#include <linux/netfilter/nf_conntrack_common.h>
 #include "xt_knock.h"
 
 MODULE_LICENSE("GPL");
@@ -34,6 +32,10 @@ MODULE_ALIAS("ip_conntrack_knock");
 // Companion thread
 struct task_struct * raw_thread;
 
+// Globally accessed structs
+char * src;
+ip4_conntrack_state * ip4_state;
+ip6_conntrack_state * ip6_state;
 
 
 
@@ -43,8 +45,24 @@ static unsigned	int pkt_hook(void * priv, struct sk_buff * skb, const struct nf_
 	struct iphdr * ip_header = (struct iphdr *)skb_network_header(skb);
 	struct tcphdr * tcp_header = (struct tcphdr *)skb_transport_header(skb);
 
+	if(skb->nfctinfo == IP_CT_ESTABLISHED) {
+		return NF_ACCEPT;
+	}
+
+	// Check if packet is destined for our port watchlist
 	if(tcp_header->dest == htons(DEFAULT_PORT)) {
-			printk(KERN_INFO	"[*] Hook called\n");
+
+			inet_ntoa(src, ip_header->saddr);
+
+			if(!src) {
+					return NF_DROP;
+			}
+
+			if(ip4_state_lookup(ip4_state, ip_header->saddr, tcp_header->dest)) {
+				printk(KERN_INFO	"[!] Hook accepted      source:%s\n", src);
+				return NF_ACCEPT;
+			}
+			
 			return NF_DROP;
 	}
 
@@ -67,6 +85,9 @@ static int __init nf_conntrack_knock_init(void) {
 	int ret;
 	raw_thread = NULL;
 
+	// Initialize our memory
+	src = kmalloc(16 * sizeof(char), GFP_KERNEL);
+	ip4_state = init_ip4_state(); 
 
 	// Start kernel thread raw socket to listen for triggers
 	raw_thread = kthread_create(&listen, NULL, MODULE_NAME);

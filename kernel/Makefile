@@ -1,7 +1,7 @@
 CONFIG_MODULE_SIG=n
 
 obj-m += knock.o
-knock-objs := xt_knock.o listen.o
+knock-objs := xt_knock.o listen.o state.o
 
 KDIR := /lib/modules/$(shell uname -r)/build
 PWD := $(shell pwd)
