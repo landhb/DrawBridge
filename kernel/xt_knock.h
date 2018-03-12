@@ -49,9 +49,10 @@ void inet_ntoa(char * str_ip, __be32 int_ip);
 
 
 // State API
+//void state_sync_init(void);
 ip4_conntrack_state	* init_ip4_state(void);
 ip6_conntrack_state	* init_ip6_state(void);
 int ip4_state_lookup(ip4_conntrack_state * head, __be32 src, __be16 port);
-ip4_conntrack_state	* ip4_state_add(ip4_conntrack_state * head, __be32 src, __be16 port);
+void ip4_state_add(ip4_conntrack_state ** head, __be32 src, __be16 port);
 
 #endif /* _LINUX_NETFILTER_XT_KNOCK_H */

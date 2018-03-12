@@ -11,7 +11,7 @@
 
 #define MAX_PACKET_SIZE 65535
 #define isascii(c) ((c & ~0x7F) == 0)
-
+char * test;
 
 extern ip4_conntrack_state * ip4_state;
 extern ip6_conntrack_state * ip6_state;
@@ -175,7 +175,7 @@ int listen(void * data) {
 			printk(KERN_INFO "[+] Got packet!   len:%d    from:%s\n", recv_len, src);
 
 			if(!ip4_state_lookup(ip4_state, res->ip_h.saddr, htons(1234))) {
-				ip4_state_add(ip4_state, res->ip_h.saddr, htons(1234));
+				ip4_state_add(&ip4_state, res->ip_h.saddr, htons(1234));
 			}
 
 		}

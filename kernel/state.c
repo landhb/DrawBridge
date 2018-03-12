@@ -4,7 +4,23 @@
 */
 #include <linux/module.h>
 #include <linux/kernel.h>
+#include <linux/rwlock.h>
+#include <linux/rculist.h>
+
 #include "xt_knock.h"
+
+
+
+/* Synchronization structures to prevent threading issues
+rwlock_t ip4_lock;
+rwlock_t ip6_lock;
+
+
+void state_sync_init(void) {
+		ip4_lock	= RW_LOCK_UNLOCKED;
+		ip6_lock 	= RW_LOCK_UNLOCKED;
+} */
+
 
 ip4_conntrack_state	* init_ip4_state(void) {
 	ip4_conntrack_state * state = kmalloc(sizeof(struct ip4_conntrack_state), GFP_KERNEL);
@@ -27,21 +43,22 @@ int ip4_state_lookup(ip4_conntrack_state * head, __be32 src, __be16 port) {
 
 	ip4_conntrack_state	 * state;
 
-	printk(KERN_INFO "--> Looking up state\n");
+	rcu_read_lock();
 
-	list_for_each_entry(state, &(head->list), list) {
+	list_for_each_entry_rcu(state, &(head->list), list) {
+
 		if(state->src == src && state->port == port) {
-			printk(KERN_INFO "--> Found state\n");
 			return 1;
 		}
 	}
-	printk(KERN_INFO "--> Didn't find state\n");
+	rcu_read_unlock();
+
 	return 0;
 }
 
 
 // Add a connection state 
-ip4_conntrack_state	* ip4_state_add(ip4_conntrack_state * head, __be32 src, __be16 port) {
+void ip4_state_add(ip4_conntrack_state ** head, __be32 src, __be16 port) {
 
 	// Create new node
 	ip4_conntrack_state * state = init_ip4_state();
@@ -51,8 +68,8 @@ ip4_conntrack_state	* ip4_state_add(ip4_conntrack_state * head, __be32 src, __be
 	state->src = src;
 
 	// add to list
-	list_add(&(state->list), &(head->list));
-
-	return head;
+	list_add_rcu(&(state->list), &((*head)->list));
+	
+	return;
 }
 

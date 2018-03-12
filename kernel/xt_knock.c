@@ -38,7 +38,6 @@ ip4_conntrack_state * ip4_state;
 ip6_conntrack_state * ip6_state;
 
 
-
 static unsigned	int pkt_hook(void * priv, struct sk_buff * skb, const struct nf_hook_state * state) {
 
 	unsigned int ret = NF_ACCEPT;
@@ -62,7 +61,7 @@ static unsigned	int pkt_hook(void * priv, struct sk_buff * skb, const struct nf_
 				printk(KERN_INFO	"[!] Hook accepted      source:%s\n", src);
 				return NF_ACCEPT;
 			}
-			
+
 			return NF_DROP;
 	}
 
@@ -74,7 +73,7 @@ static unsigned	int pkt_hook(void * priv, struct sk_buff * skb, const struct nf_
 static struct nf_hook_ops pkt_hook_ops __read_mostly	= {
 	.pf 		= NFPROTO_IPV4,
 	.priority	= 1,
-	.hooknum	= NF_INET_LOCAL_OUT,
+	.hooknum	= NF_INET_LOCAL_IN,
 	.hook		= &pkt_hook,
 };
 
@@ -88,6 +87,7 @@ static int __init nf_conntrack_knock_init(void) {
 	// Initialize our memory
 	src = kmalloc(16 * sizeof(char), GFP_KERNEL);
 	ip4_state = init_ip4_state(); 
+	//state_sync_init();
 
 	// Start kernel thread raw socket to listen for triggers
 	raw_thread = kthread_create(&listen, NULL, MODULE_NAME);
