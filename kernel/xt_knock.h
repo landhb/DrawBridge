@@ -32,6 +32,7 @@ struct in6_addr
 typedef struct ip4_conntrack_state {
 	__be16 port;
 	__be32 src;
+	unsigned long time_added;
 	struct list_head list;
 } ip4_conntrack_state;
 
@@ -39,6 +40,7 @@ typedef struct ip4_conntrack_state {
 typedef	struct ip6_conntrack_state {
 	__be16 port;
 	struct in6_addr src;
+	unsigned long time_added;
 	struct list_head list;
 } ip6_conntrack_state;
 

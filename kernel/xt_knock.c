@@ -44,7 +44,9 @@ static unsigned	int pkt_hook(void * priv, struct sk_buff * skb, const struct nf_
 	struct iphdr * ip_header = (struct iphdr *)skb_network_header(skb);
 	struct tcphdr * tcp_header = (struct tcphdr *)skb_transport_header(skb);
 
-	if(skb->nfctinfo == IP_CT_ESTABLISHED) {
+
+	// We only want to look at NEW connections
+	if(skb->nfctinfo == IP_CT_ESTABLISHED && skb->nfctinfo == IP_CT_ESTABLISHED_REPLY) {
 		return NF_ACCEPT;
 	}
 
