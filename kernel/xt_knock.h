@@ -9,6 +9,7 @@
 #include <linux/in.h>
 #include <linux/tcp.h>
 
+
 // List implementation in kernel
 #include <linux/list.h>
 
@@ -29,20 +30,27 @@ struct in6_addr
 }; */
 
 
-typedef struct ip4_conntrack_state {
-	__be16 port;
-	__be32 src;
-	unsigned long time_added;
-	struct list_head list;
-} ip4_conntrack_state;
+typedef struct conntrack_state {
 
+	// IP version type
+	int type;
 
-typedef	struct ip6_conntrack_state {
+	// Destination port
 	__be16 port;
-	struct in6_addr src;
+
+	// Source IP
+	union {
+		__be32 addr_4;
+		struct in6_addr addr_6;
+	} src;
+
+	// Timestamp
 	unsigned long time_added;
+
+	// List entry
 	struct list_head list;
-} ip6_conntrack_state;
+
+} conntrack_state;
 
 
 // listen.c prototypes
@@ -51,10 +59,13 @@ void inet_ntoa(char * str_ip, __be32 int_ip);
 
 
 // State API
-//void state_sync_init(void);
-ip4_conntrack_state	* init_ip4_state(void);
-ip6_conntrack_state	* init_ip6_state(void);
-int ip4_state_lookup(ip4_conntrack_state * head, __be32 src, __be16 port);
-void ip4_state_add(ip4_conntrack_state ** head, __be32 src, __be16 port);
+conntrack_state	* init_state(void);
+int state_lookup(conntrack_state * head, int type, __be32 src, struct in6_addr * src_6, __be16 port);
+void state_add(conntrack_state ** head, int type, __be32 src, struct in6_addr * src_6, __be16 port);
+
+// Connection Reaper API
+//void reap_expired_connections(unsigned long timeout);
+//struct timer_list * init_reaper(unsigned long timeout);
+//void cleanup_reaper(struct timer_list * my_timer);
 
 #endif /* _LINUX_NETFILTER_XT_KNOCK_H */

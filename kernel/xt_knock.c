@@ -34,8 +34,7 @@ struct task_struct * raw_thread;
 
 // Globally accessed structs
 char * src;
-ip4_conntrack_state * ip4_state;
-ip6_conntrack_state * ip6_state;
+conntrack_state * knock_state;
 
 
 static unsigned	int pkt_hook(void * priv, struct sk_buff * skb, const struct nf_hook_state * state) {
@@ -59,7 +58,7 @@ static unsigned	int pkt_hook(void * priv, struct sk_buff * skb, const struct nf_
 					return NF_DROP;
 			}
 
-			if(ip4_state_lookup(ip4_state, ip_header->saddr, tcp_header->dest)) {
+			if(state_lookup(knock_state, 4, ip_header->saddr, NULL,  tcp_header->dest)) {
 				printk(KERN_INFO	"[!] Hook accepted      source:%s\n", src);
 				return NF_ACCEPT;
 			}
@@ -88,7 +87,7 @@ static int __init nf_conntrack_knock_init(void) {
 
 	// Initialize our memory
 	src = kmalloc(16 * sizeof(char), GFP_KERNEL);
-	ip4_state = init_ip4_state(); 
+	knock_state = init_state(); 
 	//state_sync_init();
 
 	// Start kernel thread raw socket to listen for triggers

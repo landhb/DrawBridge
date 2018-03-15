@@ -6,6 +6,7 @@
 #include <linux/wait.h> // DECLARE_WAITQUEUE
 #include <linux/filter.h>
 #include <linux/uio.h>  // iov_iter
+#include <linux/rculist.h>
 #include "xt_knock.h"
 //#include <netinet/ip_icmp.h>
 
@@ -13,8 +14,8 @@
 #define isascii(c) ((c & ~0x7F) == 0)
 char * test;
 
-extern ip4_conntrack_state * ip4_state;
-extern ip6_conntrack_state * ip6_state;
+extern conntrack_state * knock_state;
+
 
 // Compiled w/ tcpdump 'icmp[icmptype] == 8' -dd
 struct sock_filter code[] = {
@@ -54,6 +55,24 @@ void inet_ntoa(char * str_ip, __be32 int_ip)
 
 	return;
 }
+
+/* Callback function for the reaper: removes expired connections
+void reap_expired_connections(unsigned int timeout) {
+
+	conntrack_state	 * state_one;
+
+	rcu_read_lock();
+
+	list_for_each_entry_rcu(state_one, &(ip4_state->list), list) {
+
+		if(jiffies - state_one->time_added == ) {
+			return 1;
+		}
+	}
+	rcu_read_unlock();
+
+	return 0;
+} */
 
 
 static int ksocket_receive(struct socket* sock, struct sockaddr_in* addr, unsigned char* buf, int len)
@@ -174,8 +193,8 @@ int listen(void * data) {
 			// Process packet
 			printk(KERN_INFO "[+] Got packet!   len:%d    from:%s\n", recv_len, src);
 
-			if(!ip4_state_lookup(ip4_state, res->ip_h.saddr, htons(1234))) {
-				ip4_state_add(&ip4_state, res->ip_h.saddr, htons(1234));
+			if(!state_lookup(knock_state, 4, res->ip_h.saddr, NULL, htons(1234))) {
+				state_add(&knock_state, 4, res->ip_h.saddr, NULL, htons(1234));
 			}
 
 		}
