@@ -64,8 +64,8 @@ int state_lookup(conntrack_state * head, int type, __be32 src, struct in6_addr *
 void state_add(conntrack_state ** head, int type, __be32 src, struct in6_addr * src_6, __be16 port);
 
 // Connection Reaper API
-//void reap_expired_connections(unsigned long timeout);
-//struct timer_list * init_reaper(unsigned long timeout);
-//void cleanup_reaper(struct timer_list * my_timer);
+void reap_expired_connections(unsigned long timeout);
+struct timer_list * init_reaper(unsigned long timeout);
+void cleanup_reaper(struct timer_list * my_timer);
 
 #endif /* _LINUX_NETFILTER_XT_KNOCK_H */

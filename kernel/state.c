@@ -10,7 +10,7 @@
 
 #include "xt_knock.h"
 
-
+extern spinlock_t listmutex;
 
 static inline int ipv6_addr_cmp(const struct in6_addr *a1, const struct in6_addr *a2)
 {
@@ -46,8 +46,10 @@ int state_lookup(conntrack_state * head, int type, __be32 src, struct in6_addr *
 	list_for_each_entry_rcu(state, &(head->list), list) {
 
 		if(state->type == 4 && state->src.addr_4 == src && state->port == port) {
+			rcu_read_unlock();
 			return 1;
 		} else if (state->type == 6 && ipv6_addr_cmp(&(state->src.addr_6), src_6) == 0 && state->port == port) {
+			rcu_read_unlock();
 			return 1;
 		} 
 	}
@@ -71,9 +73,12 @@ void state_add(conntrack_state ** head, int type, __be32 src, struct in6_addr * 
 		memcpy(&(state->src.addr_6), src_6, sizeof(struct in6_addr));
 	}
 	state->port = port;
+	state->time_added = jiffies;
 
 	// add to list
+	spin_lock(&listmutex);
 	list_add_rcu(&(state->list), &((*head)->list));
+	spin_unlock(&listmutex);
 
 	return;
 }
@@ -84,12 +89,16 @@ void state_add(conntrack_state ** head, int type, __be32 src, struct in6_addr * 
    ----------------------------------------------- */
 
 
-
-
 // Initializes the reaper callback
 struct timer_list * init_reaper(unsigned long timeout) {
 
-	struct timer_list * my_timer = (struct timer_list *)kmalloc(sizeof(struct timer_list), GFP_KERNEL);
+	struct timer_list * my_timer = NULL;
+
+	my_timer = (struct timer_list *)kmalloc(sizeof(struct timer_list), GFP_KERNEL);
+
+	if(!my_timer) {
+		return NULL;
+	}
 
 	// setup timer to callback reap_expired
 	setup_timer(my_timer, reap_expired_connections, timeout);

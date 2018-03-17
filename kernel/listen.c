@@ -6,7 +6,6 @@
 #include <linux/wait.h> // DECLARE_WAITQUEUE
 #include <linux/filter.h>
 #include <linux/uio.h>  // iov_iter
-#include <linux/rculist.h>
 #include "xt_knock.h"
 //#include <netinet/ip_icmp.h>
 
@@ -56,23 +55,7 @@ void inet_ntoa(char * str_ip, __be32 int_ip)
 	return;
 }
 
-/* Callback function for the reaper: removes expired connections
-void reap_expired_connections(unsigned int timeout) {
 
-	conntrack_state	 * state_one;
-
-	rcu_read_lock();
-
-	list_for_each_entry_rcu(state_one, &(ip4_state->list), list) {
-
-		if(jiffies - state_one->time_added == ) {
-			return 1;
-		}
-	}
-	rcu_read_unlock();
-
-	return 0;
-} */
 
 
 static int ksocket_receive(struct socket* sock, struct sockaddr_in* addr, unsigned char* buf, int len)

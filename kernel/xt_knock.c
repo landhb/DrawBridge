@@ -10,7 +10,8 @@
 #include <linux/kthread.h>
 #include <linux/errno.h>   // https://github.com/torvalds/linux/blob/master/include/uapi/asm-generic/errno-base.h for relevent error codes
 #include <linux/byteorder/generic.h>
-
+#include <linux/rculist.h>
+#include <linux/timer.h>
 
 // Netfilter headers
 #include <linux/netfilter.h>
@@ -25,6 +26,9 @@ MODULE_VERSION("0.1");
 MODULE_ALIAS("trigger");
 MODULE_ALIAS("ip_conntrack_knock");
 
+
+DEFINE_SPINLOCK(listmutex);
+
 #define MODULE_NAME "knock"
 #define MAX_PORTS 10
 #define DEFAULT_PORT 1234
@@ -35,7 +39,7 @@ struct task_struct * raw_thread;
 // Globally accessed structs
 char * src;
 conntrack_state * knock_state;
-
+struct timer_list * reaper;
 
 static unsigned	int pkt_hook(void * priv, struct sk_buff * skb, const struct nf_hook_state * state) {
 
@@ -79,11 +83,41 @@ static struct nf_hook_ops pkt_hook_ops __read_mostly	= {
 };
 
 
+// Callback function for the reaper: removes expired connections
+void reap_expired_connections(unsigned long timeout) {
+
+	conntrack_state	 * state, *tmp;
+
+	spin_lock(&listmutex);
+
+	list_for_each_entry_safe(state, tmp, &(knock_state->list), list) {
+
+		if(jiffies - state->time_added >= msecs_to_jiffies(timeout)) {
+			printk(KERN_INFO "[!] Knock expired\n");
+			list_del_rcu(&(state->list));
+			spin_unlock(&listmutex);
+			//synchronize_rcu();
+			kfree(state);
+			spin_lock(&listmutex);
+			continue;
+		}
+	}
+
+	spin_unlock(&listmutex);
+
+	// Set the timeout value
+	mod_timer(reaper, jiffies + msecs_to_jiffies(timeout));
+
+	return;
+} 
+
+
 // Init function to register target
 static int __init nf_conntrack_knock_init(void) {
 
 	int ret;
 	raw_thread = NULL;
+	 reaper = NULL;
 
 	// Initialize our memory
 	src = kmalloc(16 * sizeof(char), GFP_KERNEL);
@@ -116,10 +150,19 @@ static int __init nf_conntrack_knock_init(void) {
 		printk(KERN_INFO "[-] Failed to register hook\n");
 		return ret;
 	} 
+
+
+	reaper = init_reaper(30000);
+
+	if(!reaper) {
+		printk(KERN_INFO "[-] Failed to initialize connection reaper\n");
+		return -1;
+	}
 		
 
 	printk(KERN_INFO "[+] Loaded Knock Netfilter module into kernel\n");
 	return 0;
+	
 }
 
 
@@ -139,6 +182,9 @@ static void __exit nf_conntrack_knock_exit(void) {
 		printk(KERN_INFO "[!] no kernel thread to kill\n");
 	}
 
+	if(reaper) {
+		cleanup_reaper(reaper);
+	}
 
 	nf_unregister_hook(&pkt_hook_ops);
 	printk(KERN_INFO "[*] Unloaded Knock Netfilter module from kernel\n");
