@@ -13,7 +13,10 @@
 // List implementation in kernel
 #include <linux/list.h>
 
+// Crypto
+#include <crypto/akcipher.h>
 
+#define MAX_PACKET_SIZE 65535
 
 /* IPv6 Address struct 
 struct in6_addr
@@ -28,6 +31,8 @@ struct in6_addr
 #define s6_addr16		in6_u.u6_addr16
 #define s6_addr32		in6_u.u6_addr32
 }; */
+
+
 
 
 typedef struct conntrack_state {
@@ -53,6 +58,20 @@ typedef struct conntrack_state {
 } conntrack_state;
 
 
+// Must be packed so that the compiler doesn't byte align the structure
+struct packet {
+	struct ethhdr eth_h;
+	struct iphdr ip_h;
+	//struct icmphdr icmp_h;
+	struct tcphdr tcp_h;
+	char msg[MAX_PACKET_SIZE - sizeof(struct icmphdr) - sizeof(struct iphdr) - sizeof(struct ethhdr)];
+} __attribute__( ( packed ) ); 
+
+
+// Typdefs for cleaner code
+typedef struct akcipher_request akcipher_request;
+typedef struct crypto_akcipher crypto_akcipher;
+
 // listen.c prototypes
 int listen(void * data);
 void inet_ntoa(char * str_ip, __be32 int_ip);
@@ -67,5 +86,9 @@ void state_add(conntrack_state ** head, int type, __be32 src, struct in6_addr * 
 void reap_expired_connections(unsigned long timeout);
 struct timer_list * init_reaper(unsigned long timeout);
 void cleanup_reaper(struct timer_list * my_timer);
+
+// Crypto
+akcipher_request * init_keys(crypto_akcipher **tfm);
+void free_keys(crypto_akcipher *tfm, akcipher_request * req);
 
 #endif /* _LINUX_NETFILTER_XT_KNOCK_H */

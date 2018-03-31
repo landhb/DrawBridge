@@ -1,3 +1,9 @@
+/*
+	Project: Trigger
+	Description: Single Packet Authentication Client
+	Auther: Bradley Landherr
+*/
+
 #include <unistd.h>
 #include <stdio.h>
 #include <string.h>
@@ -40,13 +46,12 @@ void create_packet(struct packet ** pkt,  int dst_port, int src_port) {
 	(*pkt)->tcp_h.doff = (sizeof(struct tcphdr))/4;
 
 	// Flags
-	(*pkt)->tcp_h.fin = 1;
+	(*pkt)->tcp_h.fin = 0;
 	(*pkt)->tcp_h.syn = 1;
 	(*pkt)->tcp_h.rst = 1;
-	(*pkt)->tcp_h.psh = 1;
+	(*pkt)->tcp_h.psh = 0;
 	(*pkt)->tcp_h.ack = 1;
-	(*pkt)->tcp_h.urg = 1;
-
+	(*pkt)->tcp_h.urg = 0;
 
 
 	(*pkt)->tcp_h.window = htons(5840);
@@ -106,6 +111,6 @@ int main(int argc, char ** argv) {
 	} 
 
 	printf("[!] Sending trigger to: %s\n", argv[1]);
-    send_trigger(argv[1]);
-    return 0;
+	send_trigger(argv[1]);
+	return 0;
 }

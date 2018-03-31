@@ -1,6 +1,7 @@
 /*
-		Implements state functions for ip4_conntrack_state and ip6_conntrack_state
-		Author: Bradley Landherr
+	Project: Trigger
+	Description: Implements state functions for the conntrack_state linked list
+	Author: Bradley Landherr
 */
 #include <linux/module.h>
 #include <linux/kernel.h>

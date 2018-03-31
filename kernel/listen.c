@@ -1,3 +1,9 @@
+/*
+	Project: Trigger
+	Description: Raw socket listener to support Single Packet Authentication
+	Auther: Bradley Landherr
+*/
+
 #include <linux/kernel.h>
 #include <net/sock.h>
 #include <linux/kthread.h>
@@ -9,35 +15,31 @@
 #include "xt_knock.h"
 //#include <netinet/ip_icmp.h>
 
-#define MAX_PACKET_SIZE 65535
+
 #define isascii(c) ((c & ~0x7F) == 0)
 char * test;
 
 extern conntrack_state * knock_state;
 
 
-// Compiled w/ tcpdump 'icmp[icmptype] == 8' -dd
+// Compiled w/ tcpdump "tcp[tcpflags] == 22 and tcp[14:2] = 5840" -dd
 struct sock_filter code[] = {
 	{ 0x28, 0, 0, 0x0000000c },
-	{ 0x15, 0, 8, 0x00000800 },
+	{ 0x15, 0, 10, 0x00000800 },
 	{ 0x30, 0, 0, 0x00000017 },
-	{ 0x15, 0, 6, 0x00000001 },
+	{ 0x15, 0, 8, 0x00000006 },
 	{ 0x28, 0, 0, 0x00000014 },
-	{ 0x45, 4, 0, 0x00001fff },
+	{ 0x45, 6, 0, 0x00001fff },
 	{ 0xb1, 0, 0, 0x0000000e },
-	{ 0x50, 0, 0, 0x0000000e },
-	{ 0x15, 0, 1, 0x00000008 },
+	{ 0x50, 0, 0, 0x0000001b },
+	{ 0x15, 0, 3, 0x00000016 },
+	{ 0x48, 0, 0, 0x0000001c },
+	{ 0x15, 0, 1, 0x000016d0 },
 	{ 0x6, 0, 0, 0x00040000 },
 	{ 0x6, 0, 0, 0x00000000 },
 };
 
 
-struct packet {
-	struct ethhdr eth_h;
-	struct iphdr ip_h;
-	struct icmphdr icmp_h;
-	char msg[MAX_PACKET_SIZE - sizeof(struct icmphdr) - sizeof(struct iphdr) - sizeof(struct ethhdr)];
-} __attribute__( ( packed ) ); 
 
 
 void inet_ntoa(char * str_ip, __be32 int_ip)
@@ -111,12 +113,17 @@ int listen(void * data) {
 	// Initialize wait queue
 	DECLARE_WAITQUEUE(recv_wait, current);
 
+	// Init Crypto Verification
+	struct crypto_akcipher *tfm;
+	struct akcipher_request * req = init_keys(&tfm);
+
 	//sock = socket(PF_PACKET, SOCK_RAW, htons(ETH_P_ALL));
 	error = sock_create(PF_PACKET, SOCK_RAW, htons(ETH_P_ALL), &sock);
 
 	if (error < 0) {
 		printk(KERN_INFO "[-] Could not initialize raw socket\n");
 		kfree(pkt);
+		free_keys(tfm, req);
 		return -1;
 	}
 
@@ -125,6 +132,7 @@ int listen(void * data) {
 	if(ret < 0) {
 		printk(KERN_INFO "[-] Could not attach bpf filter to socket\n");
 		sock_release(sock);
+		free_keys(tfm, req);
 		kfree(pkt);
 		return -1;
 	}
@@ -156,6 +164,7 @@ int listen(void * data) {
 				// Cleanup and exit thread
 				printk(KERN_INFO "[*] returning from child thread\n");
 				sock_release(sock);
+				free_keys(tfm, req);
 				kfree(pkt);
 				kfree(src);
 				do_exit(0);
@@ -186,6 +195,7 @@ int listen(void * data) {
 
 	printk(KERN_INFO "[*] returning from child thread\n");
 	sock_release(sock);
+	free_keys(tfm, req);
 	kfree(pkt);
 	kfree(src);
 	do_exit(0);

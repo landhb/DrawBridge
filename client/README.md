@@ -20,7 +20,7 @@ If you wish to customize your knock a little more you can edit the TCP header op
 (*pkt)->tcp_h.window = htons(3104);
 ```
 
-Then make sure you can create a BPF filter to match that specific packet. For the above we would have RST(4) + PSH(8) + ACK(16) = 28:
+Then make sure you can create a BPF filter to match that specific packet. For the above we would have RST(4) + PSH(8) + ACK(16) = 28 and the offset for the window field in the TCP header is 14:
 
 ```
 "tcp[tcpflags] == 28 and tcp[14:2] = 3104"

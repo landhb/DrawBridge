@@ -1,5 +1,5 @@
 /*
-	NetFilter Kernel Module to Support BPF Based Port Knocking
+	NetFilter Kernel Module to Support BPF Based Single Packet Authentication
 	Auther: Bradley Landherr
 */
 
