@@ -1,10 +1,10 @@
-# Trigger
+![logo](https://github.com/landhb/Trigger/blob/master/img/logo.PNG?raw=true)
 
 A Layer 4 Single Packet Authentication Module 
 
 ## Configuration & Generating an RSA Key
 
-## Customizing a unique knock packet
+## Customizing a Unique 'knock' Packet
 
 If you wish to customize your knock a little more you can edit the TCP header options in trigger.c. For instance, maybe you want to make your knock packet have the PSH,RST,and ACK flags set and a window size of 3104. Turn those on:
 
