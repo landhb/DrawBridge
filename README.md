@@ -6,6 +6,8 @@ A layer 4 Single Packet Authentication (SPA) Module, can be used to conceal TCP 
 
 ## Configuration & Generating an RSA Key
 
+First generate the key pair:
+
 ```
 openssl genrsa -des3 -out private.pem 2048
 ```
@@ -20,11 +22,12 @@ If you take a look at the format, you'll see that this doesn't exactly match the
 
 ```
 vagrant@ubuntu-xenial:~$ openssl asn1parse  -in public.der -inform DER
-    0:d=0  hl=4 l= 290 cons: SEQUENCE
-    4:d=1  hl=2 l=  13 cons: SEQUENCE
-    6:d=2  hl=2 l=   9 prim: OBJECT            :rsaEncryption
-   17:d=2  hl=2 l=   0 prim: NULL
-   19:d=1  hl=4 l= 271 prim: BIT STRING        <-------------------- THIS IS WHAT WE NEED
+
+0:d=0  hl=4 l= 290 cons: SEQUENCE
+4:d=1  hl=2 l=  13 cons: SEQUENCE
+6:d=2  hl=2 l=   9 prim: OBJECT            :rsaEncryption
+17:d=2  hl=2 l=   0 prim: NULL
+19:d=1  hl=4 l= 271 prim: BIT STRING        <-------------------- THIS IS WHAT WE NEED
 ```
 
 You can see that the BIT_STRING is at offset 19. From here we can extract the relevant portion of the private key format to provide the kernel module:
@@ -33,7 +36,13 @@ You can see that the BIT_STRING is at offset 19. From here we can extract the re
 openssl asn1parse  -in public.der -inform DER -strparse 19
 ```
 
-You'll notice that this is compatible with [RFC 3447 where it outlines ASN.1 syntax for an RSA public key]("https://tools.ietf.org/html/rfc3447#page-44").
+You'll notice that this is compatible with [RFC 3447 where it outlines ASN.1 syntax for an RSA public key](https://tools.ietf.org/html/rfc3447#page-44).
+
+```
+0:d=0  hl=4 l= 266 cons: SEQUENCE
+4:d=1  hl=4 l= 257 prim: INTEGER           :BB82865B85ED420CF36054....
+265:d=1  hl=2 l=   3 prim: INTEGER           :010001
+```
 
 ## Customizing a Unique 'knock' Packet
 
