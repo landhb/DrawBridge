@@ -15,6 +15,9 @@ typedef struct op_result {
 } op_result;
 
 
+
+
+
 akcipher_request * init_keys(crypto_akcipher **tfm, void * data, int len) {
 
 	// Request struct
@@ -58,12 +61,12 @@ void free_keys(crypto_akcipher *tfm, akcipher_request * req) {
 
 // Callback for crypto_async_request completion routine
 static void op_complete(struct crypto_async_request *req, int err) {
-	op_result *res = req->data;
+	op_result *res = (op_result *)(req->data);
 
 	if (err == -EINPROGRESS) {
 		return;
 	}
-
+	printk(KERN_INFO "Completion code: %d\n", err);
 	res->err = err;
 	complete(&res->completion);
 }
@@ -72,6 +75,7 @@ static void op_complete(struct crypto_async_request *req, int err) {
 // Wait on crypto operation
 static int wait_async_op(op_result * res, int ret) {
 	if (ret == -EINPROGRESS || ret == -EBUSY) {
+		printk(KERN_INFO "Waiting...%d\n", ret);
 		wait_for_completion(&(res->completion));
 		reinit_completion(&(res->completion));
 		ret = res->err;
@@ -87,12 +91,13 @@ static inline  void hexdump(unsigned char *buf,unsigned int len) {
 }
 
 // Verify a recieved signature
-int verify_sig_rsa(akcipher_request * req, crypto_akcipher *tfm, void * signature, int len) {
+int verify_sig_rsa(akcipher_request * req, pkey_signature * sig) {
 
 	int err;
 	void *inbuf, *outbuf;
 	op_result res;
 	struct scatterlist src, dst;
+	crypto_akcipher *tfm = crypto_akcipher_reqtfm(req);
 	int MAX_OUT = crypto_akcipher_maxsize(tfm);
 
 
@@ -103,7 +108,7 @@ int verify_sig_rsa(akcipher_request * req, crypto_akcipher *tfm, void * signatur
 		return err;
 	}
 
-	outbuf = kzalloc(crypto_akcipher_maxsize(tfm), GFP_KERNEL);
+	outbuf = kzalloc(MAX_OUT, GFP_KERNEL);
 
 	if(!outbuf) {
 		kfree(inbuf);
@@ -114,27 +119,35 @@ int verify_sig_rsa(akcipher_request * req, crypto_akcipher *tfm, void * signatur
 	init_completion(&(res.completion));
 
 	// Put the data into our request structure
-	memcpy(inbuf, signature, len);
-	sg_init_one(&src, inbuf, len);
+	memcpy(inbuf, sig->s, sig->s_size);
+	sg_init_one(&src, inbuf, sig->s_size);
 	sg_init_one(&dst, outbuf, MAX_OUT);
-	akcipher_request_set_crypt(req, &src, &dst, len, MAX_OUT);
+	akcipher_request_set_crypt(req, &src, &dst, sig->s_size, MAX_OUT);
 
 	// Set the completion routine callback
 	// results from the verify routine will be stored in &res
 	akcipher_request_set_callback(req, CRYPTO_TFM_REQ_MAY_BACKLOG, op_complete, &res);
 
-	// Get the result
+	// Compute the expected digest
 	err = wait_async_op(&res, crypto_akcipher_verify(req));
 
 	if(err) {
-		printk(KERN_INFO "[!] Signature verification failed %d\n", err);
+		printk(KERN_INFO "[!] Digest computation failed %d\n", err);
 		kfree(inbuf);
 		kfree(outbuf);
 		return err;
 	}
 
-
-	printk(KERN_INFO "[+] RSA signature verification result %d\n", err);
+	/* Do the actual verification step. */
+	if (req->dst_len != sig->digest_size ||
+		memcmp(sig->digest, outbuf, sig->digest_size) != 0) {
+		printk(KERN_INFO "[!] Signature verification failed %d\n", -EKEYREJECTED);
+		kfree(inbuf);
+		kfree(outbuf);
+		return -EKEYREJECTED;
+	}
+		
+	printk(KERN_INFO "[+] RSA signature verification passed %d\n", err);
 	kfree(inbuf);
 	kfree(outbuf);
 	return 0;

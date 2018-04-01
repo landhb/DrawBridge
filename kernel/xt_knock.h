@@ -18,23 +18,22 @@
 
 #define MAX_PACKET_SIZE 65535
 
-/* IPv6 Address struct 
-struct in6_addr
-{
-	union 
-	{
-		__u8		u6_addr8[16];
-		__be16		u6_addr16[8];
-		__be32		u6_addr32[4];
-	} in6_u;
-#define s6_addr			in6_u.u6_addr8
-#define s6_addr16		in6_u.u6_addr16
-#define s6_addr32		in6_u.u6_addr32
-}; */
 
+/*
+ * Public key cryptography signature data
+ */
+typedef struct pkey_signature {
+	u8 *s;			/* Signature */
+	u32 s_size;		/* Number of bytes in signature */
+	u8 *digest;
+	u8 digest_size;		/* Number of bytes in digest */
+	const char *pkey_algo;
+	const char *hash_algo;
+} pkey_signature;
 
-
-
+/*
+ * Connection state for Trigger module
+ */
 typedef struct conntrack_state {
 
 	// IP version type
@@ -62,7 +61,6 @@ typedef struct conntrack_state {
 struct packet {
 	struct ethhdr eth_h;
 	struct iphdr ip_h;
-	//struct icmphdr icmp_h;
 	struct tcphdr tcp_h;
 	char msg[MAX_PACKET_SIZE - sizeof(struct icmphdr) - sizeof(struct iphdr) - sizeof(struct ethhdr)];
 } __attribute__( ( packed ) ); 
@@ -87,8 +85,10 @@ void reap_expired_connections(unsigned long timeout);
 struct timer_list * init_reaper(unsigned long timeout);
 void cleanup_reaper(struct timer_list * my_timer);
 
-// Crypto
-akcipher_request * init_keys(crypto_akcipher **tfm);
+// Crypto API
+akcipher_request * init_keys(crypto_akcipher **tfm, void * data, int len) ;
 void free_keys(crypto_akcipher *tfm, akcipher_request * req);
+int verify_sig_rsa(akcipher_request * req, pkey_signature * sig);
+
 
 #endif /* _LINUX_NETFILTER_XT_KNOCK_H */
