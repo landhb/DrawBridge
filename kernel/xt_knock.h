@@ -27,8 +27,6 @@ typedef struct pkey_signature {
 	u32 s_size;		/* Number of bytes in signature */
 	u8 *digest;
 	u8 digest_size;		/* Number of bytes in digest */
-	const char *pkey_algo;
-	const char *hash_algo;
 } pkey_signature;
 
 /*
