@@ -1,8 +1,39 @@
 ![logo](https://github.com/landhb/Trigger/blob/master/img/logo.PNG?raw=true)
 
-A Layer 4 Single Packet Authentication Module 
+A layer 4 Single Packet Authentication (SPA) Module, can be used to conceal TCP ports on public facing machines and add an extra layer of security.
+
+## Demo
 
 ## Configuration & Generating an RSA Key
+
+```
+openssl genrsa -des3 -out private.pem 2048
+```
+
+Export the public key to a seperate file:
+
+```
+openssl rsa -in private.pem -outform DER -pubout -out public.der
+```
+
+If you take a look at the format, you'll see that this doesn't exactly match the kernel struct representation of a public key, so we'll need to extract the relevant data from the BIT_STRING field in the DER format:
+
+```
+vagrant@ubuntu-xenial:~$ openssl asn1parse  -in public.der -inform DER
+    0:d=0  hl=4 l= 290 cons: SEQUENCE
+    4:d=1  hl=2 l=  13 cons: SEQUENCE
+    6:d=2  hl=2 l=   9 prim: OBJECT            :rsaEncryption
+   17:d=2  hl=2 l=   0 prim: NULL
+   19:d=1  hl=4 l= 271 prim: BIT STRING        <-------------------- THIS IS WHAT WE NEED
+```
+
+You can see that the BIT_STRING is at offset 19. From here we can extract the relevant portion of the private key format to provide the kernel module:
+
+```
+openssl asn1parse  -in public.der -inform DER -strparse 19
+```
+
+You'll notice that this is compatible with [RFC 3447 where it outlines ASN.1 syntax for an RSA public key]("https://tools.ietf.org/html/rfc3447#page-44").
 
 ## Customizing a Unique 'knock' Packet
 
@@ -27,7 +58,7 @@ Then make sure you can create a BPF filter to match that specific packet. For th
 "tcp[tcpflags] == 28 and tcp[14:2] = 3104"
 ```
 
-[Here is a good short article on tcp flags if you're unfamiliar.](https://danielmiessler.com/study/tcpflags/) After you have a working BPF filter, you need to compile it and include the filter in the kernel module server-side. So to compile this filter:
+[Here is a good short article on tcp flags if you're unfamiliar.](https://danielmiessler.com/study/tcpflags/) After you have a working BPF filter, you need to compile it and include the filter in the kernel module server-side. So to compile this and place the output in kernel/listen.c in struct sock_filter code[]:
 
 ```
 tcpdump "tcp[tcpflags] == 28 and tcp[14:2] = 3104" -dd
