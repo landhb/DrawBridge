@@ -60,7 +60,12 @@ struct packet {
 	struct ethhdr eth_h;
 	struct iphdr ip_h;
 	struct tcphdr tcp_h;
-	char msg[MAX_PACKET_SIZE - sizeof(struct icmphdr) - sizeof(struct iphdr) - sizeof(struct ethhdr)];
+
+	// Protocol data
+	pkey_signature sig;
+	u32 timestamp;
+	__be16 port;
+
 } __attribute__( ( packed ) ); 
 
 

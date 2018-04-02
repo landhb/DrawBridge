@@ -19,18 +19,47 @@
 #include <netinet/ip_icmp.h>
 #include <netinet/in.h>
 #include <linux/tcp.h>
+#include <sys/types.h>
 
 #define MAX_PACKET_SIZE 65535
 #define ARRAY_SIZE(arr) (sizeof(arr) / sizeof(arr[0]))
 #define isascii(c) ((c & ~0x7F) == 0)
 
 
+/*
+ * Public key cryptography signature data
+ */
+typedef struct pkey_signature {
+	__u8 *s;			/* Signature */
+	__u32 s_size;		/* Number of bytes in signature */
+	__u8 digest[SHA_DIGEST_LENGTH];
+	__u8 digest_size;		/* Number of bytes in digest */
+} pkey_signature;
+
+
 // Must be packed so that the compiler doesn't byte align the structure
 // Ignoring the ethernet header and IP header here, we'll let the kernel handle it
 struct packet {
 	struct tcphdr tcp_h;
-	char msg[MAX_PACKET_SIZE - sizeof(struct tcphdr) - sizeof(struct iphdr) - sizeof(struct ethhdr)];
+	
+	// Protocol data
+	pkey_signature sig;
+	__u32 timestamp;
+	__be16 port;
+
 } __attribute__( ( packed ) ); 
+
+
+// Function prototype, implemented in crypto.c
+int sign_data(
+		const void *buf,    /* input data: byte array */
+		size_t buf_len, 
+		void *pkey,         /* input private key: byte array of the PEM representation */
+		size_t pkey_len,
+		void **out_sig,     /* output signature block, allocated in the function */
+		size_t *out_sig_len,
+		void **out_digest,
+		size_t *out_digest_len) {
 
 
 // Create unique trigger TCP packet
@@ -58,12 +87,12 @@ void create_packet(struct packet ** pkt,  int dst_port, int src_port) {
 	(*pkt)->tcp_h.check = 0;
 	(*pkt)->tcp_h.urg_ptr = 1;
 
-	printf("[*] Built trigger payload\n");
+	return;
 
 }
 
 
-int send_trigger(char * destination) {
+int send_trigger(char * destination, int dst_port) {
 
 
 	struct sockaddr_in din;
@@ -73,8 +102,8 @@ int send_trigger(char * destination) {
 
 	// Initialize trigger packet
 	bzero(pkt, sizeof(struct packet));
-	create_packet(&pkt, 1234, 12345);
-
+	create_packet(&pkt, dst_port, 12345);
+	sign_data(pkt, sizeof(struct packet), pkt->sig->s)
 
 	// Create the RAW socket
 	sock = socket(PF_INET, SOCK_RAW, IPPROTO_TCP); /*//IPPROTO_RAW */
@@ -102,15 +131,35 @@ int send_trigger(char * destination) {
 	return status;
 }
 
+void print_usage() {
+	printf("\n[!] Please provide a target IP address and port\n\nUsage: sudo ./trigger [SERVER] [PORT TO UNLOCK]\n\n"
+	"Example: sudo ./trigger 127.0.0.1 22\n\n");
+}
 
 int main(int argc, char ** argv) {
 
-	if(argc < 2){
-		printf("\n[!] Please provide a target IP address\n\nUsage: sudo ./trigger 127.0.0.1\n\n");
+	char *p;
+	int num;
+
+	if(argc < 3){
+		print_usage();
 		return -1;
 	} 
 
-	printf("[!] Sending trigger to: %s\n", argv[1]);
-	send_trigger(argv[1]);
+	errno = 0;
+	long conv = strtol(argv[2], &p, 10);
+
+	// Check for errors: e.g., the string does not represent an integer
+	// or the integer is larger than 65535
+	if (errno != 0 || *p != '\0' || conv > MAX_PACKET_SIZE) {
+		print_usage();
+		return -1;
+	} 
+
+	// No error
+	num = conv;    	
+
+	printf("[!] Sending trigger to: %s to unlock port %d\n", argv[1], atoi(argv[2]));
+	send_trigger(argv[1], num);
 	return 0;
 }

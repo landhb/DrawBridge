@@ -15,9 +15,6 @@ typedef struct op_result {
 } op_result;
 
 
-
-
-
 akcipher_request * init_keys(crypto_akcipher **tfm, void * data, int len) {
 
 	// Request struct
@@ -66,7 +63,6 @@ static void op_complete(struct crypto_async_request *req, int err) {
 	if (err == -EINPROGRESS) {
 		return;
 	}
-	printk(KERN_INFO "Completion code: %d\n", err);
 	res->err = err;
 	complete(&res->completion);
 }
@@ -75,7 +71,6 @@ static void op_complete(struct crypto_async_request *req, int err) {
 // Wait on crypto operation
 static int wait_async_op(op_result * res, int ret) {
 	if (ret == -EINPROGRESS || ret == -EBUSY) {
-		printk(KERN_INFO "Waiting...%d\n", ret);
 		wait_for_completion(&(res->completion));
 		reinit_completion(&(res->completion));
 		ret = res->err;
@@ -83,12 +78,6 @@ static int wait_async_op(op_result * res, int ret) {
 	return ret;
 }
 
-
-static inline  void hexdump(unsigned char *buf,unsigned int len) {
-	while(len--)
-		printk("%02x",*buf++);
-	printk("\n");
-}
 
 // Verify a recieved signature
 int verify_sig_rsa(akcipher_request * req, pkey_signature * sig) {
