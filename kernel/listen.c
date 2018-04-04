@@ -112,8 +112,56 @@ void * test_key =
 "\x48\xDB\x37\x9C\xF9\x86\xF7\xB3\x52\xD5\xA2\x07\xAE\x1C\x23\x29"
 "\x34\xBA\x37\xC8\xC4\x98\xF0\x9C\x0B\x7F\x82\xCE\x79\x16\xD2\x33"
 "\x55\xC1\x4E\x52\x42\x91\x19\xAF\x18\xA1\x26\x99\x9F\xF3\x46\x2A"
-"\x78\xBE\xCB\x90\xD1\x68\xEB\xCE\x9D\x02\x03\x01\x00\x01";
+"\x78\xBE\xCB\x90\xD1\x68\xEB\xCE\x9D\x02\x03\x01\x00\x01"; 
 
+
+// Pointer arithmatic to parse out the signature and digest
+static pkey_signature * get_signature(void * pkt) {
+
+	// Allocate the result struct
+	pkey_signature * sig = kzalloc(sizeof(pkey_signature), GFP_KERNEL);
+	u32 offset = sizeof(struct packet);
+
+	// Get the signature size
+	sig->s_size = *(u32 *)(pkt + offset);
+
+	// Sanity check the sig size
+	if(sig->s_size > MAX_SIG_SIZE || sig->s_size < 0) {
+		return NULL;
+	}
+
+	// Copy the signature from the packet
+	sig->s = kzalloc(sig->s_size, GFP_KERNEL);
+	offset += sizeof(u32);
+	memcpy(sig->s, pkt + offset, sig->s_size);
+
+	// Get the digest size
+	offset += sig->s_size;
+	sig->digest_size = *(u32*)(pkt + offset);
+
+	// Sanity check the digest size
+	if(sig->digest_size > MAX_DIGEST_SIZE || sig->digest_size < 0) {
+		return NULL;
+	}
+
+	// Copy the digest from the packet
+	sig->digest = kzalloc(sig->digest_size, GFP_KERNEL);
+	offset += sizeof(u32);
+	memcpy(sig->digest, pkt + offset, sig->digest_size);
+
+	return sig;
+
+}
+
+static void free_signature(pkey_signature * sig) {
+	if(sig->s) {
+		kfree(sig->s);
+	}
+	if(sig->digest) {
+		kfree(sig->digest);
+	}
+	kfree(sig);
+}
 
 
 int listen(void * data) {
@@ -125,6 +173,7 @@ int listen(void * data) {
 	struct packet * res;
 	unsigned char * pkt = kmalloc(MAX_PACKET_SIZE, GFP_KERNEL);
 	char * src = kmalloc(16 * sizeof(char), GFP_KERNEL);
+	pkey_signature * sig = NULL;
 
 	struct sock_fprog bpf = {
 		.len = ARRAY_SIZE(code),
@@ -136,7 +185,13 @@ int listen(void * data) {
 
 	// Init Crypto Verification
 	struct crypto_akcipher *tfm;
-	akcipher_request * req = init_keys(&tfm, test_key, 269);
+	akcipher_request * req = init_keys(&tfm, test_key, 270);
+
+	if(!req) {
+		kfree(pkt);
+		kfree(src);
+		return -1;
+	}
 
 
 	//sock = socket(PF_PACKET, SOCK_RAW, htons(ETH_P_ALL));
@@ -145,6 +200,7 @@ int listen(void * data) {
 	if (error < 0) {
 		printk(KERN_INFO "[-] Could not initialize raw socket\n");
 		kfree(pkt);
+		kfree(src);
 		free_keys(tfm, req);
 		return -1;
 	}
@@ -156,6 +212,7 @@ int listen(void * data) {
 		sock_release(sock);
 		free_keys(tfm, req);
 		kfree(pkt);
+		kfree(src);
 		return -1;
 	}
 
@@ -207,11 +264,24 @@ int listen(void * data) {
 			// Process packet
 			printk(KERN_INFO "[+] Got packet!   len:%d    from:%s\n", recv_len, src);
 
-			verify_sig_rsa(req, res->sig);
+			// Parse the packet for a signature
+			sig = get_signature(pkt);
+
+			if(!sig) {
+				printk(KERN_INFO "[-] Signature not found in packet\n");
+				continue;
+			}
+
+			// Verify the signature
+			if(!verify_sig_rsa(req, sig)) {
+				continue;
+			}
 
 			if(!state_lookup(knock_state, 4, res->ip_h.saddr, NULL, htons(1234))) {
 				state_add(&knock_state, 4, res->ip_h.saddr, NULL, htons(1234));
 			}
+
+			free_signature(sig);
 
 		}
 

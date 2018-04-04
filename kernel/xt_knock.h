@@ -17,7 +17,8 @@
 #include <crypto/akcipher.h>
 
 #define MAX_PACKET_SIZE 65535
-
+#define MAX_SIG_SIZE 4096
+#define MAX_DIGEST_SIZE 256
 
 /*
  * Public key cryptography signature data
@@ -26,7 +27,7 @@ typedef struct pkey_signature {
 	u8 *s;			/* Signature */
 	u32 s_size;		/* Number of bytes in signature */
 	u8 *digest;
-	u8 digest_size;		/* Number of bytes in digest */
+	u32 digest_size;		/* Number of bytes in digest */
 } pkey_signature;
 
 /*
@@ -62,7 +63,6 @@ struct packet {
 	struct tcphdr tcp_h;
 
 	// Protocol data
-	pkey_signature sig;
 	u32 timestamp;
 	__be16 port;
 

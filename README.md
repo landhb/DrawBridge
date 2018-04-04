@@ -1,13 +1,32 @@
 ![logo](https://github.com/landhb/Trigger/blob/master/img/logo.PNG?raw=true)
 
-A layer 4 Single Packet Authentication (SPA) Module, can be used to conceal TCP ports on public facing machines and add an extra layer of security.
+A layer 4 Single Packet Authentication (SPA) Module, used to conceal TCP ports on public facing machines and add an extra layer of security.
 
 ## Demo
 
 ## Easy Setup and Configuration
 
+To compile either the client application or the kernel module simply cd into the respective directories and run make install. 
 
-### Customizing a Unique 'knock' Packet
+```bash
+# on client machine
+cd client
+make install
+
+# on server
+cd kernel
+make install
+```
+
+To automagically generate keys run the following on your client machine:
+
+```bash
+./gen_keys.sh
+```
+
+The output of the gen_keys.sh script will be two files: private.pem and public.der. Keep private.pem on your client machine and put a copy of public.der on the server in /etc/trigger. 
+
+## Customizing a Unique 'knock' Packet
 
 If you wish to customize your knock a little more you can edit the TCP header options in trigger.c. For instance, maybe you want to make your knock packet have the PSH,RST,and ACK flags set and a window size of 3104. Turn those on:
 
@@ -38,7 +57,7 @@ tcpdump "tcp[tcpflags] == 28 and tcp[14:2] = 3104" -dd
 
 which gives us:
 
-```
+```c
 { 0x28, 0, 0, 0x0000000c },
 { 0x15, 0, 10, 0x00000800 },
 { 0x30, 0, 0, 0x00000017 },
@@ -57,7 +76,7 @@ which gives us:
 And there you go! You have a unique packet that the Trigger kernel module will parse!
 
 
-### Generating an RSA Key Pair Manually
+## Generating an RSA Key Pair Manually
 
 First generate the key pair:
 
