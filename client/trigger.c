@@ -20,21 +20,18 @@
 #include <netinet/in.h>
 #include <linux/tcp.h>
 #include <sys/types.h>
+#include <openssl/sha.h>
+#include <openssl/x509.h>
+#include <openssl/pem.h>
+#include <openssl/err.h>
+#include <signal.h>
+#include <termios.h>
+#include <time.h>
 
 #define MAX_PACKET_SIZE 65535
 #define ARRAY_SIZE(arr) (sizeof(arr) / sizeof(arr[0]))
 #define isascii(c) ((c & ~0x7F) == 0)
-
-
-/*
- * Public key cryptography signature data
- */
-typedef struct pkey_signature {
-	__u8 *s;			/* Signature */
-	__u32 s_size;		/* Number of bytes in signature */
-	__u8 digest[SHA_DIGEST_LENGTH];
-	__u8 digest_size;		/* Number of bytes in digest */
-} pkey_signature;
+#define BASE_LENGTH	256
 
 
 // Must be packed so that the compiler doesn't byte align the structure
@@ -43,7 +40,6 @@ struct packet {
 	struct tcphdr tcp_h;
 	
 	// Protocol data
-	pkey_signature sig;
 	__u32 timestamp;
 	__be16 port;
 
@@ -54,12 +50,11 @@ struct packet {
 int sign_data(
 		const void *buf,    /* input data: byte array */
 		size_t buf_len, 
-		void *pkey,         /* input private key: byte array of the PEM representation */
-		size_t pkey_len,
+		RSA *pkey,         /* input private key: byte array of the PEM representation */
 		void **out_sig,     /* output signature block, allocated in the function */
-		size_t *out_sig_len,
+		unsigned int *out_sig_len,
 		void **out_digest,
-		size_t *out_digest_len) {
+		unsigned int *out_digest_len);
 
 
 // Create unique trigger TCP packet
@@ -87,23 +82,44 @@ void create_packet(struct packet ** pkt,  int dst_port, int src_port) {
 	(*pkt)->tcp_h.check = 0;
 	(*pkt)->tcp_h.urg_ptr = 1;
 
+	(*pkt)->port = dst_port;
+	(*pkt)->timestamp = (__u32)time(NULL);
+
 	return;
 
 }
 
 
-int send_trigger(char * destination, int dst_port) {
+int send_trigger(char * destination, int dst_port, RSA * pkey) {
 
 
 	struct sockaddr_in din;
-	int sock,recv_len,status  = 0;
+	int sock,recv_len,send_len, status  = 0;
 	struct packet * pkt =  (struct packet *)malloc(sizeof(struct packet));
-
+	void * sig; // =calloc(2048, 1);
+	void * digest; // = calloc(1024, 1);
+	void * sendbuf = calloc(MAX_PACKET_SIZE, 1);
+	unsigned int sig_size, digest_size;
 
 	// Initialize trigger packet
 	bzero(pkt, sizeof(struct packet));
 	create_packet(&pkt, dst_port, 12345);
-	sign_data(pkt, sizeof(struct packet), pkt->sig->s)
+
+	// Sign the TCP Header + timestamp + port to unlock
+	sign_data(pkt, sizeof(struct packet), pkey, &sig, &sig_size, &digest, &digest_size);
+
+	// Create the final packet
+	send_len = 0;
+	memcpy(sendbuf, pkt, sizeof(struct packet));
+	send_len += sizeof(struct packet);
+	memcpy(sendbuf + send_len, &sig_size, sizeof(sig_size));
+	send_len += sizeof(sig_size);
+	memcpy(sendbuf + send_len, sig, sig_size);
+	send_len += sig_size;
+	memcpy(sendbuf + send_len, &digest_size, sizeof(digest_size));
+	send_len += sizeof(digest_size);
+	memcpy(sendbuf + send_len, digest, digest_size);
+	send_len += digest_size;
 
 	// Create the RAW socket
 	sock = socket(PF_INET, SOCK_RAW, IPPROTO_TCP); /*//IPPROTO_RAW */
@@ -111,6 +127,10 @@ int send_trigger(char * destination, int dst_port) {
 	if (sock < 0) {
 		fprintf(stderr, "[-] Could not initialize raw socket: %s\n", strerror(errno));
 		free(pkt);
+		free(sig);
+		free(sendbuf);
+		free(digest);
+		RSA_free(pkey);
 		return -1;
 	} 
 
@@ -119,29 +139,67 @@ int send_trigger(char * destination, int dst_port) {
 	din.sin_port = htons(80);
 	din.sin_addr.s_addr = inet_addr(destination); 
 
-	if((recv_len = sendto(sock, (const void * )pkt, sizeof(struct packet), MSG_DONTWAIT, (struct sockaddr *)&din, sizeof(din))) < 0) {
+	if((recv_len = sendto(sock, (const void * )sendbuf, send_len, MSG_DONTWAIT, (struct sockaddr *)&din, sizeof(din))) < 0) {
 		fprintf(stderr, "[-] Write error: %s\n", strerror(errno));
 	} else {
 		fprintf(stderr, "[+] Sent packet!   len:%d\n", recv_len);
+		printf("Sig size: %d\n", sig_size);
+		printf("Dig size: %d\n", digest_size);
 	}
 
 
 	close(sock);
 	free(pkt);
+	free(sig);
+	free(sendbuf);
+	free(digest);
+	RSA_free(pkey);
 	return status;
 }
 
 void print_usage() {
-	printf("\n[!] Please provide a target IP address and port\n\nUsage: sudo ./trigger [SERVER] [PORT TO UNLOCK]\n\n"
-	"Example: sudo ./trigger 127.0.0.1 22\n\n");
+	printf("\n[!] Please provide a target IP address and port\n\nUsage: sudo ./trigger [SERVER] [PORT TO UNLOCK] [PATH TO CERT]\n\n"
+	"Example: sudo ./trigger 127.0.0.1 22 ~/.trigger/private.pem\n\n");
+}
+
+
+
+char *new_get_pass(char * path) {
+	static char *buf = NULL;
+	signal(SIGINT, SIG_IGN);
+	signal(SIGTERM, SIG_IGN);
+
+	struct termios term;
+	tcgetattr(1, &term);
+	term.c_lflag &= ~ECHO;
+	tcsetattr(1, TCSANOW, &term);
+
+	int c, len = BASE_LENGTH, pos = 0;
+	buf = realloc(buf, len);
+	printf("Enter the password for %s: ", path);
+	buf[0] = '\0';
+	while ((c=fgetc(stdin)) != '\n') {
+		buf[pos++] = (char) c;
+		if (pos >= len)
+			buf = realloc(buf, (len += BASE_LENGTH));
+	}
+	buf[pos] = '\0';
+
+	term.c_lflag |= ECHO;
+	tcsetattr(1, TCSANOW, &term);
+	return buf;
 }
 
 int main(int argc, char ** argv) {
 
 	char *p;
 	int num;
+	FILE * pFile;
+	EVP_PKEY *hold, * pPrivKey = NULL;   
+	char * passwd = NULL;
 
-	if(argc < 3){
+
+	if(argc < 4){
 		print_usage();
 		return -1;
 	} 
@@ -158,8 +216,24 @@ int main(int argc, char ** argv) {
 
 	// No error
 	num = conv;    	
+	pPrivKey = NULL;
+	passwd = new_get_pass(argv[3]);
+	printf("\n");
+	OpenSSL_add_all_ciphers();
 
-	printf("[!] Sending trigger to: %s to unlock port %d\n", argv[1], atoi(argv[2]));
-	send_trigger(argv[1], num);
+
+	if((pFile = fopen(argv[3],"rt")) && 
+		(hold = PEM_read_PrivateKey(pFile,&pPrivKey,NULL,passwd))) {
+		printf("[*] Sending trigger to: %s to unlock port %d\n", argv[1], atoi(argv[2]));
+		send_trigger(argv[1], num, EVP_PKEY_get1_RSA(pPrivKey));
+	} else {
+		fprintf(stderr,"[!] Cannot read %s\n", argv[3]);
+		ERR_print_errors_fp(stderr);
+		print_usage();
+	}
+	
+	free(hold);
+	fclose(pFile);
+	free(passwd);
 	return 0;
 }

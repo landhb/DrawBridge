@@ -17,10 +17,10 @@ all: trigger
 all_noasan: trigger_noasan
 
 
-trigger: trigger.o 
+trigger: trigger.o crypto.o
 	$(CC) -o $@ $(CFLAGS) $(ASAN_FLAGS) $(CURL_CFLAGS) $^ $(LDFLAGS) $(CURL_LIBS) $(ASAN_LIBS)
 
-trigger_noasan: trigger.o
+trigger_noasan: trigger.o crypto.o
 	$(CC) -o $@ $(CFLAGS) $(CURL_CFLAGS) $^ $(LDFLAGS) $(CURL_LIBS)
 
 
