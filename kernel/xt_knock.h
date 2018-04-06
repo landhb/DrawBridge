@@ -92,6 +92,7 @@ void cleanup_reaper(struct timer_list * my_timer);
 akcipher_request * init_keys(crypto_akcipher **tfm, void * data, int len) ;
 void free_keys(crypto_akcipher *tfm, akcipher_request * req);
 int verify_sig_rsa(akcipher_request * req, pkey_signature * sig);
+void * gen_digest(void * buf, unsigned int len);
 
 
 #endif /* _LINUX_NETFILTER_XT_KNOCK_H */
