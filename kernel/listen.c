@@ -306,7 +306,7 @@ int listen(void * data) {
 				free_signature(sig);
 				kfree(hash);
 				continue;
-			}
+			} 
 
 			// Add the IP to the connection linked list
 			if(!state_lookup(knock_state, 4, res->ip_h.saddr, NULL, htons(1234))) {

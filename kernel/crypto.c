@@ -113,7 +113,6 @@ int verify_sig_rsa(akcipher_request * req, pkey_signature * sig) {
 	void *inbuf, *outbuf, *result;
 	op_result res;
 	struct scatterlist src, dst;
-	struct scatterlist * sgl;
 	crypto_akcipher *tfm = crypto_akcipher_reqtfm(req);
 	int MAX_OUT = crypto_akcipher_maxsize(tfm);
 
@@ -157,38 +156,19 @@ int verify_sig_rsa(akcipher_request * req, pkey_signature * sig) {
 		return err;
 	}
 
-	printk(KERN_INFO "\nComputation:\n");
-	hexdump(outbuf, req->dst_len);
-	printk("%d\n", MAX_OUT);
-
-	printk(KERN_INFO "\nResult:\n");
-
-	// iterate over the scatterlist to get the result
-	sgl = &dst;
-	while(1) {
-		
-		if (!sgl)
-			break;
-
-		sg_copy_to_buffer(sgl, 1, result, sgl->length);
-		hexdump(result, sgl->length);
-
-		sgl = sg_next(sgl);
-	}
-
+	/*printk(KERN_INFO "\nComputation:\n");
+	hexdump(outbuf + MAX_OUT - sig->digest_size - 1, sig->digest_size); */
 
 	/* Do the actual verification step. */
-	if (req->dst_len != sig->digest_size ||
-		memcmp(sig->digest, outbuf, sig->digest_size) != 0) {
+	if (memcmp(sig->digest, outbuf + MAX_OUT - sig->digest_size - 1, sig->digest_size) != 0) {
 		printk(KERN_INFO "[!] Signature verification failed - Key Rejected: %d\n", -EKEYREJECTED);
-		printk(KERN_INFO "[!] Sig len: %d   Computed len: %d\n", sig->digest_size, req->dst_len);
 		kfree(inbuf);
 		kfree(outbuf);
 		kfree(result);
 		return -EKEYREJECTED;
 	}
 		
-	printk(KERN_INFO "[+] RSA signature verification passed %d\n", err);
+	printk(KERN_INFO "[+] RSA signature verification passed\n");
 	kfree(inbuf);
 	kfree(outbuf);
 	return 0;

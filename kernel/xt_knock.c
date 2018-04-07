@@ -1,5 +1,6 @@
 /*
-	NetFilter Kernel Module to Support BPF Based Single Packet Authentication
+	Project: Trigger
+	Description: NetFilter Kernel Module to Support BPF Based Single Packet Authentication
 	Auther: Bradley Landherr
 */
 
