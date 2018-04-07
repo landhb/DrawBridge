@@ -46,15 +46,10 @@ struct packet {
 } __attribute__( ( packed ) ); 
 
 
-// Function prototype, implemented in crypto.c
-int sign_data(
-		const void *buf,    /* input data: byte array */
-		size_t buf_len, 
-		RSA *pkey,         /* input private key: byte array of the PEM representation */
-		void **out_sig,     /* output signature block, allocated in the function */
-		unsigned int *out_sig_len,
-		void **out_digest,
-		unsigned int *out_digest_len);
+
+// Crypto function prototypes
+unsigned char *gen_digest(unsigned char *buf, unsigned int len, unsigned int *olen);
+unsigned char *sign_data(RSA * pkey, unsigned char *data, unsigned int len, unsigned int *olen);
 
 
 // Create unique trigger TCP packet
@@ -89,15 +84,21 @@ void create_packet(struct packet ** pkt,  int dst_port, int src_port) {
 
 }
 
+static inline  void hexdump(unsigned char *buf,unsigned int len) {
+	while(len--)
+		printf("%02x",*buf++);
+	printf("\n");
+}
 
-int send_trigger(char * destination, int dst_port, RSA * pkey) {
+
+int send_trigger(char * destination, int dst_port,  RSA * pkey) {
 
 
 	struct sockaddr_in din;
 	int sock,recv_len,send_len, status  = 0;
 	struct packet * pkt =  (struct packet *)malloc(sizeof(struct packet));
-	void * sig; // =calloc(2048, 1);
-	void * digest; // = calloc(1024, 1);
+	void * sig = NULL; // =calloc(2048, 1);
+	void * digest = NULL; // calloc(1024, 1);
 	void * sendbuf = calloc(MAX_PACKET_SIZE, 1);
 	unsigned int sig_size, digest_size;
 
@@ -105,8 +106,16 @@ int send_trigger(char * destination, int dst_port, RSA * pkey) {
 	bzero(pkt, sizeof(struct packet));
 	create_packet(&pkt, dst_port, 12345);
 
+
 	// Sign the TCP Header + timestamp + port to unlock
-	sign_data(pkt, sizeof(struct packet), pkey, &sig, &sig_size, &digest, &digest_size);
+	digest = (void *)gen_digest((unsigned char *)pkt, sizeof(struct packet), &digest_size);
+	sig = (void *)sign_data(pkey, digest, digest_size, &sig_size);
+
+
+	printf("Signature:\n");
+	hexdump(sig, sig_size);
+	printf("\n\nDigest:\n");
+	hexdump(digest, digest_size);
 
 	// Create the final packet
 	send_len = 0;
@@ -143,8 +152,6 @@ int send_trigger(char * destination, int dst_port, RSA * pkey) {
 		fprintf(stderr, "[-] Write error: %s\n", strerror(errno));
 	} else {
 		fprintf(stderr, "[+] Sent packet!   len:%d\n", recv_len);
-		printf("Sig size: %d\n", sig_size);
-		printf("Dig size: %d\n", digest_size);
 	}
 
 
@@ -154,6 +161,7 @@ int send_trigger(char * destination, int dst_port, RSA * pkey) {
 	free(sendbuf);
 	free(digest);
 	RSA_free(pkey);
+	pkey = NULL;
 	return status;
 }
 
@@ -194,8 +202,8 @@ int main(int argc, char ** argv) {
 
 	char *p;
 	int num;
-	FILE * pFile;
-	EVP_PKEY *hold, * pPrivKey = NULL;   
+	FILE * pFile = NULL;
+	RSA *hold = NULL, * pPrivKey = NULL;   
 	char * passwd = NULL;
 
 
@@ -220,20 +228,27 @@ int main(int argc, char ** argv) {
 	passwd = new_get_pass(argv[3]);
 	printf("\n");
 	OpenSSL_add_all_ciphers();
+	OpenSSL_add_all_digests();
+	OpenSSL_add_all_algorithms();
 
 
 	if((pFile = fopen(argv[3],"rt")) && 
-		(hold = PEM_read_PrivateKey(pFile,&pPrivKey,NULL,passwd))) {
+		(PEM_read_RSAPrivateKey(pFile,&pPrivKey,NULL,passwd))) {
 		printf("[*] Sending trigger to: %s to unlock port %d\n", argv[1], atoi(argv[2]));
-		send_trigger(argv[1], num, EVP_PKEY_get1_RSA(pPrivKey));
+		send_trigger(argv[1], num, pPrivKey);
 	} else {
 		fprintf(stderr,"[!] Cannot read %s\n", argv[3]);
 		ERR_print_errors_fp(stderr);
 		print_usage();
+		if(pPrivKey)
+			RSA_free(pPrivKey);
 	}
 	
-	free(hold);
-	fclose(pFile);
-	free(passwd);
+	if(hold)
+		free(hold);
+	if(pFile)
+		fclose(pFile);
+	if(passwd)
+		free(passwd);
 	return 0;
 }
