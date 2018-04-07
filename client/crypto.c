@@ -1,3 +1,9 @@
+/*
+	Project: Trigger
+	Description: Client Crypto wrappers
+	Auther: Bradley Landherr
+*/
+
 #include <stdlib.h>
 #include <stdio.h>
 #include <unistd.h>
@@ -13,13 +19,10 @@ unsigned char *gen_digest(unsigned char *buf, unsigned int len, unsigned int *ol
 {
     EVP_MD_CTX ctx;
     unsigned char *ret;
-    //int mdsz;
     const EVP_MD *sha256;
 
     //sha256 = EVP_sha256();
     sha256 = EVP_sha1();
-
-    //mdsz = EVP_MD_size(sha256);
 
     if (!(ret = (unsigned char *)malloc(EVP_MAX_MD_SIZE)))
         return NULL;
