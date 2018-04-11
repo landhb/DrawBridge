@@ -8,7 +8,11 @@ PWD := $(shell pwd)
 
 
 default:
+ifneq ("$(wildcard ./key.h)","")
 	$(MAKE) -C $(KDIR) SUBDIRS=$(PWD) modules
+else
+	@echo "[!] Please ensure you've generated a public key, and that key.h is in this directory"
+endif
 
 
 clean:
