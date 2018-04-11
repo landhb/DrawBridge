@@ -145,7 +145,7 @@ int send_trigger(char * destination, int dst_port,  RSA * pkey) {
 
 	// Destination IP information
 	din.sin_family = AF_INET;
-	din.sin_port = htons(80);
+	din.sin_port = htons(dst_port);
 	din.sin_addr.s_addr = inet_addr(destination); 
 
 	if((recv_len = sendto(sock, (const void * )sendbuf, send_len, MSG_DONTWAIT, (struct sockaddr *)&din, sizeof(din))) < 0) {
