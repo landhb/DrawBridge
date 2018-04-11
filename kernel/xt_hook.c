@@ -66,11 +66,8 @@ static unsigned	int pkt_hook_v4(void * priv, struct sk_buff * skb, const struct 
 		// Check if packet is destined for a port on our watchlist
 		if(tcp_header->dest == htons(ports[i])) {
 
+				memset(src, 0, 16);
 				inet_ntoa(src, ip_header->saddr);
-
-				if(!src) {
-						return NF_DROP;
-				}
 
 				if(state_lookup(knock_state, 4, ip_header->saddr, NULL,  tcp_header->dest)) {
 					printk(KERN_INFO	"[!] Connection accepted      source:%s\n", src);
