@@ -12,7 +12,7 @@
 #include <linux/wait.h> // DECLARE_WAITQUEUE
 #include <linux/filter.h>
 #include <linux/uio.h>  // iov_iter
-#include "xt_knock.h"
+#include "trigger.h"
 //#include <netinet/ip_icmp.h>
 
 
@@ -275,7 +275,6 @@ int listen(void * data) {
 				continue;
 			}
 
-
 			res = (struct packet *)pkt;
 			inet_ntoa(src, res->ip_h.saddr);
 
@@ -292,6 +291,11 @@ int listen(void * data) {
 
 			// Hash the TCP header + timestamp + port to unlock
 			hash = gen_digest((unsigned char *)&(res->tcp_h), sizeof(struct packet) - (sizeof(struct ethhdr) + sizeof(struct iphdr)));
+
+			if(!hash) {
+				free_signature(sig);
+				continue;
+			}
 
 			// Check that the hash matches 
 			if(memcmp(sig->digest, hash, sig->digest_size) != 0) {

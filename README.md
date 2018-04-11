@@ -6,25 +6,37 @@ A layer 4 Single Packet Authentication (SPA) Module, used to conceal TCP ports o
 
 ## Easy Setup and Configuration
 
-To compile either the client application or the kernel module simply cd into the respective directories and run make install. 
-
-```bash
-# on client machine
-cd client
-make install
-
-# on server
-cd kernel
-make install
-```
-
 To automagically generate keys run the following on your client machine:
 
 ```bash
 ./gen_keys.sh
 ```
 
-The output of the gen_keys.sh script will be two files: private.pem and public.der. Keep private.pem on your client machine and put a copy of public.der on the server in /etc/trigger. 
+The output of the gen_keys.sh script will be two files: `private.pem` and `key.h`. Keep `private.pem` on your client machine and put a copy of `key.h` on the server with the kernel source before you build it. 
+
+
+To compile either the client application or the kernel module simply cd into the respective directories and run `make`. 
+
+```bash
+# on the client machine
+cd client
+make
+
+# on the server compile the module and load it
+# pass the ports you want to monitor as an argument
+
+cd kernel
+make
+sudo modprobe x_tables
+sudo insmod trigger.ko ports=22,445 
+```
+
+You may need to install your kernel headers to compile the module, you can do so with:
+
+```
+sudo apt-get install linux-headers-$(uname -r)
+sudo apt-get update && sudo apt-get upgrade
+```
 
 ## Customizing a Unique 'knock' Packet
 

@@ -6,7 +6,10 @@
 
 #include <linux/module.h>
 #include <linux/kernel.h>
-#include "xt_knock.h"
+#include <crypto/hash.h>
+#include <linux/err.h>
+#include <linux/scatterlist.h>
+#include "trigger.h"
 
 // Stores the result of an async operation
 typedef struct op_result {
@@ -84,23 +87,52 @@ static inline  void hexdump(unsigned char *buf,unsigned int len) {
 	printk("\n");
 }
 
+
 void * gen_digest(void * buf, unsigned int len) {
 	struct scatterlist src;
-	struct hash_desc desc;
-	unsigned char * output;
+	struct crypto_ahash *tfm;
+	struct ahash_request *req;
+	unsigned char * output = NULL;
 	int MAX_OUT; 
 
+
+	tfm = crypto_alloc_ahash("sha1", 0 , CRYPTO_ALG_ASYNC);
+
+	if(IS_ERR(tfm)) {
+		return NULL;
+	}
+
 	sg_init_one(&src, buf, len);
-	desc.tfm = crypto_alloc_hash("sha1", 0 , CRYPTO_ALG_ASYNC);
-	desc.flags = 0;
-	MAX_OUT = crypto_hash_digestsize(desc.tfm);
+
+	req = ahash_request_alloc(tfm, GFP_ATOMIC);
+
+	if(IS_ERR(req)) {
+		crypto_free_ahash(tfm);
+		return NULL;
+	}
+
+	MAX_OUT = crypto_ahash_digestsize(tfm);
 	output = kzalloc(MAX_OUT, GFP_KERNEL);
 
-	crypto_hash_init(&desc);
-	crypto_hash_update(&desc, &src, len);
-	crypto_hash_final(&desc, output);
+	if(!output) {
+		crypto_free_ahash(tfm);
+		ahash_request_free(req);
+		return NULL;
+	}
 
-	crypto_free_hash(desc.tfm);
+	ahash_request_set_callback(req, 0, NULL, NULL);
+	ahash_request_set_crypt(req, &src, output, len);
+
+	if (crypto_ahash_digest(req)) {
+		crypto_free_ahash(tfm);
+		ahash_request_free(req);
+		kfree(output);
+		return NULL;
+	}
+
+
+	crypto_free_ahash(tfm);
+	ahash_request_free(req);
 
 	return output;
 }

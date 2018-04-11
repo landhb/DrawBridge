@@ -18,21 +18,20 @@
 #include <linux/netfilter.h>
 #include <linux/netfilter/x_tables.h>
 #include <linux/netfilter/nf_conntrack_common.h>
-#include "xt_knock.h"
+#include "trigger.h"
 
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("Bradley Landherr https://github.com/landhb");
-MODULE_DESCRIPTION("NetFilter Kernel Module to Support BPF Based Port Knocking");
+MODULE_DESCRIPTION("NetFilter Kernel Module to Support BPF Based Single Packet Authentication");
 MODULE_VERSION("0.1");
 MODULE_ALIAS("trigger");
-MODULE_ALIAS("ip_conntrack_knock");
+MODULE_ALIAS("ip_conntrack_trigger");
 
 
 DEFINE_SPINLOCK(listmutex);
 
-#define MODULE_NAME "knock"
+#define MODULE_NAME "trigger"
 #define MAX_PORTS 10
-#define DEFAULT_PORT 1234
 
 // Companion thread
 struct task_struct * raw_thread;
@@ -42,33 +41,44 @@ char * src;
 conntrack_state * knock_state;
 struct timer_list * reaper;
 
-static unsigned	int pkt_hook(void * priv, struct sk_buff * skb, const struct nf_hook_state * state) {
+// Global configs
+static unsigned short ports[MAX_PORTS];
+static unsigned int ports_c = 0;
 
-	unsigned int ret = NF_ACCEPT;
+// Define module port list argument
+module_param_array(ports, ushort, &ports_c, 0400);
+MODULE_PARM_DESC(ports, "Port numbers to require knocks for");
+
+
+static unsigned	int pkt_hook_v4(void * priv, struct sk_buff * skb, const struct nf_hook_state * state) {
+
+	unsigned int i, ret = NF_ACCEPT;
 	struct iphdr * ip_header = (struct iphdr *)skb_network_header(skb);
 	struct tcphdr * tcp_header = (struct tcphdr *)skb_transport_header(skb);
-
 
 	// We only want to look at NEW connections
 	if(skb->nfctinfo == IP_CT_ESTABLISHED && skb->nfctinfo == IP_CT_ESTABLISHED_REPLY) {
 		return NF_ACCEPT;
 	}
 
-	// Check if packet is destined for our port watchlist
-	if(tcp_header->dest == htons(DEFAULT_PORT)) {
+	for (i = 0; i < ports_c && i < MAX_PORTS; i++) {
 
-			inet_ntoa(src, ip_header->saddr);
+		// Check if packet is destined for a port on our watchlist
+		if(tcp_header->dest == htons(ports[i])) {
 
-			if(!src) {
-					return NF_DROP;
-			}
+				inet_ntoa(src, ip_header->saddr);
 
-			if(state_lookup(knock_state, 4, ip_header->saddr, NULL,  tcp_header->dest)) {
-				printk(KERN_INFO	"[!] Hook accepted      source:%s\n", src);
-				return NF_ACCEPT;
-			}
+				if(!src) {
+						return NF_DROP;
+				}
 
-			return NF_DROP;
+				if(state_lookup(knock_state, 4, ip_header->saddr, NULL,  tcp_header->dest)) {
+					printk(KERN_INFO	"[!] Connection accepted      source:%s\n", src);
+					return NF_ACCEPT;
+				}
+
+				return NF_DROP;
+		}
 	}
 
 	return	ret;	
@@ -80,7 +90,7 @@ static struct nf_hook_ops pkt_hook_ops __read_mostly	= {
 	.pf 		= NFPROTO_IPV4,
 	.priority	= 1,
 	.hooknum	= NF_INET_LOCAL_IN,
-	.hook		= &pkt_hook,
+	.hook		= &pkt_hook_v4,
 };
 
 
@@ -141,10 +151,6 @@ static int __init nf_conntrack_knock_init(void) {
 	wake_up_process(raw_thread);
 
 
-	printk(KERN_INFO "[+] Started child thread\n");
-
-
-
 	ret = nf_register_hook(&pkt_hook_ops);
 
 	if(ret) {
@@ -161,7 +167,7 @@ static int __init nf_conntrack_knock_init(void) {
 	}
 		
 
-	printk(KERN_INFO "[+] Loaded Knock Netfilter module into kernel\n");
+	printk(KERN_INFO "[+] Loaded Knock Netfilter module into kernel - monitoring %d port(s)\n", ports_c);
 	return 0;
 	
 }

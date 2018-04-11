@@ -9,7 +9,7 @@
 #include <linux/rculist.h>
 #include <linux/timer.h>
 
-#include "xt_knock.h"
+#include "trigger.h"
 
 extern spinlock_t listmutex;
 
