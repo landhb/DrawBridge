@@ -2,8 +2,7 @@ CC     = gcc
 ASAN_FLAGS = -fsanitize=address -fno-omit-frame-pointer -Wno-format-security
 ASAN_LIBS = -static-libasan
 CFLAGS := -Wall -Werror --std=gnu99 -g3 
-CURL_LIBS := $(shell curl-config --libs)
-CURL_CFLAGS := $(shell curl-config --cflags)
+
 
 ARCH := $(shell uname)
 ifneq ($(ARCH),Darwin)
@@ -18,10 +17,10 @@ all_noasan: trigger_noasan
 
 
 trigger: trigger.o crypto.o
-	$(CC) -o $@ $(CFLAGS) $(ASAN_FLAGS) $(CURL_CFLAGS) $^ $(LDFLAGS) $(CURL_LIBS) $(ASAN_LIBS)
+	$(CC) -o $@ $(CFLAGS) $(ASAN_FLAGS) $^ $(LDFLAGS) $(ASAN_LIBS)
 
 trigger_noasan: trigger.o crypto.o
-	$(CC) -o $@ $(CFLAGS) $(CURL_CFLAGS) $^ $(LDFLAGS) $(CURL_LIBS)
+	$(CC) -o $@ $(CFLAGS) $^ $(LDFLAGS) 
 
 
 %_noasan.o : %.c
