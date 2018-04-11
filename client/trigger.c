@@ -173,16 +173,21 @@ void print_usage() {
 
 
 char *new_get_pass(char * path) {
+
+	struct termios term;
 	static char *buf = NULL;
+	int c, len = BASE_LENGTH, pos = 0;
+
+	// Turn off signals
 	signal(SIGINT, SIG_IGN);
 	signal(SIGTERM, SIG_IGN);
 
-	struct termios term;
+	// Turn off terminal ECHO
 	tcgetattr(1, &term);
 	term.c_lflag &= ~ECHO;
 	tcsetattr(1, TCSANOW, &term);
 
-	int c, len = BASE_LENGTH, pos = 0;
+	// Display prompt and recieve password
 	buf = realloc(buf, len);
 	printf("Enter the password for %s: ", path);
 	buf[0] = '\0';
@@ -193,6 +198,7 @@ char *new_get_pass(char * path) {
 	}
 	buf[pos] = '\0';
 
+	// Restore terminal
 	term.c_lflag |= ECHO;
 	tcsetattr(1, TCSANOW, &term);
 	return buf;
@@ -222,7 +228,7 @@ int main(int argc, char ** argv) {
 		return -1;
 	} 
 
-	// No error
+	// Continue on proper input
 	num = conv;    	
 	pPrivKey = NULL;
 	passwd = new_get_pass(argv[3]);
