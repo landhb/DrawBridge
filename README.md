@@ -4,6 +4,8 @@ A layer 4 Single Packet Authentication (SPA) Module, used to conceal TCP ports o
 
 ## Demo
 
+![gif](https://github.com/landhb/Trigger/blob/master/img/example.gif?raw=true)
+
 ## Easy Setup and Configuration
 
 To automagically generate keys run the following on your client machine:
