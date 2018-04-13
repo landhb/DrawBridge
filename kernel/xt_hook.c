@@ -13,6 +13,7 @@
 #include <linux/byteorder/generic.h>
 #include <linux/rculist.h>
 #include <linux/timer.h>
+#include <linux/version.h>
 
 // Netfilter headers
 #include <linux/netfilter.h>
@@ -57,9 +58,15 @@ static unsigned	int pkt_hook_v4(void * priv, struct sk_buff * skb, const struct 
 	struct tcphdr * tcp_header = (struct tcphdr *)skb_transport_header(skb);
 
 	// We only want to look at NEW connections
-	if(skb->nfctinfo == IP_CT_ESTABLISHED && skb->nfctinfo == IP_CT_ESTABLISHED_REPLY) {
+#if LINUX_VERSION_CODE <= KERNEL_VERSION(4,10,0)
+	if(skb->nfctinfo == IP_CT_ESTABLISHED || skb->nfctinfo == IP_CT_ESTABLISHED_REPLY) {
 		return NF_ACCEPT;
 	}
+#else
+	if(skb_nfct(skb) == IP_CT_ESTABLISHED || skb_nfct(skb) == IP_CT_ESTABLISHED_REPLY) {
+		return NF_ACCEPT;
+	}
+#endif
 
 	for (i = 0; i < ports_c && i < MAX_PORTS; i++) {
 

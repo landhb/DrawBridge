@@ -19,6 +19,7 @@ To compile either the client application or the kernel module simply cd into the
 
 ```bash
 # on the client machine
+sudo apt-get install libssl-dev
 cd client
 make
 
