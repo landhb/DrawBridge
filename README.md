@@ -1,6 +1,6 @@
 ![logo](https://github.com/landhb/Trigger/blob/master/img/logo.PNG?raw=true)
 
-A layer 4 Single Packet Authentication (SPA) Module, used to conceal TCP ports on public facing machines and add an extra layer of security.
+A layer 4 Single Packet Authentication (SPA) Module, used to conceal TCP ports on public facing machines and add an extra layer of security. Please read the corresponding [article](https://www.landhb.me/posts/bODdK/port-knocking-with-netfilter-kernel-modules/) for a more in-depth look at the design. 
 
 ## Demo
 
