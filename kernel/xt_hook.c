@@ -17,12 +17,12 @@
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4,10,0)
 #include <linux/sched/task.h>
+#include <net/netfilter/nf_conntrack.h>
 #endif
 
 // Netfilter headers
 #include <linux/netfilter.h>
 #include <linux/netfilter/x_tables.h>
-#include <linux/netfilter/nf_conntrack.h>
 #include <linux/netfilter/nf_conntrack_common.h>
 #include "trigger.h"
 
@@ -47,10 +47,6 @@ char * src;
 conntrack_state * knock_state;
 struct timer_list * reaper;
 
-/*
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(4,13,0)
-struct net inet_net;
-#endif*/
 
 // Global configs
 static unsigned short ports[MAX_PORTS];
@@ -70,11 +66,11 @@ static unsigned	int pkt_hook_v4(void * priv, struct sk_buff * skb, const struct 
 
 	// We only want to look at NEW connections
 #if LINUX_VERSION_CODE <= KERNEL_VERSION(4,10,0)
-	if(skb->nfctinfo == IP_CT_ESTABLISHED || skb->nfctinfo == IP_CT_ESTABLISHED_REPLY) {
+	if(skb->nfctinfo == IP_CT_ESTABLISHED && skb->nfctinfo == IP_CT_ESTABLISHED_REPLY) {
 		return NF_ACCEPT;
 	}
 #else
-	if((skb->_nfct & NFCT_INFOMASK) == IP_CT_ESTABLISHED || (skb->_nfct & NFCT_INFOMASK) == IP_CT_ESTABLISHED_REPLY) {
+	if((skb->_nfct & NFCT_INFOMASK) == IP_CT_ESTABLISHED && (skb->_nfct & NFCT_INFOMASK) == IP_CT_ESTABLISHED_REPLY) {
 		return NF_ACCEPT;
 	}
 #endif
@@ -166,7 +162,7 @@ static int __init nf_conntrack_knock_init(void) {
 	wake_up_process(raw_thread);
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4,13,0)
-	ret = nf_register_net_hook(&inet_net, &pkt_hook_ops);
+	ret = nf_register_net_hook(&init_net, &pkt_hook_ops);
 #else
 	ret = nf_register_hook(&pkt_hook_ops);
 #endif
@@ -212,7 +208,7 @@ static void __exit nf_conntrack_knock_exit(void) {
 	}
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4,13,0)
-	ret = nf_unregister_net_hook(&inet_net, &pkt_hook_ops);
+	nf_unregister_net_hook(&init_net, &pkt_hook_ops);
 #else
 	nf_unregister_hook(&pkt_hook_ops);
 #endif
