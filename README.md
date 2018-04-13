@@ -39,6 +39,8 @@ sudo apt-get install linux-headers-$(uname -r)
 sudo apt-get update && sudo apt-get upgrade
 ```
 
+This code has been tested on Linux Kernel 4.4, 4.10, and 4.13. I don't plan to support anything earlier than 4.X but let me know if you encounter some portabilitity issues on newer kernels. 
+
 ## Customizing a Unique 'knock' Packet
 
 If you wish to customize your knock a little more you can edit the TCP header options in trigger.c. For instance, maybe you want to make your knock packet have the PSH,RST,and ACK flags set and a window size of 3104. Turn those on:

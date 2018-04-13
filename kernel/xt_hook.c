@@ -15,9 +15,14 @@
 #include <linux/timer.h>
 #include <linux/version.h>
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4,10,0)
+#include <linux/sched/task.h>
+#endif
+
 // Netfilter headers
 #include <linux/netfilter.h>
 #include <linux/netfilter/x_tables.h>
+#include <linux/netfilter/nf_conntrack.h>
 #include <linux/netfilter/nf_conntrack_common.h>
 #include "trigger.h"
 
@@ -42,6 +47,11 @@ char * src;
 conntrack_state * knock_state;
 struct timer_list * reaper;
 
+/*
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4,13,0)
+struct net inet_net;
+#endif*/
+
 // Global configs
 static unsigned short ports[MAX_PORTS];
 static unsigned int ports_c = 0;
@@ -57,13 +67,14 @@ static unsigned	int pkt_hook_v4(void * priv, struct sk_buff * skb, const struct 
 	struct iphdr * ip_header = (struct iphdr *)skb_network_header(skb);
 	struct tcphdr * tcp_header = (struct tcphdr *)skb_transport_header(skb);
 
+
 	// We only want to look at NEW connections
 #if LINUX_VERSION_CODE <= KERNEL_VERSION(4,10,0)
 	if(skb->nfctinfo == IP_CT_ESTABLISHED || skb->nfctinfo == IP_CT_ESTABLISHED_REPLY) {
 		return NF_ACCEPT;
 	}
 #else
-	if(skb_nfct(skb) == IP_CT_ESTABLISHED || skb_nfct(skb) == IP_CT_ESTABLISHED_REPLY) {
+	if((skb->_nfct & NFCT_INFOMASK) == IP_CT_ESTABLISHED || (skb->_nfct & NFCT_INFOMASK) == IP_CT_ESTABLISHED_REPLY) {
 		return NF_ACCEPT;
 	}
 #endif
@@ -132,7 +143,7 @@ static int __init nf_conntrack_knock_init(void) {
 
 	int ret;
 	raw_thread = NULL;
-	 reaper = NULL;
+	reaper = NULL;
 
 	// Initialize our memory
 	src = kmalloc(16 * sizeof(char), GFP_KERNEL);
@@ -154,8 +165,11 @@ static int __init nf_conntrack_knock_init(void) {
 	// Now it is safe to start kthread - exiting from it doesn't destroy its struct.
 	wake_up_process(raw_thread);
 
-
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4,13,0)
+	ret = nf_register_net_hook(&inet_net, &pkt_hook_ops);
+#else
 	ret = nf_register_hook(&pkt_hook_ops);
+#endif
 
 	if(ret) {
 		printk(KERN_INFO "[-] Failed to register hook\n");
@@ -197,7 +211,12 @@ static void __exit nf_conntrack_knock_exit(void) {
 		cleanup_reaper(reaper);
 	}
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4,13,0)
+	ret = nf_unregister_net_hook(&inet_net, &pkt_hook_ops);
+#else
 	nf_unregister_hook(&pkt_hook_ops);
+#endif
+
 	printk(KERN_INFO "[*] Unloaded Knock Netfilter module from kernel\n");
 	return;
 }
