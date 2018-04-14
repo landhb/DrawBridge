@@ -9,6 +9,9 @@
 #include <crypto/hash.h>
 #include <linux/err.h>
 #include <linux/scatterlist.h>
+#include <crypto/internal/rsa.h>
+#include <crypto/internal/akcipher.h>
+#include <linux/digsig.h> // PKCS#1 v1.5 parsing
 #include "trigger.h"
 
 // Stores the result of an async operation
@@ -16,6 +19,27 @@ typedef struct op_result {
 	struct completion completion;
 	int err;
 } op_result;
+
+
+static const u8 RSA_digest_info_SHA1[] = {
+	0x30, 0x21, 0x30, 0x09, 0x06, 0x05,
+	0x2B, 0x0E, 0x03, 0x02, 0x1A,
+	0x05, 0x00, 0x04, 0x14
+};
+
+static const u8 RSA_digest_info_SHA256[] = {
+	0x30, 0x31, 0x30, 0x0d, 0x06, 0x09,
+	0x60, 0x86, 0x48, 0x01, 0x65, 0x03, 0x04, 0x02, 0x01,
+	0x05, 0x00, 0x04, 0x20
+};
+
+typedef struct RSA_ASN1_template {
+	const u8 * data;
+	size_t size;
+} RSA_ASN1_template;
+
+RSA_ASN1_template sha1_template;
+RSA_ASN1_template sha256_template;
 
 
 akcipher_request * init_keys(crypto_akcipher **tfm, void * data, int len) {
@@ -137,16 +161,64 @@ void * gen_digest(void * buf, unsigned int len) {
 	return output;
 }
 
+// Derived from https://github.com/torvalds/linux/blob/db6c43bd2132dc2dd63d73a6d1ed601cffd0ae06/crypto/asymmetric_keys/rsa.c#L101
+// and https://tools.ietf.org/html/rfc8017#section-9.2
+// thanks to Maarten Bodewes for answering the question on Stackoverflow
+// https://stackoverflow.com/questions/49662595/linux-kernel-rsa-signature-verification-crypto-akcipher-verify-output
+static char *pkcs_1_v1_5_decode_emsa(unsigned char * EM,
+						unsigned long  EMlen,
+						const u8 * asn1_template,
+						size_t asn1_size,
+						size_t hash_size)
+{
+	unsigned int t_offset, ps_end, i;
+
+	if (EMlen < 2 + 1 + asn1_size + hash_size)
+		return NULL;
+
+	/* Decode the EMSA-PKCS1-v1_5
+	 * note: leading zeros are stripped by the RSA implementation
+	 * so   EM = 0x00 || 0x01 || PS || 0x00 || T
+	 * will become EM = 0x01 || PS || 0x00 || T.
+	 */
+	if (EM[0] != 0x01) {
+		printk(" = -EBADMSG [EM[0] == %02u]", EM[0]);
+		return NULL;
+	}
+
+	// Calculate offsets
+	t_offset = EMlen - (asn1_size + hash_size);
+	ps_end = t_offset - 1;
+
+	// Check if there's a 0x00 seperator between PS and T
+	if (EM[ps_end] != 0x00) {
+		printk(" = -EBADMSG [EM[T-1] == %02u]", EM[ps_end]);
+		return NULL;
+	}
+
+	// Check the PS 0xff padding 
+	for (i = 1; i < ps_end; i++) {
+		if (EM[i] != 0xff) {
+			printk(" = -EBADMSG [EM[PS%x] == %02u]", i - 2, EM[i]);
+			return NULL;
+		}
+	}
+
+	return EM + t_offset + asn1_size;
+	
+}
+
 
 // Verify a recieved signature
 int verify_sig_rsa(akcipher_request * req, pkey_signature * sig) {
 
 	int err;
-	void *inbuf, *outbuf, *result;
+	void *inbuf, *outbuf, *result = NULL;
 	op_result res;
 	struct scatterlist src, dst;
 	crypto_akcipher *tfm = crypto_akcipher_reqtfm(req);
 	int MAX_OUT = crypto_akcipher_maxsize(tfm);
+
 
 	inbuf = kzalloc(PAGE_SIZE, GFP_KERNEL);
 
@@ -156,9 +228,8 @@ int verify_sig_rsa(akcipher_request * req, pkey_signature * sig) {
 	}
 
 	outbuf = kzalloc(MAX_OUT, GFP_KERNEL);
-	result = kzalloc(MAX_OUT, GFP_KERNEL);
 
-	if(!outbuf || !result) {
+	if(!outbuf) {
 		kfree(inbuf);
 		return err;
 	} 
@@ -188,8 +259,19 @@ int verify_sig_rsa(akcipher_request * req, pkey_signature * sig) {
 		return err;
 	}
 
-	/*printk(KERN_INFO "\nComputation:\n");
-	hexdump(outbuf + MAX_OUT - sig->digest_size - 1, sig->digest_size); */
+	// Decode the PKCS#1 v1.5 encoding
+	sha1_template.data = RSA_digest_info_SHA1;
+	sha1_template.size = ARRAY_SIZE(RSA_digest_info_SHA1);
+	result = pkcs_1_v1_5_decode_emsa(outbuf, req->dst_len, sha1_template.data, sha1_template.size, 20);
+
+	err = -EINVAL;
+	if(!result) {
+		printk(KERN_INFO "[!] EMSA PKCS#1 v1.5 decode failed\n");
+		return err;
+	}
+
+	printk(KERN_INFO "\nComputation:\n");
+	hexdump(result, 20); 
 
 	/* Do the actual verification step. */
 	if (memcmp(sig->digest, outbuf + MAX_OUT - sig->digest_size - 1, sig->digest_size) != 0) {
