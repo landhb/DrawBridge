@@ -174,7 +174,7 @@ static char *pkcs_1_v1_5_decode_emsa(unsigned char * EM,
 	unsigned int t_offset, ps_end, ps_start, i;
 
 	if (EMlen < 2 + 1 + asn1_size + hash_size)
-		return NULL;
+		return NULL;	
 
 	/* Decode the EMSA-PKCS1-v1_5
 	 * note: leading zeros are stripped by the RSA implementation in older kernels
@@ -276,6 +276,8 @@ int verify_sig_rsa(akcipher_request * req, pkey_signature * sig) {
 	err = -EINVAL;
 	if(!result) {
 		printk(KERN_INFO "[!] EMSA PKCS#1 v1.5 decode failed\n");
+		kfree(inbuf);
+		kfree(outbuf);
 		return err;
 	}
 
@@ -287,7 +289,6 @@ int verify_sig_rsa(akcipher_request * req, pkey_signature * sig) {
 		printk(KERN_INFO "[!] Signature verification failed - Key Rejected: %d\n", -EKEYREJECTED);
 		kfree(inbuf);
 		kfree(outbuf);
-		kfree(result);
 		return -EKEYREJECTED;
 	}
 		
