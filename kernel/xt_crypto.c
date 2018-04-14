@@ -171,7 +171,7 @@ static char *pkcs_1_v1_5_decode_emsa(unsigned char * EM,
 						size_t asn1_size,
 						size_t hash_size)
 {
-	unsigned int t_offset, ps_end, i;
+	unsigned int t_offset, ps_end, ps_start, i;
 
 	if (EMlen < 2 + 1 + asn1_size + hash_size)
 		return NULL;
@@ -182,11 +182,13 @@ static char *pkcs_1_v1_5_decode_emsa(unsigned char * EM,
 	 * will become EM = 0x01 || PS || 0x00 || T.
 	 */
 #if LINUX_VERSION_CODE < KERNEL_VERSION(4,8,0)
+	ps_start = 1;
 	if (EM[0] != 0x01) {
 		printk(" = -EBADMSG [EM[0] == %02u]", EM[0]);
 		return NULL;
 	}
 #else
+	ps_start = 2;
 	if (EM[0] != 0x00 || EM[1] != 0x01) {
 		printk(" = -EBADMSG [EM[0] == %02u] [EM[1] == %02u]", EM[0], EM[1]);
 		return NULL;
@@ -204,7 +206,7 @@ static char *pkcs_1_v1_5_decode_emsa(unsigned char * EM,
 	}
 
 	// Check the PS 0xff padding 
-	for (i = 1; i < ps_end; i++) {
+	for (i = ps_start; i < ps_end; i++) {
 		if (EM[i] != 0xff) {
 			printk(" = -EBADMSG [EM[PS%x] == %02u]", i - 2, EM[i]);
 			return NULL;
