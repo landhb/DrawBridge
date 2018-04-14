@@ -11,6 +11,7 @@
 #include <linux/scatterlist.h>
 #include <crypto/internal/rsa.h>
 #include <crypto/internal/akcipher.h>
+#include <crypto/algapi.h>
 #include <linux/version.h>
 #include "trigger.h"
 
@@ -213,6 +214,12 @@ static char *pkcs_1_v1_5_decode_emsa(unsigned char * EM,
 		}
 	}
 
+	// Compare the DER encoding T of the DigestInfo value
+	if (crypto_memneq(asn1_template, EM + t_offset, asn1_size) != 0) {
+		printk(" = -EBADMSG [EM[T] ASN.1 mismatch]");
+		return NULL;
+	}
+
 	return EM + t_offset + asn1_size;
 	
 }
@@ -285,7 +292,7 @@ int verify_sig_rsa(akcipher_request * req, pkey_signature * sig) {
 	hexdump(result, 20); 
 
 	/* Do the actual verification step. */
-	if (memcmp(sig->digest, outbuf + MAX_OUT - sig->digest_size - 1, sig->digest_size) != 0) {
+	if (crypto_memneq(sig->digest, result, sig->digest_size) != 0) {
 		printk(KERN_INFO "[!] Signature verification failed - Key Rejected: %d\n", -EKEYREJECTED);
 		kfree(inbuf);
 		kfree(outbuf);
