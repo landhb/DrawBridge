@@ -11,7 +11,7 @@
 #include <linux/scatterlist.h>
 #include <crypto/internal/rsa.h>
 #include <crypto/internal/akcipher.h>
-#include <linux/digsig.h> // PKCS#1 v1.5 parsing
+#include <linux/version.h>
 #include "trigger.h"
 
 // Stores the result of an async operation
@@ -177,14 +177,21 @@ static char *pkcs_1_v1_5_decode_emsa(unsigned char * EM,
 		return NULL;
 
 	/* Decode the EMSA-PKCS1-v1_5
-	 * note: leading zeros are stripped by the RSA implementation
+	 * note: leading zeros are stripped by the RSA implementation in older kernels
 	 * so   EM = 0x00 || 0x01 || PS || 0x00 || T
 	 * will become EM = 0x01 || PS || 0x00 || T.
 	 */
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4,8,0)
 	if (EM[0] != 0x01) {
 		printk(" = -EBADMSG [EM[0] == %02u]", EM[0]);
 		return NULL;
 	}
+#else
+	if (EM[0] != 0x00 || EM[1] != 0x01) {
+		printk(" = -EBADMSG [EM[0] == %02u] [EM[1] == %02u]", EM[0], EM[1]);
+		return NULL;
+	}
+#endif
 
 	// Calculate offsets
 	t_offset = EMlen - (asn1_size + hash_size);
