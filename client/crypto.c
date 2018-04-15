@@ -21,8 +21,7 @@ unsigned char *gen_digest(unsigned char *buf, unsigned int len, unsigned int *ol
     unsigned char *ret;
     const EVP_MD *sha256;
 
-    //sha256 = EVP_sha256();
-    sha256 = EVP_sha1();
+    sha256 = EVP_sha256();
 
     if (!(ret = (unsigned char *)malloc(EVP_MAX_MD_SIZE)))
         return NULL;
@@ -46,7 +45,7 @@ unsigned char *sign_data(RSA * pkey, unsigned char *data, unsigned int len, unsi
         return NULL;
     }
 
-	rc = RSA_sign(NID_sha1, data, len, sig, olen, pkey);
+	rc = RSA_sign(NID_sha256, data, len, sig, olen, pkey);
 
 	if (1 != rc) { 
 		free(sig);
