@@ -40,7 +40,7 @@ struct packet {
 	struct tcphdr tcp_h;
 	
 	// Protocol data
-	__u32 timestamp;
+	struct timespec timestamp;
 	__be16 port;
 
 } __attribute__( ( packed ) ); 
@@ -78,7 +78,7 @@ void create_packet(struct packet ** pkt,  int dst_port, int src_port) {
 	(*pkt)->tcp_h.urg_ptr = 1;
 
 	(*pkt)->port = dst_port;
-	(*pkt)->timestamp = (__u32)time(NULL);
+	clock_gettime(CLOCK_REALTIME, &(*pkt)->timestamp);
 
 	return;
 

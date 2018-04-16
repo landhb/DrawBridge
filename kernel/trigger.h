@@ -9,12 +9,14 @@
 #include <linux/in.h>
 #include <linux/tcp.h>
 
-
 // List implementation in kernel
 #include <linux/list.h>
 
 // Crypto
 #include <crypto/akcipher.h>
+
+// Time
+#include <linux/time.h>
 
 #define MAX_PACKET_SIZE 65535
 #define MAX_SIG_SIZE 4096
@@ -63,7 +65,7 @@ struct packet {
 	struct tcphdr tcp_h;
 
 	// Protocol data
-	u32 timestamp;
+	struct timespec timestamp;
 	__be16 port;
 
 } __attribute__( ( packed ) ); 

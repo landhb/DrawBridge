@@ -123,8 +123,6 @@ static pkey_signature * get_signature(void * pkt) {
 	sig->s = kzalloc(sig->s_size, GFP_KERNEL);
 	offset += sizeof(u32);
 	memcpy(sig->s, pkt + offset, sig->s_size);
-	printk(KERN_INFO "Signature:\n");
-	hexdump(sig->s, sig->s_size);
 
 	// Get the digest size
 	offset += sig->s_size;
@@ -139,8 +137,6 @@ static pkey_signature * get_signature(void * pkt) {
 	sig->digest = kzalloc(sig->digest_size, GFP_KERNEL);
 	offset += sizeof(u32);
 	memcpy(sig->digest, pkt + offset, sig->digest_size);
-	printk(KERN_INFO "\n\nDigest:\n");
-	hexdump(sig->digest, sig->digest_size);
 
 	return sig;
 
@@ -163,6 +159,7 @@ int listen(void * data) {
 	struct socket * sock;
 	struct sockaddr_in source;
 	struct packet * res;
+	struct timespec tm;
 	unsigned char * pkt = kmalloc(MAX_PACKET_SIZE, GFP_KERNEL);
 	char * src = kmalloc(16 * sizeof(char), GFP_KERNEL);
 	pkey_signature * sig = NULL;
@@ -291,6 +288,14 @@ int listen(void * data) {
 				kfree(hash);
 				continue;
 			} 
+
+			// Check timestamp (Currently allows 60 sec skew)
+			getnstimeofday(&tm);
+			if(tm.tv_sec > res->timestamp.tv_sec + 60) {
+				free_signature(sig);
+				kfree(hash);
+				continue;
+			}
 
 			// Add the IP to the connection linked list
 			if(!state_lookup(knock_state, 4, res->ip_h.saddr, NULL, htons(res->port))) {
