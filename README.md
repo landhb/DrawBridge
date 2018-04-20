@@ -1,10 +1,10 @@
-![logo](https://github.com/landhb/Trigger/blob/master/img/logo.PNG?raw=true)
+![logo](https://github.com/landhb/DrawBridge/blob/master/img/logo.PNG?raw=true)
 
 A layer 4 Single Packet Authentication (SPA) Module, used to conceal TCP ports on public facing machines and add an extra layer of security. 
 
 ## Demo
 
-![gif](https://github.com/landhb/Trigger/blob/master/img/example.gif?raw=true)
+![gif](https://github.com/landhb/DrawBridge/blob/master/img/example.gif?raw=true)
 
 Please read the corresponding [article](https://www.landhb.me/posts/bODdK/port-knocking-with-netfilter-kernel-modules/) for a more in-depth look at the design. 
 
@@ -33,7 +33,7 @@ make
 cd kernel
 make
 sudo modprobe x_tables
-sudo insmod trigger.ko ports=22,445 
+sudo insmod drawbridge.ko ports=22,445 
 ```
 
 You may need to install your kernel headers to compile the module, you can do so with:
@@ -47,7 +47,7 @@ This code has been tested on Linux Kernel 4.4, 4.10, and 4.13. I don't plan to s
 
 ## Customizing a Unique 'knock' Packet
 
-If you wish to customize your knock a little more you can edit the TCP header options in trigger.c. For instance, maybe you want to make your knock packet have the PSH,RST,and ACK flags set and a window size of 3104. Turn those on:
+If you wish to customize your knock a little more you can edit the TCP header options in client/bridge.c. For instance, maybe you want to make your knock packet have the PSH,RST,and ACK flags set and a window size of 3104. Turn those on:
 
 ```c
 // Flags
@@ -92,7 +92,7 @@ which gives us:
 { 0x6, 0, 0, 0x00000000 },
 ```
 
-And there you go! You have a unique packet that the Trigger kernel module will parse!
+And there you go! You have a unique packet that the DrawBridge kernel module will parse!
 
 
 ## Generating an RSA Key Pair Manually

@@ -9,17 +9,17 @@ ifneq ($(ARCH),Darwin)
   LDFLAGS += -lpthread -lssl -lcrypto 
 endif
 
-# default is to build with address sanitizer enabled
-all: trigger
+# default is to build without address sanitizer enabled
+all: bridge
 
 # the noasan version can be used with valgrind
-all_noasan: trigger_noasan
+all_noasan: bridge_noasan
 
 
-trigger: trigger.o crypto.o
+bridge: bridge.o crypto.o
 	$(CC) -o $@ $(CFLAGS) $(ASAN_FLAGS) $^ $(LDFLAGS) $(ASAN_LIBS)
 
-trigger_noasan: trigger.o crypto.o
+bridge_noasan: bridge.o crypto.o
 	$(CC) -o $@ $(CFLAGS) $^ $(LDFLAGS) 
 
 
@@ -32,5 +32,5 @@ trigger_noasan: trigger.o crypto.o
 .PHONY: clean
 
 clean:
-	rm -fr *.o trigger trigger_noasan trigger.o
+	rm -fr *.o bridge bridge_noasan bridge.o
 

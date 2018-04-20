@@ -1,7 +1,7 @@
 /*
-	Project: Trigger
+	Project: DrawBridge
 	Description: NetFilter Kernel Module to Support BPF Based Single Packet Authentication
-	Auther: Bradley Landherr
+	Author: Bradley Landherr
 */
 
 #include <linux/module.h>
@@ -24,7 +24,7 @@
 #include <linux/netfilter.h>
 #include <linux/netfilter/x_tables.h>
 #include <linux/netfilter/nf_conntrack_common.h>
-#include "trigger.h"
+#include "drawbridge.h"
 
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("Bradley Landherr https://github.com/landhb");
@@ -181,7 +181,7 @@ static int __init nf_conntrack_knock_init(void) {
 	}
 		
 
-	printk(KERN_INFO "[+] Loaded Knock Netfilter module into kernel - monitoring %d port(s)\n", ports_c);
+	printk(KERN_INFO "[+] Loaded DrawBridge Netfilter module into kernel - monitoring %d port(s)\n", ports_c);
 	return 0;
 	
 }

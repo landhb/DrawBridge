@@ -1,5 +1,5 @@
 /*
-	Project: Trigger
+	Project: DrawBridge
 	Description: Assymetric crypto wrapper API for Single Packet Authentication
 	Auther: Bradley Landherr
 */
@@ -13,7 +13,7 @@
 #include <crypto/internal/akcipher.h>
 #include <crypto/algapi.h>
 #include <linux/version.h>
-#include "trigger.h"
+#include "drawbridge.h"
 
 // Stores the result of an async operation
 typedef struct op_result {

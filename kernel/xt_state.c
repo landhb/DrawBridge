@@ -1,5 +1,5 @@
 /*
-	Project: Trigger
+	Project: DrawBridge
 	Description: Implements state functions for the conntrack_state linked list
 	Author: Bradley Landherr
 */
@@ -9,7 +9,7 @@
 #include <linux/rculist.h>
 #include <linux/timer.h>
 
-#include "trigger.h"
+#include "drawbridge.h"
 
 extern spinlock_t listmutex;
 

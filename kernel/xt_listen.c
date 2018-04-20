@@ -1,5 +1,5 @@
 /*
-	Project: Trigger
+	Project: DrawBridge
 	Description: Raw socket listener to support Single Packet Authentication
 	Auther: Bradley Landherr
 */
@@ -12,7 +12,7 @@
 #include <linux/wait.h> // DECLARE_WAITQUEUE
 #include <linux/filter.h>
 #include <linux/uio.h>  // iov_iter
-#include "trigger.h"
+#include "drawbridge.h"
 #include "key.h"
 
 
