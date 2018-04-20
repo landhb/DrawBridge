@@ -1,5 +1,5 @@
 /*
-	Project: Trigger
+	Project: DrawBridge
 	Description: Single Packet Authentication Client
 	Auther: Bradley Landherr
 */
@@ -166,8 +166,8 @@ int send_trigger(char * destination, int dst_port,  RSA * pkey) {
 }
 
 void print_usage() {
-	printf("\n[!] Please provide a target IP address and port\n\nUsage: sudo ./trigger [SERVER] [PORT TO UNLOCK] [PATH TO CERT]\n\n"
-	"Example: sudo ./trigger 127.0.0.1 22 ~/.trigger/private.pem\n\n");
+	printf("\n[!] Please provide a target IP address and port\n\nUsage: sudo ./bridge [SERVER] [PORT TO UNLOCK] [PATH TO CERT]\n\n"
+	"Example: sudo ./bridge 127.0.0.1 22 ~/.bridge/private.pem\n\n");
 }
 
 
