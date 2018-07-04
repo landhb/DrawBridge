@@ -210,7 +210,7 @@ void reap_expired_connections(unsigned long timeout) {
 // Init function to register target
 static int __init nf_conntrack_knock_init(void) {
 
-	int ret;
+	int ret, ret6;
 	raw_thread = NULL;
 	reaper = NULL;
 
@@ -236,11 +236,13 @@ static int __init nf_conntrack_knock_init(void) {
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4,13,0)
 	ret = nf_register_net_hook(&init_net, &pkt_hook_ops);
+	ret6 = nf_register_net_hook(&init_net, &pkt_hook_ops_v6);
 #else
 	ret = nf_register_hook(&pkt_hook_ops);
+	ret6 = nf_register_hook(&pkt_hook_ops_v6);
 #endif
 
-	if(ret) {
+	if(ret || ret6) {
 		printk(KERN_INFO "[-] Failed to register hook\n");
 		return ret;
 	} 
