@@ -1,7 +1,7 @@
 /*
 	Project: DrawBridge
 	Description: Single Packet Authentication Client
-	Auther: Bradley Landherr
+	Author: Bradley Landherr
 */
 
 #include <unistd.h>
@@ -93,8 +93,9 @@ static inline  void hexdump(unsigned char *buf,unsigned int len) {
 
 int send_trigger(char * destination, int dst_port,  RSA * pkey) {
 
-
+	int type;
 	struct sockaddr_in din;
+	struct sockaddr_in6 din6;
 	int sock,recv_len,send_len, status  = 0;
 	struct packet * pkt =  (struct packet *)malloc(sizeof(struct packet));
 	void * sig = NULL; // =calloc(2048, 1);
@@ -130,8 +131,23 @@ int send_trigger(char * destination, int dst_port,  RSA * pkey) {
 	memcpy(sendbuf + send_len, digest, digest_size);
 	send_len += digest_size;
 
-	// Create the RAW socket
-	sock = socket(PF_INET, SOCK_RAW, IPPROTO_TCP); /*//IPPROTO_RAW */
+	// Destination IP information
+	if(inet_aton(destination, (struct in_addr *)&(din.sin_addr.s_addr)) == 1) {
+		type = 4;
+		din.sin_family = AF_INET;
+		sock = socket(PF_INET, SOCK_RAW, IPPROTO_TCP); /*//IPPROTO_RAW */
+		din.sin_port = htons(dst_port);
+	} else if (inet_pton(AF_INET6, destination, &(din6.sin6_addr)) == 1) {
+		type = 6;
+		sock = socket(PF_INET6, SOCK_RAW, IPPROTO_TCP); /*//IPPROTO_RAW */
+		din6.sin6_family = AF_INET6;
+		// When using an IPv6 raw socket, sin6_port must be set to 0 to avoid an EINVAL ("Invalid Argument") error. 
+		din6.sin6_port = 0;
+	} else {
+		fprintf(stderr, "[-] Could not parse IP Address.\n");
+		goto cleanup;
+	}
+	
 
 	if (sock < 0) {
 		fprintf(stderr, "[-] Could not initialize raw socket: %s\n", strerror(errno));
@@ -143,18 +159,22 @@ int send_trigger(char * destination, int dst_port,  RSA * pkey) {
 		return -1;
 	} 
 
-	// Destination IP information
-	din.sin_family = AF_INET;
-	din.sin_port = htons(dst_port);
-	din.sin_addr.s_addr = inet_addr(destination); 
-
-	if((recv_len = sendto(sock, (const void * )sendbuf, send_len, MSG_DONTWAIT, (struct sockaddr *)&din, sizeof(din))) < 0) {
-		fprintf(stderr, "[-] Write error: %s\n", strerror(errno));
-	} else {
-		fprintf(stderr, "[+] Sent packet!   len:%d\n", recv_len);
+	if(type == 4){
+		if((recv_len = sendto(sock, (const void * )sendbuf, send_len, MSG_DONTWAIT, (struct sockaddr *)&din, sizeof(din))) < 0) {
+			fprintf(stderr, "[-] Write error: %s\n", strerror(errno));
+		} else {
+			fprintf(stderr, "[+] Sent packet!   len:%d\n", recv_len);
+		}
+	}
+	else if(type == 6){
+		if((recv_len = sendto(sock, (const void * )sendbuf, send_len, MSG_DONTWAIT, (struct sockaddr *)&din6, sizeof(din6))) < 0) {
+			fprintf(stderr, "[-] Write error IPv6: %s\n", strerror(errno));
+		} else {
+			fprintf(stderr, "[+] Sent packet!   len:%d\n", recv_len);
+		}
 	}
 
-
+cleanup:
 	close(sock);
 	free(pkt);
 	free(sig);

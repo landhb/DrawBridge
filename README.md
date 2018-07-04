@@ -1,6 +1,8 @@
 ![logo](https://github.com/landhb/DrawBridge/blob/master/img/logo.PNG?raw=true)
 
-A layer 4 Single Packet Authentication (SPA) Module, used to conceal TCP ports on public facing machines and add an extra layer of security. 
+A layer 4 Single Packet Authentication (SPA) Module, used to conceal TCP/UDP ports on public facing machines and add an extra layer of security. 
+
+Note: DrawBridge now supports both IPv4 and IPv6 traffic
 
 ## Demo
 
