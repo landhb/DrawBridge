@@ -1,7 +1,7 @@
 /*
 	Project: DrawBridge
-	Description: Assymetric crypto wrapper API for Single Packet Authentication
-	Auther: Bradley Landherr
+	Description: Asymmetric crypto wrapper API for Single Packet Authentication
+	Author: Bradley Landherr
 */
 
 #include <linux/module.h>

@@ -43,7 +43,6 @@ DEFINE_SPINLOCK(listmutex);
 struct task_struct * raw_thread;
 
 // Globally accessed structs
-char * src;
 conntrack_state * knock_state;
 struct timer_list * reaper;
 
@@ -57,12 +56,48 @@ module_param_array(ports, ushort, &ports_c, 0400);
 MODULE_PARM_DESC(ports, "Port numbers to require knocks for");
 
 
-static unsigned	int pkt_hook_v4(void * priv, struct sk_buff * skb, const struct nf_hook_state * state) {
 
-	unsigned int i, ret = NF_ACCEPT;
-	struct iphdr * ip_header = (struct iphdr *)skb_network_header(skb);
-	struct tcphdr * tcp_header = (struct tcphdr *)skb_transport_header(skb);
+// Check if we need to block this connection
+static unsigned int conn_state_check(int type, __be32 src, struct in6_addr * src_6, __be16 dest_port) {
 
+	unsigned int i;
+
+	for (i = 0; i < ports_c && i < MAX_PORTS; i++) {
+
+		// Check if packet is destined for a port on our watchlist
+		if(dest_port == htons(ports[i])) {
+
+				if(type == 4 && state_lookup(knock_state, 4, src, NULL,  dest_port)) 
+				{
+					printk(KERN_INFO	"[+] Connection accepted - source: %d.%d.%d.%d\n", (src) & 0xFF, (src >> 8) & 0xFF,
+							(src >> 16) & 0xFF, (src >> 24) & 0xFF);
+					return NF_ACCEPT;
+				} 
+				else if (type == 6 && state_lookup(knock_state, 6, 0, src_6, dest_port)) 
+				{
+					printk(KERN_INFO	"[+] Connection accepted - source: %02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x",
+		                 (int)src_6->s6_addr[0], (int)src_6->s6_addr[1],
+		                 (int)src_6->s6_addr[2], (int)src_6->s6_addr[3],
+		                 (int)src_6->s6_addr[4], (int)src_6->s6_addr[5],
+		                 (int)src_6->s6_addr[6], (int)src_6->s6_addr[7],
+		                 (int)src_6->s6_addr[8], (int)src_6->s6_addr[9],
+		                 (int)src_6->s6_addr[10], (int)src_6->s6_addr[11],
+		                 (int)src_6->s6_addr[12], (int)src_6->s6_addr[13],
+		                 (int)src_6->s6_addr[14], (int)src_6->s6_addr[15]);
+					return NF_ACCEPT;
+				}
+
+				return NF_DROP;
+		}
+	}
+	return NF_ACCEPT;
+}
+
+static unsigned	int pkt_hook_v6(void * priv, struct sk_buff * skb, const struct nf_hook_state * state) {
+
+	struct tcphdr * tcp_header;
+	struct udphdr * udp_header;
+	struct ipv6hdr *ipv6_header = (struct ipv6hdr *)skb_network_header(skb);
 
 	// We only want to look at NEW connections
 #if LINUX_VERSION_CODE <= KERNEL_VERSION(4,10,0)
@@ -75,24 +110,55 @@ static unsigned	int pkt_hook_v4(void * priv, struct sk_buff * skb, const struct 
 	}
 #endif
 
-	for (i = 0; i < ports_c && i < MAX_PORTS; i++) {
-
-		// Check if packet is destined for a port on our watchlist
-		if(tcp_header->dest == htons(ports[i])) {
-
-				memset(src, 0, 16);
-				inet_ntoa(src, ip_header->saddr);
-
-				if(state_lookup(knock_state, 4, ip_header->saddr, NULL,  tcp_header->dest)) {
-					printk(KERN_INFO	"[!] Connection accepted      source:%s\n", src);
-					return NF_ACCEPT;
-				}
-
-				return NF_DROP;
-		}
+	// Unsuported IPv6 encapsulated protocol
+	if (ipv6_header->nexthdr != 6 && ipv6_header->nexthdr != 17) {
+		return NF_ACCEPT;
 	}
 
-	return	ret;	
+	// UDP 
+	if(ipv6_header->nexthdr == 17){
+		udp_header = (struct udphdr *)skb_transport_header(skb);
+		return conn_state_check(6, 0, &(ipv6_header->saddr), udp_header->dest);
+	} 
+
+	// TCP
+	tcp_header = (struct tcphdr *)skb_transport_header(skb);
+	return	conn_state_check(6, 0, &(ipv6_header->saddr), tcp_header->dest);
+}
+
+
+static unsigned	int pkt_hook_v4(void * priv, struct sk_buff * skb, const struct nf_hook_state * state) {
+
+	struct tcphdr * tcp_header;
+	struct udphdr * udp_header;
+	struct iphdr * ip_header = (struct iphdr *)skb_network_header(skb);
+	
+
+	// We only want to look at NEW connections
+#if LINUX_VERSION_CODE <= KERNEL_VERSION(4,10,0)
+	if(skb->nfctinfo == IP_CT_ESTABLISHED && skb->nfctinfo == IP_CT_ESTABLISHED_REPLY) {
+		return NF_ACCEPT;
+	}
+#else
+	if((skb->_nfct & NFCT_INFOMASK) == IP_CT_ESTABLISHED && (skb->_nfct & NFCT_INFOMASK) == IP_CT_ESTABLISHED_REPLY) {
+		return NF_ACCEPT;
+	}
+#endif
+
+	// Unsuported IPv4 encapsulated protocol
+	if (ip_header->protocol != 6 && ip_header->protocol != 17) {
+		return NF_ACCEPT;
+	}
+
+	// UDP 
+	if(ip_header->protocol == 17){
+		udp_header = (struct udphdr *)skb_transport_header(skb);
+		return conn_state_check(4, ip_header->saddr, NULL, udp_header->dest);
+	} 
+
+	// TCP
+	tcp_header = (struct tcphdr *)skb_transport_header(skb);
+	return	conn_state_check(4, ip_header->saddr, NULL, tcp_header->dest);	
 }
 
 
@@ -104,6 +170,13 @@ static struct nf_hook_ops pkt_hook_ops __read_mostly	= {
 	.hook		= &pkt_hook_v4,
 };
 
+
+static struct nf_hook_ops pkt_hook_ops_v6 __read_mostly	= {
+	.pf 		= NFPROTO_IPV6,
+	.priority	= 1,
+	.hooknum	= NF_INET_LOCAL_IN,
+	.hook		= &pkt_hook_v6,
+};
 
 // Callback function for the reaper: removes expired connections
 void reap_expired_connections(unsigned long timeout) {
@@ -142,7 +215,7 @@ static int __init nf_conntrack_knock_init(void) {
 	reaper = NULL;
 
 	// Initialize our memory
-	src = kmalloc(16 * sizeof(char), GFP_KERNEL);
+	//buff = kmalloc(16 * sizeof(char), GFP_KERNEL);
 	knock_state = init_state(); 
 	//state_sync_init();
 

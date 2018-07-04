@@ -1,7 +1,7 @@
 /*
 	Project: DrawBridge
 	Description: Raw socket listener to support Single Packet Authentication
-	Auther: Bradley Landherr
+	Author: Bradley Landherr
 */
 
 #include <linux/kernel.h>
@@ -47,10 +47,8 @@ void inet_ntoa(char * str_ip, __be32 int_ip)
 
 	if(!str_ip)
 		return;
-	else
-		memset(str_ip, 0, 16);
 
-
+	memset(str_ip, 0, 16);
 	sprintf(str_ip, "%d.%d.%d.%d", (int_ip) & 0xFF, (int_ip >> 8) & 0xFF,
 							(int_ip >> 16) & 0xFF, (int_ip >> 24) & 0xFF);
 
