@@ -308,12 +308,10 @@ int listen(void * data) {
 				offset = sizeof(struct ethhdr) + sizeof(struct ipv6hdr) + sizeof(struct tcphdr) + sizeof(struct packet);
 			} 
 			
-
-			res = (struct packet *)(pkt + offset);
 			
 			// Process packet
 			printk(KERN_INFO "[+] Got packet!   len:%d    from:%s\n", recv_len, src);
-
+			res = (struct packet *)(pkt + offset - sizeof(struct packet));
 
 			// Parse the packet for a signature
 			sig = get_signature(pkt, offset);
