@@ -61,15 +61,13 @@ typedef struct conntrack_state {
 
 // Must be packed so that the compiler doesn't byte align the structure
 struct packet {
-	struct ethhdr eth_h;
-	struct iphdr ip_h;
-	struct tcphdr tcp_h;
 
 	// Protocol data
 	struct timespec timestamp;
 	__be16 port;
 
 } __attribute__( ( packed ) ); 
+
 
 
 // Typdefs for cleaner code

@@ -173,7 +173,7 @@ static struct nf_hook_ops pkt_hook_ops __read_mostly	= {
 
 static struct nf_hook_ops pkt_hook_ops_v6 __read_mostly	= {
 	.pf 		= NFPROTO_IPV6,
-	.priority	= 1,
+	.priority	= 2,
 	.hooknum	= NF_INET_LOCAL_IN,
 	.hook		= &pkt_hook_v6,
 };
@@ -237,9 +237,11 @@ static int __init nf_conntrack_knock_init(void) {
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4,13,0)
 	ret = nf_register_net_hook(&init_net, &pkt_hook_ops);
 	ret6 = nf_register_net_hook(&init_net, &pkt_hook_ops_v6);
+	ret6 = 0;
 #else
 	ret = nf_register_hook(&pkt_hook_ops);
 	ret6 = nf_register_hook(&pkt_hook_ops_v6);
+	ret6 = 0;
 #endif
 
 	if(ret || ret6) {
@@ -284,8 +286,10 @@ static void __exit nf_conntrack_knock_exit(void) {
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4,13,0)
 	nf_unregister_net_hook(&init_net, &pkt_hook_ops);
+	nf_unregister_net_hook(&init_net, &pkt_hook_ops_v6);
 #else
 	nf_unregister_hook(&pkt_hook_ops);
+	nf_unregister_hook(&pkt_hook_ops_v6);
 #endif
 
 	printk(KERN_INFO "[*] Unloaded Knock Netfilter module from kernel\n");

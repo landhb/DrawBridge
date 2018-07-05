@@ -70,28 +70,41 @@ Then make sure you can create a BPF filter to match that specific packet. For th
 "tcp[tcpflags] == 28 and tcp[14:2] = 3104"
 ```
 
-[Here is a good short article on tcp flags if you're unfamiliar.](https://danielmiessler.com/study/tcpflags/) After you have a working BPF filter, you need to compile it and include the filter in the kernel module server-side. So to compile this and place the output in kernel/listen.c in struct sock_filter code[]:
+[Here is a good short article on tcp flags if you're unfamiliar.](https://danielmiessler.com/study/tcpflags/). Because tcpdump doesn't support tcp offset shortcuts for IPv6 you have to work with offsets relative to the IPv6 header to support it:
 
 ```
-tcpdump "tcp[tcpflags] == 28 and tcp[14:2] = 3104" -dd
+(tcp[tcpflags] == 28 and tcp[14:2] = 3104) or (ip6[40+13] == 28 and ip6[(40+14):2] = 3104)"
+```
+
+After you have a working BPF filter, you need to compile it and include the filter in the kernel module server-side. So to compile this and place the output in kernel/listen.c in struct sock_filter code[]:
+
+```
+tcpdump "(tcp[tcpflags] == 28 and tcp[14:2] = 3104) or (ip6[40+13] == 28 and ip6[(40+14):2] = 3104)" -dd
 ```
 
 which gives us:
 
 ```c
-{ 0x28, 0, 0, 0x0000000c },
-{ 0x15, 0, 10, 0x00000800 },
-{ 0x30, 0, 0, 0x00000017 },
-{ 0x15, 0, 8, 0x00000006 },
-{ 0x28, 0, 0, 0x00000014 },
-{ 0x45, 6, 0, 0x00001fff },
-{ 0xb1, 0, 0, 0x0000000e },
-{ 0x50, 0, 0, 0x0000001b },
-{ 0x15, 0, 3, 0x0000001c },
-{ 0x48, 0, 0, 0x0000001c },
-{ 0x15, 0, 1, 0x00000c20 },
-{ 0x6, 0, 0, 0x00040000 },
-{ 0x6, 0, 0, 0x00000000 },
+struct sock_filter code[] = {
+	{ 0x28, 0, 0, 0x0000000c },
+	{ 0x15, 0, 9, 0x00000800 },
+	{ 0x30, 0, 0, 0x00000017 },
+	{ 0x15, 0, 13, 0x00000006 },
+	{ 0x28, 0, 0, 0x00000014 },
+	{ 0x45, 11, 0, 0x00001fff },
+	{ 0xb1, 0, 0, 0x0000000e },
+	{ 0x50, 0, 0, 0x0000001b },
+	{ 0x15, 0, 8, 0x0000001c },
+	{ 0x48, 0, 0, 0x0000001c },
+	{ 0x15, 5, 6, 0x00000c20 },
+	{ 0x15, 0, 5, 0x000086dd },
+	{ 0x30, 0, 0, 0x00000043 },
+	{ 0x15, 0, 3, 0x0000001c },
+	{ 0x28, 0, 0, 0x00000044 },
+	{ 0x15, 0, 1, 0x00000c20 },
+	{ 0x6, 0, 0, 0x00040000 },
+	{ 0x6, 0, 0, 0x00000000 },
+};
 ```
 
 And there you go! You have a unique packet that the DrawBridge kernel module will parse!
