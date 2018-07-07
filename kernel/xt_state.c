@@ -87,6 +87,24 @@ void state_add(conntrack_state ** head, int type, __be32 src, struct in6_addr * 
 	return;
 }
 
+void cleanup_states(conntrack_state * head) {
+
+	conntrack_state	 * state, *tmp;
+	
+	spin_lock(&listmutex);
+
+	list_for_each_entry_safe(state, tmp, &(head->list), list) {
+
+		list_del_rcu(&(state->list));
+		spin_unlock(&listmutex);
+		kfree(state);
+		spin_lock(&listmutex);
+		
+	}
+
+	spin_unlock(&listmutex);
+}
+
 
 /* -----------------------------------------------
 				Reaper Timeout Functions
