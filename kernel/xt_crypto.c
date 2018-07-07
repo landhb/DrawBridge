@@ -294,7 +294,7 @@ int verify_sig_rsa(akcipher_request * req, pkey_signature * sig) {
 		return -EKEYREJECTED;
 	}
 		
-	printk(KERN_INFO "[+] RSA signature verification passed\n");
+	//printk(KERN_INFO "[+] RSA signature verification passed\n");
 	kfree(inbuf);
 	kfree(outbuf);
 	return 0;
