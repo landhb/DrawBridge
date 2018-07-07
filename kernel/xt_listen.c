@@ -15,10 +15,10 @@
 #include "drawbridge.h"
 #include "key.h"
 
-
+DEFINE_SPINLOCK(listmutex);
 #define isascii(c) ((c & ~0x7F) == 0)
-char * test;
 
+struct timer_list * reaper;
 extern conntrack_state * knock_state;
 
 
@@ -68,7 +68,7 @@ void inet6_ntoa(char * str_ip, struct in6_addr * src_6)
 	if(!str_ip)
 		return;
 
-	memset(str_ip, 0, sizeof(struct in6_addr));
+	memset(str_ip, 0, 32);
 	sprintf(str_ip, "%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x",
 		                 (int)src_6->s6_addr[0], (int)src_6->s6_addr[1],
 		                 (int)src_6->s6_addr[2], (int)src_6->s6_addr[3],
@@ -117,9 +117,6 @@ static int ksocket_receive(struct socket* sock, struct sockaddr_in* addr, unsign
 
 	return size;
 }
-
-
-
 
 
 static inline  void hexdump(unsigned char *buf,unsigned int len) {
@@ -175,8 +172,38 @@ static void free_signature(pkey_signature * sig) {
 	kfree(sig);
 }
 
+// Callback function for the reaper: removes expired connections
+void reap_expired_connections(unsigned long timeout) {
+
+	conntrack_state	 * state, *tmp;
+
+	spin_lock(&listmutex);
+
+	list_for_each_entry_safe(state, tmp, &(knock_state->list), list) {
+
+		if(jiffies - state->time_added >= msecs_to_jiffies(timeout)) {
+
+			list_del_rcu(&(state->list));
+			spin_unlock(&listmutex);
+			//synchronize_rcu();
+			kfree(state);
+			spin_lock(&listmutex);
+			continue;
+		}
+	}
+
+	spin_unlock(&listmutex);
+
+	// Set the timeout value
+	mod_timer(reaper, jiffies + msecs_to_jiffies(timeout));
+
+	return;
+} 
+
+
 
 int listen(void * data) {
+	
 	
 	int ret,recv_len,error, offset, version;
 
@@ -196,10 +223,9 @@ int listen(void * data) {
 
 	// Buffers
 	unsigned char * pkt = kmalloc(MAX_PACKET_SIZE, GFP_KERNEL);
-	char * src = kmalloc(sizeof(struct in6_addr), GFP_KERNEL);
+	char * src = kmalloc(32+1, GFP_KERNEL);
 	pkey_signature * sig = NULL;
 	void * hash = NULL;
-
 
 	struct sock_fprog bpf = {
 		.len = ARRAY_SIZE(code),
@@ -212,6 +238,7 @@ int listen(void * data) {
 	// Init Crypto Verification
 	struct crypto_akcipher *tfm;
 	akcipher_request * req = init_keys(&tfm, public_key, 270);
+	reaper = NULL;
 
 	if(!req) {
 		kfree(pkt);
@@ -243,6 +270,17 @@ int listen(void * data) {
 	}
 
 
+	reaper = init_reaper(STATE_TIMEOUT);
+
+	if(!reaper) {
+		printk(KERN_INFO "[-] Failed to initialize connection reaper\n");
+		sock_release(sock);
+		free_keys(tfm, req);
+		kfree(pkt);
+		kfree(src);
+		return -1;
+	}
+
 
 	printk(KERN_INFO "[+] BPF raw socket thread initialized\n");
 
@@ -267,11 +305,13 @@ int listen(void * data) {
 				remove_wait_queue(&sock->sk->sk_wq->wait, &recv_wait);
 
 				// Cleanup and exit thread
-				printk(KERN_INFO "[*] returning from child thread\n");
 				sock_release(sock);
 				free_keys(tfm, req);
 				kfree(pkt);
 				kfree(src);
+				if(reaper) {
+					cleanup_reaper(reaper);
+				}
 				do_exit(0);
 			}
 		}
@@ -281,7 +321,7 @@ int listen(void * data) {
 		remove_wait_queue(&sock->sk->sk_wq->wait, &recv_wait);
 
 		memset(pkt, 0, MAX_PACKET_SIZE);
-		memset(src, 0, sizeof(struct in6_addr));
+		memset(src, 0, 32+1);
 		if((recv_len = ksocket_receive(sock, &source, pkt, MAX_PACKET_SIZE)) > 0) {
 
 			if (recv_len < sizeof(struct packet)) {
@@ -310,7 +350,6 @@ int listen(void * data) {
 			
 			
 			// Process packet
-			printk(KERN_INFO "[+] Got packet!   len:%d    from:%s\n", recv_len, src);
 			res = (struct packet *)(pkt + offset - sizeof(struct packet));
 
 			// Parse the packet for a signature
@@ -356,27 +395,30 @@ int listen(void * data) {
 			if (version == 4)
 			{
 				if(!state_lookup(knock_state, 4, ip_h->saddr, NULL, htons(res->port))) {
+					printk(KERN_INFO "[+] Got auth packet!   len:%d    from:%s\n", recv_len, src);
 					state_add(&knock_state, 4, ip_h->saddr, NULL, htons(res->port));
 				}
 			} 
 			else if (version == 6) 
 			{
 				if(!state_lookup(knock_state, 6, 0, &(ip6_h->saddr), htons(res->port))) {
+					printk(KERN_INFO "[+] Got auth packet!   len:%d    from:%s\n", recv_len, src);
 					state_add(&knock_state, 6, 0, &(ip6_h->saddr), htons(res->port));
 				}
 			}
 
 			free_signature(sig);
 			kfree(hash);
-
 		}
 
 	}
 
-	printk(KERN_INFO "[*] returning from child thread\n");
 	sock_release(sock);
 	free_keys(tfm, req);
 	kfree(pkt);
 	kfree(src);
+	if(reaper) {
+		cleanup_reaper(reaper);
+	}
 	do_exit(0);
 }

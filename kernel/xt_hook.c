@@ -34,7 +34,7 @@ MODULE_ALIAS("trigger");
 MODULE_ALIAS("ip_conntrack_trigger");
 
 
-DEFINE_SPINLOCK(listmutex);
+
 
 #define MODULE_NAME "trigger"
 #define MAX_PORTS 10
@@ -44,7 +44,6 @@ struct task_struct * raw_thread;
 
 // Globally accessed structs
 conntrack_state * knock_state;
-struct timer_list * reaper;
 
 
 // Global configs
@@ -75,7 +74,7 @@ static unsigned int conn_state_check(int type, __be32 src, struct in6_addr * src
 				} 
 				else if (type == 6 && state_lookup(knock_state, 6, 0, src_6, dest_port)) 
 				{
-					printk(KERN_INFO	"[+] Connection accepted - source: %02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x",
+					printk(KERN_INFO	"[+] Connection accepted - source: %02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x\n",
 		                 (int)src_6->s6_addr[0], (int)src_6->s6_addr[1],
 		                 (int)src_6->s6_addr[2], (int)src_6->s6_addr[3],
 		                 (int)src_6->s6_addr[4], (int)src_6->s6_addr[5],
@@ -132,7 +131,6 @@ static unsigned	int pkt_hook_v4(void * priv, struct sk_buff * skb, const struct 
 	struct tcphdr * tcp_header;
 	struct udphdr * udp_header;
 	struct iphdr * ip_header = (struct iphdr *)skb_network_header(skb);
-	
 
 	// We only want to look at NEW connections
 #if LINUX_VERSION_CODE <= KERNEL_VERSION(4,10,0)
@@ -165,7 +163,7 @@ static unsigned	int pkt_hook_v4(void * priv, struct sk_buff * skb, const struct 
 
 static struct nf_hook_ops pkt_hook_ops __read_mostly	= {
 	.pf 		= NFPROTO_IPV4,
-	.priority	= 1,
+	.priority	= NF_IP_PRI_FIRST,
 	.hooknum	= NF_INET_LOCAL_IN,
 	.hook		= &pkt_hook_v4,
 };
@@ -173,38 +171,11 @@ static struct nf_hook_ops pkt_hook_ops __read_mostly	= {
 
 static struct nf_hook_ops pkt_hook_ops_v6 __read_mostly	= {
 	.pf 		= NFPROTO_IPV6,
-	.priority	= 2,
+	.priority	= NF_IP_PRI_FIRST,
 	.hooknum	= NF_INET_LOCAL_IN,
 	.hook		= &pkt_hook_v6,
 };
 
-// Callback function for the reaper: removes expired connections
-void reap_expired_connections(unsigned long timeout) {
-
-	conntrack_state	 * state, *tmp;
-
-	spin_lock(&listmutex);
-
-	list_for_each_entry_safe(state, tmp, &(knock_state->list), list) {
-
-		if(jiffies - state->time_added >= msecs_to_jiffies(timeout)) {
-			printk(KERN_INFO "[!] Knock expired\n");
-			list_del_rcu(&(state->list));
-			spin_unlock(&listmutex);
-			//synchronize_rcu();
-			kfree(state);
-			spin_lock(&listmutex);
-			continue;
-		}
-	}
-
-	spin_unlock(&listmutex);
-
-	// Set the timeout value
-	mod_timer(reaper, jiffies + msecs_to_jiffies(timeout));
-
-	return;
-} 
 
 
 // Init function to register target
@@ -212,12 +183,10 @@ static int __init nf_conntrack_knock_init(void) {
 
 	int ret, ret6;
 	raw_thread = NULL;
-	reaper = NULL;
+	
 
 	// Initialize our memory
-	//buff = kmalloc(16 * sizeof(char), GFP_KERNEL);
 	knock_state = init_state(); 
-	//state_sync_init();
 
 	// Start kernel thread raw socket to listen for triggers
 	raw_thread = kthread_create(&listen, NULL, MODULE_NAME);
@@ -230,32 +199,21 @@ static int __init nf_conntrack_knock_init(void) {
 		return PTR_ERR(raw_thread);
 	}
 
-
 	// Now it is safe to start kthread - exiting from it doesn't destroy its struct.
 	wake_up_process(raw_thread);
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4,13,0)
 	ret = nf_register_net_hook(&init_net, &pkt_hook_ops);
 	ret6 = nf_register_net_hook(&init_net, &pkt_hook_ops_v6);
-	ret6 = 0;
 #else
 	ret = nf_register_hook(&pkt_hook_ops);
 	ret6 = nf_register_hook(&pkt_hook_ops_v6);
-	ret6 = 0;
 #endif
 
 	if(ret || ret6) {
 		printk(KERN_INFO "[-] Failed to register hook\n");
 		return ret;
 	} 
-
-
-	reaper = init_reaper(30000);
-
-	if(!reaper) {
-		printk(KERN_INFO "[-] Failed to initialize connection reaper\n");
-		return -1;
-	}
 		
 
 	printk(KERN_INFO "[+] Loaded DrawBridge Netfilter module into kernel - monitoring %d port(s)\n", ports_c);
@@ -270,18 +228,18 @@ static void __exit nf_conntrack_knock_exit(void) {
 	int err = 0;
 
 	if(raw_thread) {
-		//lock_kernel();
+
 		err = kthread_stop(raw_thread);
 		put_task_struct(raw_thread);
 		raw_thread = NULL;
 		printk(KERN_INFO "[*] Stopped counterpart thread\n");
-		//unlock_kernel();
+
 	} else {
 		printk(KERN_INFO "[!] no kernel thread to kill\n");
 	}
 
-	if(reaper) {
-		cleanup_reaper(reaper);
+	if(knock_state) {
+		cleanup_states(knock_state);
 	}
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4,13,0)
