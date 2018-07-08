@@ -30,8 +30,8 @@ MODULE_LICENSE("GPL");
 MODULE_AUTHOR("Bradley Landherr https://github.com/landhb");
 MODULE_DESCRIPTION("NetFilter Kernel Module to Support BPF Based Single Packet Authentication");
 MODULE_VERSION("0.1");
-MODULE_ALIAS("trigger");
-MODULE_ALIAS("ip_conntrack_trigger");
+MODULE_ALIAS("drawbridge");
+MODULE_ALIAS("ip_conntrack_drawbridge");
 
 
 

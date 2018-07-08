@@ -89,7 +89,6 @@ static int ksocket_receive(struct socket* sock, struct sockaddr_in* addr, unsign
 	struct msghdr msg;
 	mm_segment_t oldfs;
 	int size = 0;
-	//struct iov_iter iov;
 	struct iovec iov;
 
 	if (sock->sk == NULL) return 0;
@@ -106,9 +105,6 @@ static int ksocket_receive(struct socket* sock, struct sockaddr_in* addr, unsign
 	msg.msg_iocb = NULL;
 
 	iov_iter_init(&msg.msg_iter, WRITE, &iov, 1, len);
-	//msg.msg_iter.iov->iov_base = buf;
-	//msg.msg_iter.iov->iov_len = len;
-	//msg.msg_iovlen=1;
 
 	oldfs = get_fs();
 	set_fs(KERNEL_DS);
@@ -321,7 +317,6 @@ int listen(void * data) {
 		remove_wait_queue(&sock->sk->sk_wq->wait, &recv_wait);
 
 		memset(pkt, 0, MAX_PACKET_SIZE);
-		memset(src, 0, 32+1);
 		if((recv_len = ksocket_receive(sock, &source, pkt, MAX_PACKET_SIZE)) > 0) {
 
 			if (recv_len < sizeof(struct packet)) {
