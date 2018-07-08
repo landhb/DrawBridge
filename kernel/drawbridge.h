@@ -6,6 +6,7 @@
 #include <linux/if_ether.h>
 #include <linux/icmp.h>
 #include <linux/ip.h>
+#include <linux/ipv6.h>
 #include <linux/in.h>
 #include <linux/tcp.h>
 
@@ -18,6 +19,10 @@
 // Time
 #include <linux/time.h>
 
+// Timout Configuration
+#define STATE_TIMEOUT 60000
+
+// Defaults
 #define MAX_PACKET_SIZE 65535
 #define MAX_SIG_SIZE 4096
 #define MAX_DIGEST_SIZE 256
@@ -45,8 +50,8 @@ typedef struct conntrack_state {
 
 	// Source IP
 	union {
-		__be32 addr_4;
 		struct in6_addr addr_6;
+		__be32 addr_4;
 	} src;
 
 	// Timestamp
@@ -60,15 +65,13 @@ typedef struct conntrack_state {
 
 // Must be packed so that the compiler doesn't byte align the structure
 struct packet {
-	struct ethhdr eth_h;
-	struct iphdr ip_h;
-	struct tcphdr tcp_h;
 
 	// Protocol data
 	struct timespec timestamp;
 	__be16 port;
 
 } __attribute__( ( packed ) ); 
+
 
 
 // Typdefs for cleaner code
@@ -84,6 +87,7 @@ void inet_ntoa(char * str_ip, __be32 int_ip);
 conntrack_state	* init_state(void);
 int state_lookup(conntrack_state * head, int type, __be32 src, struct in6_addr * src_6, __be16 port);
 void state_add(conntrack_state ** head, int type, __be32 src, struct in6_addr * src_6, __be16 port);
+void cleanup_states(conntrack_state * head);
 
 // Connection Reaper API
 void reap_expired_connections(unsigned long timeout);

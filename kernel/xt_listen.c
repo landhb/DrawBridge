@@ -1,7 +1,7 @@
 /*
 	Project: DrawBridge
 	Description: Raw socket listener to support Single Packet Authentication
-	Auther: Bradley Landherr
+	Author: Bradley Landherr
 */
 
 #include <linux/kernel.h>
@@ -15,25 +15,31 @@
 #include "drawbridge.h"
 #include "key.h"
 
-
+DEFINE_SPINLOCK(listmutex);
 #define isascii(c) ((c & ~0x7F) == 0)
-char * test;
 
+struct timer_list * reaper;
 extern conntrack_state * knock_state;
 
 
-// Compiled w/ tcpdump "tcp[tcpflags] == 22 and tcp[14:2] = 5840" -dd
+// For both IPv4 and IPv6 compiled w/
+// tcpdump "(tcp[tcpflags] == 22 and tcp[14:2] = 5840) or (ip6[40+13] == 22 and ip6[(40+14):2] = 5840)" -dd
 struct sock_filter code[] = {
 	{ 0x28, 0, 0, 0x0000000c },
-	{ 0x15, 0, 10, 0x00000800 },
+	{ 0x15, 0, 9, 0x00000800 },
 	{ 0x30, 0, 0, 0x00000017 },
-	{ 0x15, 0, 8, 0x00000006 },
+	{ 0x15, 0, 13, 0x00000006 },
 	{ 0x28, 0, 0, 0x00000014 },
-	{ 0x45, 6, 0, 0x00001fff },
+	{ 0x45, 11, 0, 0x00001fff },
 	{ 0xb1, 0, 0, 0x0000000e },
 	{ 0x50, 0, 0, 0x0000001b },
-	{ 0x15, 0, 3, 0x00000016 },
+	{ 0x15, 0, 8, 0x00000016 },
 	{ 0x48, 0, 0, 0x0000001c },
+	{ 0x15, 5, 6, 0x000016d0 },
+	{ 0x15, 0, 5, 0x000086dd },
+	{ 0x30, 0, 0, 0x00000043 },
+	{ 0x15, 0, 3, 0x00000016 },
+	{ 0x28, 0, 0, 0x00000044 },
 	{ 0x15, 0, 1, 0x000016d0 },
 	{ 0x6, 0, 0, 0x00040000 },
 	{ 0x6, 0, 0, 0x00000000 },
@@ -47,16 +53,34 @@ void inet_ntoa(char * str_ip, __be32 int_ip)
 
 	if(!str_ip)
 		return;
-	else
-		memset(str_ip, 0, 16);
 
-
+	memset(str_ip, 0, 16);
 	sprintf(str_ip, "%d.%d.%d.%d", (int_ip) & 0xFF, (int_ip >> 8) & 0xFF,
 							(int_ip >> 16) & 0xFF, (int_ip >> 24) & 0xFF);
 
 	return;
 }
 
+
+void inet6_ntoa(char * str_ip, struct in6_addr * src_6)
+{
+
+	if(!str_ip)
+		return;
+
+	memset(str_ip, 0, 32);
+	sprintf(str_ip, "%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x",
+		                 (int)src_6->s6_addr[0], (int)src_6->s6_addr[1],
+		                 (int)src_6->s6_addr[2], (int)src_6->s6_addr[3],
+		                 (int)src_6->s6_addr[4], (int)src_6->s6_addr[5],
+		                 (int)src_6->s6_addr[6], (int)src_6->s6_addr[7],
+		                 (int)src_6->s6_addr[8], (int)src_6->s6_addr[9],
+		                 (int)src_6->s6_addr[10], (int)src_6->s6_addr[11],
+		                 (int)src_6->s6_addr[12], (int)src_6->s6_addr[13],
+		                 (int)src_6->s6_addr[14], (int)src_6->s6_addr[15]);
+
+	return;
+}
 
 
 
@@ -65,7 +89,6 @@ static int ksocket_receive(struct socket* sock, struct sockaddr_in* addr, unsign
 	struct msghdr msg;
 	mm_segment_t oldfs;
 	int size = 0;
-	//struct iov_iter iov;
 	struct iovec iov;
 
 	if (sock->sk == NULL) return 0;
@@ -82,9 +105,6 @@ static int ksocket_receive(struct socket* sock, struct sockaddr_in* addr, unsign
 	msg.msg_iocb = NULL;
 
 	iov_iter_init(&msg.msg_iter, WRITE, &iov, 1, len);
-	//msg.msg_iter.iov->iov_base = buf;
-	//msg.msg_iter.iov->iov_len = len;
-	//msg.msg_iovlen=1;
 
 	oldfs = get_fs();
 	set_fs(KERNEL_DS);
@@ -95,9 +115,6 @@ static int ksocket_receive(struct socket* sock, struct sockaddr_in* addr, unsign
 }
 
 
-
-
-
 static inline  void hexdump(unsigned char *buf,unsigned int len) {
 	while(len--)
 		printk("%02x",*buf++);
@@ -105,11 +122,10 @@ static inline  void hexdump(unsigned char *buf,unsigned int len) {
 }
 
 // Pointer arithmatic to parse out the signature and digest
-static pkey_signature * get_signature(void * pkt) {
+static pkey_signature * get_signature(void * pkt, u32 offset) {
 
 	// Allocate the result struct
 	pkey_signature * sig = kzalloc(sizeof(pkey_signature), GFP_KERNEL);
-	u32 offset = sizeof(struct packet);
 
 	// Get the signature size
 	sig->s_size = *(u32 *)(pkt + offset);
@@ -152,19 +168,60 @@ static void free_signature(pkey_signature * sig) {
 	kfree(sig);
 }
 
+// Callback function for the reaper: removes expired connections
+void reap_expired_connections(unsigned long timeout) {
+
+	conntrack_state	 * state, *tmp;
+
+	spin_lock(&listmutex);
+
+	list_for_each_entry_safe(state, tmp, &(knock_state->list), list) {
+
+		if(jiffies - state->time_added >= msecs_to_jiffies(timeout)) {
+
+			list_del_rcu(&(state->list));
+			spin_unlock(&listmutex);
+			//synchronize_rcu();
+			kfree(state);
+			spin_lock(&listmutex);
+			continue;
+		}
+	}
+
+	spin_unlock(&listmutex);
+
+	// Set the timeout value
+	mod_timer(reaper, jiffies + msecs_to_jiffies(timeout));
+
+	return;
+} 
+
+
 
 int listen(void * data) {
 	
-	int ret,recv_len,error;
+	
+	int ret,recv_len,error, offset, version;
+
+	// Packet headers
+	struct ethhdr * eth_h;
+	struct iphdr * ip_h;
+	struct ipv6hdr * ip6_h;
+	struct tcphdr * tcp_h;
+	struct packet * res;
+
+
+	// Socket info
 	struct socket * sock;
 	struct sockaddr_in source;
-	struct packet * res;
+	
 	struct timespec tm;
+
+	// Buffers
 	unsigned char * pkt = kmalloc(MAX_PACKET_SIZE, GFP_KERNEL);
-	char * src = kmalloc(16 * sizeof(char), GFP_KERNEL);
+	char * src = kmalloc(32+1, GFP_KERNEL);
 	pkey_signature * sig = NULL;
 	void * hash = NULL;
-
 
 	struct sock_fprog bpf = {
 		.len = ARRAY_SIZE(code),
@@ -177,6 +234,7 @@ int listen(void * data) {
 	// Init Crypto Verification
 	struct crypto_akcipher *tfm;
 	akcipher_request * req = init_keys(&tfm, public_key, 270);
+	reaper = NULL;
 
 	if(!req) {
 		kfree(pkt);
@@ -208,6 +266,17 @@ int listen(void * data) {
 	}
 
 
+	reaper = init_reaper(STATE_TIMEOUT);
+
+	if(!reaper) {
+		printk(KERN_INFO "[-] Failed to initialize connection reaper\n");
+		sock_release(sock);
+		free_keys(tfm, req);
+		kfree(pkt);
+		kfree(src);
+		return -1;
+	}
+
 
 	printk(KERN_INFO "[+] BPF raw socket thread initialized\n");
 
@@ -232,11 +301,13 @@ int listen(void * data) {
 				remove_wait_queue(&sock->sk->sk_wq->wait, &recv_wait);
 
 				// Cleanup and exit thread
-				printk(KERN_INFO "[*] returning from child thread\n");
 				sock_release(sock);
 				free_keys(tfm, req);
 				kfree(pkt);
 				kfree(src);
+				if(reaper) {
+					cleanup_reaper(reaper);
+				}
 				do_exit(0);
 			}
 		}
@@ -245,21 +316,39 @@ int listen(void * data) {
 		set_current_state(TASK_RUNNING);
 		remove_wait_queue(&sock->sk->sk_wq->wait, &recv_wait);
 
-		memset(pkt, 0, MAX_PACKET_SIZE-sizeof(struct icmphdr));
+		memset(pkt, 0, MAX_PACKET_SIZE);
 		if((recv_len = ksocket_receive(sock, &source, pkt, MAX_PACKET_SIZE)) > 0) {
 
 			if (recv_len < sizeof(struct packet)) {
 				continue;
 			}
 
-			res = (struct packet *)pkt;
-			inet_ntoa(src, res->ip_h.saddr);
-
+			
+			// Check IP version
+			eth_h = (struct ethhdr *)pkt;
+			if((eth_h->h_proto & 0xFF) == 0x08 && ((eth_h->h_proto >> 8) & 0xFF) == 0x00) 
+			{
+				version = 4;
+				ip_h = (struct iphdr*)(pkt + sizeof(struct ethhdr));
+				tcp_h = (struct tcphdr *)(pkt + sizeof(struct ethhdr)+ sizeof(struct iphdr));
+				inet_ntoa(src, ip_h->saddr);
+				offset = sizeof(struct ethhdr) + sizeof(struct iphdr) + sizeof(struct tcphdr) + sizeof(struct packet);
+			}
+			else if((eth_h->h_proto & 0xFF) == 0x86 && ((eth_h->h_proto >> 8) & 0xFF) == 0xDD)
+			{
+				version = 6;
+				ip6_h = (struct ipv6hdr *)(pkt + sizeof(struct ethhdr));
+				tcp_h = (struct tcphdr *)(pkt + sizeof(struct ethhdr) + sizeof(struct ipv6hdr));
+				inet6_ntoa(src, &(ip6_h->saddr));
+				offset = sizeof(struct ethhdr) + sizeof(struct ipv6hdr) + sizeof(struct tcphdr) + sizeof(struct packet);
+			} 
+			
+			
 			// Process packet
-			printk(KERN_INFO "[+] Got packet!   len:%d    from:%s\n", recv_len, src);
+			res = (struct packet *)(pkt + offset - sizeof(struct packet));
 
 			// Parse the packet for a signature
-			sig = get_signature(pkt);
+			sig = get_signature(pkt, offset);
 
 			if(!sig) {
 				printk(KERN_INFO "[-] Signature not found in packet\n");
@@ -267,7 +356,7 @@ int listen(void * data) {
 			}
 
 			// Hash the TCP header + timestamp + port to unlock
-			hash = gen_digest((unsigned char *)&(res->tcp_h), sizeof(struct packet) - (sizeof(struct ethhdr) + sizeof(struct iphdr)));
+			hash = gen_digest((unsigned char *)tcp_h, sizeof(struct tcphdr) + sizeof(struct packet));
 
 			if(!hash) {
 				free_signature(sig);
@@ -298,21 +387,33 @@ int listen(void * data) {
 			}
 
 			// Add the IP to the connection linked list
-			if(!state_lookup(knock_state, 4, res->ip_h.saddr, NULL, htons(res->port))) {
-				state_add(&knock_state, 4, res->ip_h.saddr, NULL, htons(res->port));
+			if (version == 4)
+			{
+				if(!state_lookup(knock_state, 4, ip_h->saddr, NULL, htons(res->port))) {
+					printk(KERN_INFO "[+] Got auth packet!   len:%d    from:%s\n", recv_len, src);
+					state_add(&knock_state, 4, ip_h->saddr, NULL, htons(res->port));
+				}
+			} 
+			else if (version == 6) 
+			{
+				if(!state_lookup(knock_state, 6, 0, &(ip6_h->saddr), htons(res->port))) {
+					printk(KERN_INFO "[+] Got auth packet!   len:%d    from:%s\n", recv_len, src);
+					state_add(&knock_state, 6, 0, &(ip6_h->saddr), htons(res->port));
+				}
 			}
 
 			free_signature(sig);
 			kfree(hash);
-
 		}
 
 	}
 
-	printk(KERN_INFO "[*] returning from child thread\n");
 	sock_release(sock);
 	free_keys(tfm, req);
 	kfree(pkt);
 	kfree(src);
+	if(reaper) {
+		cleanup_reaper(reaper);
+	}
 	do_exit(0);
 }

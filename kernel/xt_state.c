@@ -15,6 +15,9 @@ extern spinlock_t listmutex;
 
 static inline int ipv6_addr_cmp(const struct in6_addr *a1, const struct in6_addr *a2)
 {
+	if(a2 == NULL || a1 == NULL){
+		return -1;
+	}
 	return memcmp(a1, a2, sizeof(struct in6_addr));
 }
 
@@ -82,6 +85,24 @@ void state_add(conntrack_state ** head, int type, __be32 src, struct in6_addr * 
 	spin_unlock(&listmutex);
 
 	return;
+}
+
+void cleanup_states(conntrack_state * head) {
+
+	conntrack_state	 * state, *tmp;
+	
+	spin_lock(&listmutex);
+
+	list_for_each_entry_safe(state, tmp, &(head->list), list) {
+
+		list_del_rcu(&(state->list));
+		spin_unlock(&listmutex);
+		kfree(state);
+		spin_lock(&listmutex);
+		
+	}
+
+	spin_unlock(&listmutex);
 }
 
 
