@@ -12,6 +12,7 @@
 #include <linux/wait.h> // DECLARE_WAITQUEUE
 #include <linux/filter.h>
 #include <linux/uio.h>  // iov_iter
+#include <linux/version.h>
 #include "drawbridge.h"
 #include "key.h"
 
@@ -106,14 +107,20 @@ static int ksocket_receive(struct socket* sock, struct sockaddr_in* addr, unsign
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3,19,0)
 	msg.msg_iocb = NULL;
 	iov_iter_init(&msg.msg_iter, WRITE, &iov, 1, len);
-#elif
+#else
 	msg.msg_iov = &iov;
 	msg.msg_iovlen = len;
 #endif
 
 	oldfs = get_fs();
 	set_fs(KERNEL_DS);
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4,7,0)
 	size = sock_recvmsg(sock,&msg,msg.msg_flags);
+#else
+	size = sock_recvmsg(sock,&msg,len,msg.msg_flags);
+#endif
+
 	set_fs(oldfs);
 
 	return size;
