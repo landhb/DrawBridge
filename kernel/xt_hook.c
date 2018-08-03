@@ -198,7 +198,7 @@ static unsigned	 int hook_wrapper_v4(unsigned int hooknum,
 			       int (*okfn)(struct sk_buff *)) {
 		return pkt_hook_v4(skb);
 }
-static unsigned	 int hook_wrapper_v6((unsigned int hooknum,
+static unsigned	 int hook_wrapper_v6(unsigned int hooknum,
 			       struct sk_buff *skb,
 			       const struct net_device *in,
 			       const struct net_device *out,
