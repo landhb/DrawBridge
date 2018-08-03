@@ -88,9 +88,8 @@ void inet6_ntoa(char * str_ip, struct in6_addr * src_6)
 static int ksocket_receive(struct socket* sock, struct sockaddr_in* addr, unsigned char* buf, int len)
 {
 	struct msghdr msg;
-	mm_segment_t oldfs;
 	int size = 0;
-	struct iovec iov;
+	struct kvec iov;
 
 	if (sock->sk == NULL) {
 		return 0;
@@ -106,22 +105,16 @@ static int ksocket_receive(struct socket* sock, struct sockaddr_in* addr, unsign
 	msg.msg_controllen = 0;
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3,19,0)
 	msg.msg_iocb = NULL;
-	iov_iter_init(&msg.msg_iter, WRITE, &iov, 1, len);
+	iov_iter_init(&msg.msg_iter, WRITE, (struct iovec *)&iov, 1, len);
 #else
 	msg.msg_iov = &iov;
 	msg.msg_iovlen = len;
 #endif
 
-	oldfs = get_fs();
-	set_fs(KERNEL_DS);
-
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(4,7,0)
-	size = sock_recvmsg(sock,&msg,msg.msg_flags);
-#else
-	size = sock_recvmsg(sock,&msg,len,msg.msg_flags);
-#endif
-
-	set_fs(oldfs);
+	// https://github.com/torvalds/linux/commit/2da62906b1e298695e1bb725927041cd59942c98
+	// switching to kernel_recvmsg because it's more consistent across versions 
+	// https://elixir.bootlin.com/linux/v4.6/source/net/socket.c#L741
+	size = kernel_recvmsg(sock, &msg, &iov, 1, len, msg.msg_flags);
 
 	return size;
 }
@@ -132,6 +125,17 @@ static inline  void hexdump(unsigned char *buf,unsigned int len) {
 		printk("%02x",*buf++);
 	printk("\n");
 }
+
+static void free_signature(pkey_signature * sig) {
+	if(sig->s) {
+		kfree(sig->s);
+	}
+	if(sig->digest) {
+		kfree(sig->digest);
+	}
+	kfree(sig);
+}
+
 
 // Pointer arithmatic to parse out the signature and digest
 static pkey_signature * get_signature(void * pkt, u32 offset) {
@@ -144,6 +148,7 @@ static pkey_signature * get_signature(void * pkt, u32 offset) {
 
 	// Sanity check the sig size
 	if(sig->s_size > MAX_SIG_SIZE || sig->s_size < 0) {
+		kfree(sig);
 		return NULL;
 	}
 
@@ -158,6 +163,8 @@ static pkey_signature * get_signature(void * pkt, u32 offset) {
 
 	// Sanity check the digest size
 	if(sig->digest_size > MAX_DIGEST_SIZE || sig->digest_size < 0) {
+		kfree(sig->s);
+		kfree(sig);
 		return NULL;
 	}
 
@@ -170,15 +177,6 @@ static pkey_signature * get_signature(void * pkt, u32 offset) {
 
 }
 
-static void free_signature(pkey_signature * sig) {
-	if(sig->s) {
-		kfree(sig->s);
-	}
-	if(sig->digest) {
-		kfree(sig->digest);
-	}
-	kfree(sig);
-}
 
 // Callback function for the reaper: removes expired connections
 void reap_expired_connections(unsigned long timeout) {
@@ -226,7 +224,6 @@ int listen(void * data) {
 	// Socket info
 	struct socket * sock;
 	struct sockaddr_in source;
-	
 	struct timespec tm;
 
 	// Buffers
@@ -353,7 +350,10 @@ int listen(void * data) {
 				tcp_h = (struct tcphdr *)(pkt + sizeof(struct ethhdr) + sizeof(struct ipv6hdr));
 				inet6_ntoa(src, &(ip6_h->saddr));
 				offset = sizeof(struct ethhdr) + sizeof(struct ipv6hdr) + sizeof(struct tcphdr) + sizeof(struct packet);
-			} 
+			} else {
+				// unsupported protocol
+				continue;
+			}
 			
 			
 			// Process packet
