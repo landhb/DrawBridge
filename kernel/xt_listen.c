@@ -91,20 +91,25 @@ static int ksocket_receive(struct socket* sock, struct sockaddr_in* addr, unsign
 	int size = 0;
 	struct iovec iov;
 
-	if (sock->sk == NULL) return 0;
+	if (sock->sk == NULL) {
+		return 0;
+	}
 
 	iov.iov_base=buf;
 	iov.iov_len=len;
-
 
 	msg.msg_flags = MSG_DONTWAIT;
 	msg.msg_name = addr;
 	msg.msg_namelen  = sizeof(struct sockaddr_in);
 	msg.msg_control = NULL;
 	msg.msg_controllen = 0;
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3,19,0)
 	msg.msg_iocb = NULL;
-
 	iov_iter_init(&msg.msg_iter, WRITE, &iov, 1, len);
+#elif
+	msg.msg_iov = &iov;
+	msg.msg_iovlen = len;
+#endif
 
 	oldfs = get_fs();
 	set_fs(KERNEL_DS);
