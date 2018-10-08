@@ -92,7 +92,7 @@ static unsigned int conn_state_check(int type, __be32 src, struct in6_addr * src
 	return NF_ACCEPT;
 }
 
-static unsigned	int pkt_hook_v6(void * priv, struct sk_buff * skb, const struct nf_hook_state * state) {
+static unsigned	int pkt_hook_v6(struct sk_buff * skb) {
 
 	struct tcphdr * tcp_header;
 	struct udphdr * udp_header;
@@ -126,7 +126,7 @@ static unsigned	int pkt_hook_v6(void * priv, struct sk_buff * skb, const struct 
 }
 
 
-static unsigned	int pkt_hook_v4(void * priv, struct sk_buff * skb, const struct nf_hook_state * state) {
+static unsigned	int pkt_hook_v4(struct sk_buff * skb) {
 
 	struct tcphdr * tcp_header;
 	struct udphdr * udp_header;
@@ -160,12 +160,61 @@ static unsigned	int pkt_hook_v4(void * priv, struct sk_buff * skb, const struct 
 }
 
 
+// Version specific callbacks
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4,4,0)
+static unsigned	 int hook_wrapper_v4(void * priv, struct sk_buff * skb, const struct nf_hook_state * state) {
+		return pkt_hook_v4(skb);
+}
+static unsigned	 int hook_wrapper_v6(void * priv, struct sk_buff * skb, const struct nf_hook_state * state) {
+		return pkt_hook_v6(skb);
+}
+#elif LINUX_VERSION_CODE >= KERNEL_VERSION(4,1,0)
+static unsigned	 int hook_wrapper_v4(const struct nf_hook_ops *ops,struct sk_buff *skb, const struct nf_hook_state *state) {
+		return pkt_hook_v4(skb);
+}
+static unsigned	 int hook_wrapper_v6(const struct nf_hook_ops *ops,struct sk_buff *skb, const struct nf_hook_state *state) {
+		return pkt_hook_v6(skb);
+}
+#elif LINUX_VERSION_CODE >= KERNEL_VERSION(3,13,0)
+static unsigned	 int hook_wrapper_v4(const struct nf_hook_ops *ops,
+			       struct sk_buff *skb,
+			       const struct net_device *in,
+			       const struct net_device *out,
+			       int (*okfn)(struct sk_buff *)) {
+		return pkt_hook_v4(skb);
+}
+static unsigned	 int hook_wrapper_v6(const struct nf_hook_ops *ops,
+			       struct sk_buff *skb,
+			       const struct net_device *in,
+			       const struct net_device *out,
+			       int (*okfn)(struct sk_buff *)) {
+		return pkt_hook_v6(skb);
+}
+#elif LINUX_VERSION_CODE >= KERNEL_VERSION(3,0,0)
+static unsigned	 int hook_wrapper_v4(unsigned int hooknum,
+			       struct sk_buff *skb,
+			       const struct net_device *in,
+			       const struct net_device *out,
+			       int (*okfn)(struct sk_buff *)) {
+		return pkt_hook_v4(skb);
+}
+static unsigned	 int hook_wrapper_v6(unsigned int hooknum,
+			       struct sk_buff *skb,
+			       const struct net_device *in,
+			       const struct net_device *out,
+			       int (*okfn)(struct sk_buff *)) {
+		return pkt_hook_v6(skb);
+}
+#else
+#error "Unsuported kernel version.  Only Linux 3.X and greater."
+#endif
+
 
 static struct nf_hook_ops pkt_hook_ops __read_mostly	= {
 	.pf 		= NFPROTO_IPV4,
 	.priority	= NF_IP_PRI_FIRST,
 	.hooknum	= NF_INET_LOCAL_IN,
-	.hook		= &pkt_hook_v4,
+	.hook		= &hook_wrapper_v4,
 };
 
 
@@ -173,7 +222,7 @@ static struct nf_hook_ops pkt_hook_ops_v6 __read_mostly	= {
 	.pf 		= NFPROTO_IPV6,
 	.priority	= NF_IP_PRI_FIRST,
 	.hooknum	= NF_INET_LOCAL_IN,
-	.hook		= &pkt_hook_v6,
+	.hook		= &hook_wrapper_v6,
 };
 
 

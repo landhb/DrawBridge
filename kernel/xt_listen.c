@@ -12,6 +12,7 @@
 #include <linux/wait.h> // DECLARE_WAITQUEUE
 #include <linux/filter.h>
 #include <linux/uio.h>  // iov_iter
+#include <linux/version.h>
 #include "drawbridge.h"
 #include "key.h"
 
@@ -85,29 +86,33 @@ void inet6_ntoa(char * str_ip, struct in6_addr * src_6)
 static int ksocket_receive(struct socket* sock, struct sockaddr_in* addr, unsigned char* buf, int len)
 {
 	struct msghdr msg;
-	mm_segment_t oldfs;
 	int size = 0;
-	struct iovec iov;
+	struct kvec iov;
 
-	if (sock->sk == NULL) return 0;
+	if (sock->sk == NULL) {
+		return 0;
+	}
 
 	iov.iov_base=buf;
 	iov.iov_len=len;
-
 
 	msg.msg_flags = MSG_DONTWAIT;
 	msg.msg_name = addr;
 	msg.msg_namelen  = sizeof(struct sockaddr_in);
 	msg.msg_control = NULL;
 	msg.msg_controllen = 0;
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3,19,0)
 	msg.msg_iocb = NULL;
+	iov_iter_init(&msg.msg_iter, WRITE, (struct iovec *)&iov, 1, len);
+#else
+	msg.msg_iov = &iov;
+	msg.msg_iovlen = len;
+#endif
 
-	iov_iter_init(&msg.msg_iter, WRITE, &iov, 1, len);
-
-	oldfs = get_fs();
-	set_fs(KERNEL_DS);
-	size = sock_recvmsg(sock,&msg,msg.msg_flags);
-	set_fs(oldfs);
+	// https://github.com/torvalds/linux/commit/2da62906b1e298695e1bb725927041cd59942c98
+	// switching to kernel_recvmsg because it's more consistent across versions 
+	// https://elixir.bootlin.com/linux/v4.6/source/net/socket.c#L741
+	size = kernel_recvmsg(sock, &msg, &iov, 1, len, msg.msg_flags);
 
 	return size;
 }
@@ -118,6 +123,17 @@ static inline  void hexdump(unsigned char *buf,unsigned int len) {
 		printk("%02x",*buf++);
 	printk("\n");
 }
+
+static void free_signature(pkey_signature * sig) {
+	if(sig->s) {
+		kfree(sig->s);
+	}
+	if(sig->digest) {
+		kfree(sig->digest);
+	}
+	kfree(sig);
+}
+
 
 // Pointer arithmatic to parse out the signature and digest
 static pkey_signature * get_signature(void * pkt, u32 offset) {
@@ -130,6 +146,7 @@ static pkey_signature * get_signature(void * pkt, u32 offset) {
 
 	// Sanity check the sig size
 	if(sig->s_size > MAX_SIG_SIZE || sig->s_size < 0) {
+		kfree(sig);
 		return NULL;
 	}
 
@@ -144,6 +161,8 @@ static pkey_signature * get_signature(void * pkt, u32 offset) {
 
 	// Sanity check the digest size
 	if(sig->digest_size > MAX_DIGEST_SIZE || sig->digest_size < 0) {
+		kfree(sig->s);
+		kfree(sig);
 		return NULL;
 	}
 
@@ -156,15 +175,6 @@ static pkey_signature * get_signature(void * pkt, u32 offset) {
 
 }
 
-static void free_signature(pkey_signature * sig) {
-	if(sig->s) {
-		kfree(sig->s);
-	}
-	if(sig->digest) {
-		kfree(sig->digest);
-	}
-	kfree(sig);
-}
 
 // Callback function for the reaper: removes expired connections
 void reap_expired_connections(unsigned long timeout) {
@@ -214,7 +224,6 @@ int listen(void * data) {
 	// Socket info
 	struct socket * sock;
 	struct sockaddr_in source;
-	
 	struct timespec tm;
 
 	// Buffers
@@ -362,6 +371,11 @@ int listen(void * data) {
 					offset += sizeof(struct udphdr) + sizeof(struct packet);
 				}
 			} 
+      else {
+				// unsupported protocol
+				continue;
+			}
+
 			
 			// Process packet
 			res = (struct packet *)(pkt + offset - sizeof(struct packet));
