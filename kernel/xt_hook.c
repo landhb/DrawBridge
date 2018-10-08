@@ -100,11 +100,11 @@ static unsigned	int pkt_hook_v6(void * priv, struct sk_buff * skb, const struct 
 
 	// We only want to look at NEW connections
 #if LINUX_VERSION_CODE <= KERNEL_VERSION(4,10,0)
-	if(skb->nfctinfo == IP_CT_ESTABLISHED && skb->nfctinfo == IP_CT_ESTABLISHED_REPLY) {
+	if(skb->nfctinfo == IP_CT_ESTABLISHED || skb->nfctinfo == IP_CT_ESTABLISHED_REPLY) {
 		return NF_ACCEPT;
 	}
 #else
-	if((skb->_nfct & NFCT_INFOMASK) == IP_CT_ESTABLISHED && (skb->_nfct & NFCT_INFOMASK) == IP_CT_ESTABLISHED_REPLY) {
+	if((skb->_nfct & NFCT_INFOMASK) == IP_CT_ESTABLISHED || (skb->_nfct & NFCT_INFOMASK) == IP_CT_ESTABLISHED_REPLY) {
 		return NF_ACCEPT;
 	}
 #endif
@@ -134,11 +134,11 @@ static unsigned	int pkt_hook_v4(void * priv, struct sk_buff * skb, const struct 
 
 	// We only want to look at NEW connections
 #if LINUX_VERSION_CODE <= KERNEL_VERSION(4,10,0)
-	if(skb->nfctinfo == IP_CT_ESTABLISHED && skb->nfctinfo == IP_CT_ESTABLISHED_REPLY) {
+	if(skb->nfctinfo == IP_CT_ESTABLISHED || skb->nfctinfo == IP_CT_ESTABLISHED_REPLY) {
 		return NF_ACCEPT;
 	}
 #else
-	if((skb->_nfct & NFCT_INFOMASK) == IP_CT_ESTABLISHED && (skb->_nfct & NFCT_INFOMASK) == IP_CT_ESTABLISHED_REPLY) {
+	if((skb->_nfct & NFCT_INFOMASK) == IP_CT_ESTABLISHED || (skb->_nfct & NFCT_INFOMASK) == IP_CT_ESTABLISHED_REPLY) {
 		return NF_ACCEPT;
 	}
 #endif
