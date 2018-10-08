@@ -24,24 +24,22 @@ extern conntrack_state * knock_state;
 
 
 // For both IPv4 and IPv6 compiled w/
-// tcpdump "(tcp[tcpflags] == 22 and tcp[14:2] = 5840) or (ip6[40+13] == 22 and ip6[(40+14):2] = 5840)" -dd
+// tcpdump "udp dst port 56300" -dd
 struct sock_filter code[] = {
 	{ 0x28, 0, 0, 0x0000000c },
-	{ 0x15, 0, 9, 0x00000800 },
+	{ 0x15, 0, 4, 0x000086dd },
+	{ 0x30, 0, 0, 0x00000014 },
+	{ 0x15, 0, 11, 0x00000011 },
+	{ 0x28, 0, 0, 0x00000038 },
+	{ 0x15, 8, 9, 0x0000dbec },
+	{ 0x15, 0, 8, 0x00000800 },
 	{ 0x30, 0, 0, 0x00000017 },
-	{ 0x15, 0, 13, 0x00000006 },
+	{ 0x15, 0, 6, 0x00000011 },
 	{ 0x28, 0, 0, 0x00000014 },
-	{ 0x45, 11, 0, 0x00001fff },
+	{ 0x45, 4, 0, 0x00001fff },
 	{ 0xb1, 0, 0, 0x0000000e },
-	{ 0x50, 0, 0, 0x0000001b },
-	{ 0x15, 0, 8, 0x00000016 },
-	{ 0x48, 0, 0, 0x0000001c },
-	{ 0x15, 5, 6, 0x000016d0 },
-	{ 0x15, 0, 5, 0x000086dd },
-	{ 0x30, 0, 0, 0x00000043 },
-	{ 0x15, 0, 3, 0x00000016 },
-	{ 0x28, 0, 0, 0x00000044 },
-	{ 0x15, 0, 1, 0x000016d0 },
+	{ 0x48, 0, 0, 0x00000010 },
+	{ 0x15, 0, 1, 0x0000dbec },
 	{ 0x6, 0, 0, 0x00040000 },
 	{ 0x6, 0, 0, 0x00000000 },
 };
@@ -207,7 +205,6 @@ void reap_expired_connections(unsigned long timeout) {
 } 
 
 
-
 int listen(void * data) {
 	
 	
@@ -217,7 +214,10 @@ int listen(void * data) {
 	struct ethhdr * eth_h;
 	struct iphdr * ip_h;
 	struct ipv6hdr * ip6_h;
-	struct tcphdr * tcp_h;
+	//struct tcphdr * tcp_h;
+	//struct udphdr * udp_h;
+	unsigned char * proto_h; // either TCP or UDP
+	int proto_h_size;
 	struct packet * res;
 
 
@@ -231,6 +231,7 @@ int listen(void * data) {
 	char * src = kmalloc(32+1, GFP_KERNEL);
 	pkey_signature * sig = NULL;
 	void * hash = NULL;
+	
 
 	struct sock_fprog bpf = {
 		.len = ARRAY_SIZE(code),
@@ -331,30 +332,50 @@ int listen(void * data) {
 			if (recv_len < sizeof(struct packet)) {
 				continue;
 			}
-
+			printk(KERN_INFO "Checking...\n");
 			
 			// Check IP version
 			eth_h = (struct ethhdr *)pkt;
+			proto_h_size = 0;
 			if((eth_h->h_proto & 0xFF) == 0x08 && ((eth_h->h_proto >> 8) & 0xFF) == 0x00) 
 			{
 				version = 4;
 				ip_h = (struct iphdr*)(pkt + sizeof(struct ethhdr));
-				tcp_h = (struct tcphdr *)(pkt + sizeof(struct ethhdr)+ sizeof(struct iphdr));
+				proto_h = (unsigned char *)(pkt + sizeof(struct ethhdr)+ sizeof(struct iphdr));
 				inet_ntoa(src, ip_h->saddr);
-				offset = sizeof(struct ethhdr) + sizeof(struct iphdr) + sizeof(struct tcphdr) + sizeof(struct packet);
+				offset = sizeof(struct ethhdr) + sizeof(struct iphdr); 
+
+				// check protocol
+				if((ip_h->protocol & 0xFF) == 0x06) {
+					proto_h_size = sizeof(struct tcphdr);
+					offset += sizeof(struct tcphdr) + sizeof(struct packet);
+				} else if ((ip_h->protocol & 0xFF) == 0x11) {
+					proto_h_size = sizeof(struct udphdr);
+					offset += sizeof(struct udphdr) + sizeof(struct packet);
+				}
 			}
 			else if((eth_h->h_proto & 0xFF) == 0x86 && ((eth_h->h_proto >> 8) & 0xFF) == 0xDD)
 			{
 				version = 6;
 				ip6_h = (struct ipv6hdr *)(pkt + sizeof(struct ethhdr));
-				tcp_h = (struct tcphdr *)(pkt + sizeof(struct ethhdr) + sizeof(struct ipv6hdr));
+				proto_h = (unsigned char *)(pkt + sizeof(struct ethhdr) + sizeof(struct ipv6hdr));
 				inet6_ntoa(src, &(ip6_h->saddr));
-				offset = sizeof(struct ethhdr) + sizeof(struct ipv6hdr) + sizeof(struct tcphdr) + sizeof(struct packet);
-			} else {
+				offset = sizeof(struct ethhdr) + sizeof(struct ipv6hdr);
+
+				// check protocol
+				if((ip6_h->nexthdr & 0xFF) == 0x06) {
+					proto_h_size = sizeof(struct tcphdr);
+					offset += sizeof(struct tcphdr) + sizeof(struct packet);
+				} else if ((ip6_h->nexthdr & 0xFF) == 0x11) {
+					proto_h_size = sizeof(struct udphdr);
+					offset += sizeof(struct udphdr) + sizeof(struct packet);
+				}
+			} 
+      else {
 				// unsupported protocol
 				continue;
 			}
-			
+
 			
 			// Process packet
 			res = (struct packet *)(pkt + offset - sizeof(struct packet));
@@ -367,8 +388,8 @@ int listen(void * data) {
 				continue;
 			}
 
-			// Hash the TCP header + timestamp + port to unlock
-			hash = gen_digest((unsigned char *)tcp_h, sizeof(struct tcphdr) + sizeof(struct packet));
+			// Hash timestamp + port to unlock
+			hash = gen_digest(proto_h + proto_h_size, sizeof(struct packet));
 
 			if(!hash) {
 				free_signature(sig);
