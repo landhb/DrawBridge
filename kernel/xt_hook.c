@@ -34,9 +34,7 @@ MODULE_ALIAS("drawbridge");
 MODULE_ALIAS("ip_conntrack_drawbridge");
 
 
-
-
-#define MODULE_NAME "trigger"
+#define MODULE_NAME "drawbridge"
 #define MAX_PORTS 10
 
 // Companion thread
@@ -68,13 +66,13 @@ static unsigned int conn_state_check(int type, __be32 src, struct in6_addr * src
 
 				if(type == 4 && state_lookup(knock_state, 4, src, NULL,  dest_port)) 
 				{
-					printk(KERN_INFO	"[+] Connection accepted - source: %d.%d.%d.%d\n", (src) & 0xFF, (src >> 8) & 0xFF,
+					printk(KERN_INFO	"[+] DrawBridge accepted connection - source: %d.%d.%d.%d\n", (src) & 0xFF, (src >> 8) & 0xFF,
 							(src >> 16) & 0xFF, (src >> 24) & 0xFF);
 					return NF_ACCEPT;
 				} 
 				else if (type == 6 && state_lookup(knock_state, 6, 0, src_6, dest_port)) 
 				{
-					printk(KERN_INFO	"[+] Connection accepted - source: %02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x\n",
+					printk(KERN_INFO	"[+] DrawBridge accepted connection - source: %02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x\n",
 		                 (int)src_6->s6_addr[0], (int)src_6->s6_addr[1],
 		                 (int)src_6->s6_addr[2], (int)src_6->s6_addr[3],
 		                 (int)src_6->s6_addr[4], (int)src_6->s6_addr[5],

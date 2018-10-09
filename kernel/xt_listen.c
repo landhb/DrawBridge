@@ -288,7 +288,7 @@ int listen(void * data) {
 	}
 
 
-	printk(KERN_INFO "[+] BPF raw socket thread initialized\n");
+	//printk(KERN_INFO "[+] BPF raw socket thread initialized\n");
 
 
 	while(1) {
@@ -332,7 +332,6 @@ int listen(void * data) {
 			if (recv_len < sizeof(struct packet)) {
 				continue;
 			}
-			printk(KERN_INFO "Checking...\n");
 			
 			// Check IP version
 			eth_h = (struct ethhdr *)pkt;
@@ -423,14 +422,14 @@ int listen(void * data) {
 			if (version == 4)
 			{
 				if(!state_lookup(knock_state, 4, ip_h->saddr, NULL, htons(res->port))) {
-					printk(KERN_INFO "[+] Got auth packet!   len:%d    from:%s\n", recv_len, src);
+					printk(KERN_INFO "[+] DrawBridge got valid auth packet!   len:%d    from:%s\n", recv_len, src);
 					state_add(&knock_state, 4, ip_h->saddr, NULL, htons(res->port));
 				}
 			} 
 			else if (version == 6) 
 			{
 				if(!state_lookup(knock_state, 6, 0, &(ip6_h->saddr), htons(res->port))) {
-					printk(KERN_INFO "[+] Got auth packet!   len:%d    from:%s\n", recv_len, src);
+					printk(KERN_INFO "[+] DrawBridge got valid auth packet!   len:%d    from:%s\n", recv_len, src);
 					state_add(&knock_state, 6, 0, &(ip6_h->saddr), htons(res->port));
 				}
 			}
