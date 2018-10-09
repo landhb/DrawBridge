@@ -19,9 +19,11 @@ all_noasan: bridge_noasan
 bridge: bridge.o crypto.o
 	$(CC) -o $@ $(CFLAGS) $(ASAN_FLAGS) $^ $(LDFLAGS) $(ASAN_LIBS)
 
-bridge_noasan: bridge.o crypto.o
+bridge_noasan: bridge_noasan.o crypto_noasan.o
 	$(CC) -o $@ $(CFLAGS) $^ $(LDFLAGS) 
 
+install:
+	if [ ! -f "/usr/bin/bridge" ]; then cp ./bridge /usr/bin/bridge; fi
 
 %_noasan.o : %.c
 	$(CC) -c -o $@ $(CFLAGS) $<

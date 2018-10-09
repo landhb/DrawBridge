@@ -5,6 +5,7 @@
 */
 
 #include <unistd.h>
+#include <getopt.h>
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
@@ -28,6 +29,18 @@
 #include <signal.h>
 #include <termios.h>
 #include <time.h>
+
+#define USAGE                                                                 \
+"\nusage:\n"                                                                    \
+"  bridge [options]\n\n"                                                     \
+"options:\n"                                                                  \
+"  -h                  Show this help message\n"                              \
+"  -p [protocol]       SPA packet's protocol (Default: udp)\n"           \
+"  -d [port_dest]      SPA packet's destination port (Default: 53)\n"           \
+"  -s [server_addr]    Target Server's IP Address (required)\n"                         \
+"  -u [port_unlock]    Port on Target Server to Unlock  (required)\n"                   \
+"  -i [key_path]  	   Path to private key file (required)\n" \
+"\n\n Example Unlocking SSH (port 22) on localhost with a UDP packet sent to port 53: \n\n\tsudo bridge -p udp -s 127.0.0.1 -u 22 -d 53 -i ~/.bridge/private.pem\n\n"
 
 #define MAX_PACKET_SIZE 65535
 #define ARRAY_SIZE(arr) (sizeof(arr) / sizeof(arr[0]))
@@ -118,7 +131,7 @@ unsigned short trans_check(unsigned char proto, unsigned char * packet, int leng
 }
 
 // Create unique knock TCP packet
-int create_packet(unsigned char * pkt,  int dst_port, int src_port, int proto) {
+int create_packet(unsigned char * pkt,  int unl_port, int dst_port, int proto) {
 	struct tcphdr tcp_h;
 	struct udphdr udp_h;
 	struct packet packet;
@@ -126,11 +139,8 @@ int create_packet(unsigned char * pkt,  int dst_port, int src_port, int proto) {
 
 	if (proto == IPPROTO_TCP) {
 
-		//tcp_h = (struct tcphdr *)(*pkt);
-		//packet = (struct packet *)(*pkt + sizeof(struct tcphdr));
-
 		// Init TCP header
-		tcp_h.source = htons(src_port);
+		tcp_h.source = rand() % (61000 + 1 - 32768) + 32768; // random ephemeral
 		tcp_h.dest = htons(dst_port);
 		tcp_h.seq = 0;
 		tcp_h.ack_seq = 0;
@@ -153,14 +163,14 @@ int create_packet(unsigned char * pkt,  int dst_port, int src_port, int proto) {
 		memcpy(pkt, &tcp_h, offset);
 	} else if (proto == IPPROTO_UDP) {
 
-		udp_h.source = htons(src_port);
+		udp_h.source = rand() % (61000 + 1 - 32768) + 32768; // random ephemeral;
 		udp_h.dest = htons(dst_port);
 		offset = sizeof(struct udphdr);
 		memcpy(pkt, &udp_h, offset);
 	}
 
 	// set drawbridge info
-	packet.port = dst_port;
+	packet.port = unl_port;
 	clock_gettime(CLOCK_REALTIME, &(packet.timestamp));
 	memcpy(pkt+offset, &packet, sizeof(struct packet));
 	return offset;
@@ -173,7 +183,7 @@ static inline  void hexdump(unsigned char *buf,unsigned int len) {
 }
 
 
-int send_trigger(int proto, char * destination, int dst_port, int src_port, RSA * pkey) {
+int send_trigger(int proto, char * destination, int unl_port, int dst_port, RSA * pkey) {
 
 	int type, offset;
 	struct sockaddr_in din;
@@ -187,7 +197,7 @@ int send_trigger(int proto, char * destination, int dst_port, int src_port, RSA 
 
 	// Initialize knock packet
 	unsigned char * sendbuf = calloc(MAX_PACKET_SIZE, 1);
-	offset = create_packet(sendbuf, dst_port, src_port, proto);
+	offset = create_packet(sendbuf, unl_port, dst_port, proto);
 
 	if (offset == 0) {
 		printf("[-] Unsupported protocol! Use 'tcp' or 'udp'\n");
@@ -223,7 +233,6 @@ int send_trigger(int proto, char * destination, int dst_port, int src_port, RSA 
 		din.sin_family = AF_INET;
 		sock = socket(PF_INET, SOCK_RAW, proto); /*//IPPROTO_RAW */
 		din.sin_port = htons(dst_port);
-		sin.sin_port = htons(src_port);
 
 		// Calculate the checksum
 		inet_aton("10.0.2.15", (struct in_addr *)&(sin.sin_addr.s_addr));
@@ -282,11 +291,10 @@ cleanup:
 	return status;
 }
 
-void print_usage() {
-	printf("\n[!] Please provide a target IP address and port\n\nUsage: sudo ./bridge [tcp||udp] [SERVER] [PORT TO UNLOCK] [SRC_PORT] [PATH TO CERT]\n\n"
-	"Example Unlocking SSH (port 22) on localhost: \n\tsudo ./bridge udp 127.0.0.1 22 53251 ~/.bridge/private.pem\n\n");
-}
 
+static void Usage() {
+	fprintf(stdout, "%s", USAGE);
+}
 
 
 char *new_get_pass(char * path) {
@@ -294,6 +302,7 @@ char *new_get_pass(char * path) {
 	struct termios term;
 	static char *buf = NULL;
 	int c, len = BASE_LENGTH, pos = 0;
+
 
 	// Turn off signals
 	signal(SIGINT, SIG_IGN);
@@ -321,67 +330,116 @@ char *new_get_pass(char * path) {
 	return buf;
 }
 
+static struct option gLongOptions[] = {
+  {"protocol",          required_argument,      NULL,        'p'},
+  {"server_addr",     required_argument,      NULL,          's'},
+  {"port_unlock",          required_argument,      NULL,     'u'},
+  {"pord_dest",        required_argument,      NULL,         'd'},
+  {"key_path", required_argument,      NULL,              'i'},
+  {"help",          no_argument,            NULL,           'h'},
+  {NULL,            0,                      NULL,             0}
+};
+
 int main(int argc, char ** argv) {
 
 	char *p;
-	int src, dst;
+	int unl, dst;
 	FILE * pFile = NULL;
 	RSA *hold = NULL, * pPrivKey = NULL;   
 	char * passwd = NULL;
 	long conv;
 	int proto;
+	char * key_path,*protocol,*server,*unlock,*dest_port;
+	int option_char = 0;
+
+	// defaults
+	protocol = "udp";
+	dest_port = "53";
+	key_path = NULL;
+	server = NULL;
+	unlock = NULL;
+
+	// Parse and set command line arguments
+	while ((option_char = getopt_long(argc, argv, "p:s:hu:d:i:", gLongOptions, NULL)) != -1) {
+		switch (option_char) {
+			case 'h': // help
+				Usage();
+				exit(0);
+				break;                      
+			case 'p': // SPA protocol
+				protocol = optarg;
+				break;
+			case 's': // server
+				server = optarg;
+				break;
+			case 'u': // unlock port
+				unlock = optarg;
+				break;
+			case 'd': // SPA dest port
+				dest_port = optarg;
+				break;
+			case 'i': // key-path
+				key_path = optarg;
+				break;
+			default:
+				Usage();
+				exit(1);
+		}
+	}
+
+	// Check all arguments were provided
+	if (!key_path || !server || !dest_port) {
+		printf("\n[!] You are missing some required arguments\n");
+		Usage();
+		exit(1);
+	}
 
 
-	if(argc < 5){
-		print_usage();
-		return -1;
-	} 
-
-	if (strncmp(argv[1], "udp", strlen(argv[1]) > strlen("udp") ? strlen("udp") : strlen(argv[1])) == 0) {
+	if (strncmp(protocol, "udp", strlen(protocol) > strlen("udp") ? strlen("udp") : strlen(protocol)) == 0) {
 		proto = IPPROTO_UDP;
-	} else if (strncmp(argv[1], "tcp", strlen(argv[1]) > strlen("tcp") ? strlen("tcp") : strlen(argv[1])) == 0) {
+	} else if (strncmp(protocol, "tcp", strlen(protocol) > strlen("tcp") ? strlen("tcp") : strlen(protocol)) == 0) {
 		proto = IPPROTO_TCP;
 	}
 
 	errno = 0;
-	conv = strtol(argv[3], &p, 10);
+	conv = strtol(unlock, &p, 10);
 
 	// Check for errors: e.g., the string does not represent an integer
 	// or the integer is larger than 65535
 	if (errno != 0 || *p != '\0' || conv > MAX_PACKET_SIZE) {
-		print_usage();
+		printf("[!] Please provide a valid port number (1-65535) not %s\n", unlock);
 		return -1;
 	} 
 
-	dst = conv; 
+	unl = conv; 
 	errno = 0;
-	conv = strtol(argv[4], &p, 10);
+	conv = strtol(dest_port, &p, 10);
 
 	// Check for errors: e.g., the string does not represent an integer
 	// or the integer is larger than 65535
 	if (errno != 0 || *p != '\0' || conv > MAX_PACKET_SIZE) {
-		print_usage();
+		printf("[!] Please provide a valid port number (1-65535) not %s\n", dest_port);
 		return -1;
 	} 
 
 	// Continue on proper input
-   	src = conv;
+   	dst = conv;
 	pPrivKey = NULL;
-	passwd = new_get_pass(argv[5]);
+	passwd = new_get_pass(key_path);
 	printf("\n");
 	OpenSSL_add_all_ciphers();
 	OpenSSL_add_all_digests();
 	OpenSSL_add_all_algorithms();
 
 
-	if((pFile = fopen(argv[5],"rt")) && 
+	if((pFile = fopen(key_path,"rt")) && 
 		(PEM_read_RSAPrivateKey(pFile,&pPrivKey,NULL,passwd))) {
-		printf("[*] Sending SPA packet to: %s to unlock port %d\n", argv[2], atoi(argv[3]));
-		send_trigger(proto, argv[2], dst, src, pPrivKey);
+		printf("[*] Sending SPA packet to: %s to unlock port %d\n", server, unl);
+		send_trigger(proto, server, unl, dst, pPrivKey);
 	} else {
-		fprintf(stderr,"[!] Cannot read %s\n", argv[5]);
+		fprintf(stderr,"[!] Cannot read %s\n", key_path);
 		ERR_print_errors_fp(stderr);
-		print_usage();
+		Usage();
 		if(pPrivKey)
 			RSA_free(pPrivKey);
 	}
