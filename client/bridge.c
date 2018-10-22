@@ -434,7 +434,7 @@ int main(int argc, char ** argv) {
 
 	if((pFile = fopen(key_path,"rt")) && 
 		(PEM_read_RSAPrivateKey(pFile,&pPrivKey,NULL,passwd))) {
-		printf("[*] Sending SPA packet to: %s to unlock port %d\n", server, unl);
+		printf("[*] Sending SPA packet to: %s:%d to unlock port %d\n", server, dst, unl);
 		send_trigger(proto, server, unl, dst, pPrivKey);
 	} else {
 		fprintf(stderr,"[!] Cannot read %s\n", key_path);

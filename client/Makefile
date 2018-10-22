@@ -23,7 +23,10 @@ bridge_noasan: bridge_noasan.o crypto_noasan.o
 	$(CC) -o $@ $(CFLAGS) $^ $(LDFLAGS) 
 
 install:
-	if [ ! -f "/usr/bin/bridge" ]; then cp ./bridge /usr/bin/bridge; fi
+	if [ ! -f "/usr/bin/bridge" ]; then cp ./bridge /usr/bin/bridge; else echo "[-] /usr/bin/bridge exits. If you want to overwrite use 'make reinstall'"; fi
+
+reinstall:
+	mv ./bridge /usr/bin/bridge
 
 %_noasan.o : %.c
 	$(CC) -c -o $@ $(CFLAGS) $<
