@@ -383,7 +383,7 @@ int listen(void * data) {
 			sig = get_signature(pkt, offset);
 
 			if(!sig) {
-				printk(KERN_INFO "[-] Signature not found in packet\n");
+				//printk(KERN_INFO "[-] Signature not found in packet\n");
 				continue;
 			}
 
