@@ -17,19 +17,25 @@
 
 unsigned char *gen_digest(unsigned char *buf, unsigned int len, unsigned int *olen)
 {
-    EVP_MD_CTX ctx;
+    EVP_MD_CTX *ctx;
     unsigned char *ret;
     const EVP_MD *sha256;
 
     sha256 = EVP_sha256();
+    ctx = EVP_MD_CTX_new();
 
     if (!(ret = (unsigned char *)malloc(EVP_MAX_MD_SIZE)))
         return NULL;
 
-    EVP_DigestInit(&ctx, sha256);
-    EVP_DigestUpdate(&ctx, buf, len);
-    EVP_DigestFinal(&ctx, ret, olen);
+    if (ctx == NULL) {
+	return NULL;
+    }
 
+    EVP_DigestInit(ctx, sha256);
+    EVP_DigestUpdate(ctx, buf, len);
+    EVP_DigestFinal(ctx, ret, olen);
+
+    EVP_MD_CTX_free(ctx);
     return ret;
 }
 
