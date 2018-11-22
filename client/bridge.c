@@ -15,6 +15,7 @@
 #include <sys/socket.h>
 #include <linux/filter.h>
 #include <arpa/inet.h>
+#include <linux/if.h>
 #include <linux/if_ether.h>
 #include <netdb.h>
 #include <netinet/ip_icmp.h>
@@ -26,9 +27,11 @@
 #include <openssl/x509.h>
 #include <openssl/pem.h>
 #include <openssl/err.h>
+#include <sys/ioctl.h>
 #include <signal.h>
 #include <termios.h>
 #include <time.h>
+#include <ctype.h>
 
 #define USAGE                                                                 \
 "\nusage:\n"                                                                    \
@@ -39,12 +42,12 @@
 "  -d [port_dest]      SPA packet's destination port (Default: 53)\n"           \
 "  -s [server_addr]    Target Server's IP Address (required)\n"                         \
 "  -u [port_unlock]    Port on Target Server to Unlock  (required)\n"                   \
-"  -i [key_path]  	   Path to private key file (required)\n" \
+"  -i [key_path]       Path to private key file (required)\n" \
 "\n\n Example Unlocking SSH (port 22) on localhost with a UDP packet sent to port 53: \n\n\tsudo bridge -p udp -s 127.0.0.1 -u 22 -d 53 -i ~/.bridge/private.pem\n\n"
 
 #define MAX_PACKET_SIZE 65535
 #define ARRAY_SIZE(arr) (sizeof(arr) / sizeof(arr[0]))
-#define isascii(c) ((c & ~0x7F) == 0)
+//#define isascii(c) ((c & ~0x7F) == 0)
 #define BASE_LENGTH	256
 
 
@@ -59,40 +62,33 @@ struct packet {
 } __attribute__( ( packed ) ); 
 
 
-
 // Crypto function prototypes
 unsigned char *gen_digest(unsigned char *buf, unsigned int len, unsigned int *olen);
 unsigned char *sign_data(RSA * pkey, unsigned char *data, unsigned int len, unsigned int *olen);
 
 
-// calculates checksum
-unsigned short in_cksum(unsigned short *addr,int len)
-{
-	        register int sum = 0;
-	        u_short answer = 0;
-	        register u_short *w = addr;
-	        register int nleft = len;
-	        /*
-		 *          * Our algorithm is simple, using a 32 bit accumulator (sum), we add
-		 *          * sequential 16 bit words to it, and at the end, fold back all the
-		 *          * carry bits from the top 16 bits into the lower 16 bits.
-		 *          */
-	        while (nleft > 1)  {
-	                sum += *w++;
-	                nleft -= 2;
-	        }
+unsigned short in_cksum(unsigned short *buf, int nwords) {      
 
-		        /* mop up an odd byte, if necessary */
-	        if (nleft == 1) {
-	        *(u_char *)(&answer) = *(u_char *)w ;
-	        sum += answer;
-	        }
+	unsigned long sum;
 
-	        /* add back carry outs from top 16 bits to low 16 bits */
-	        sum = (sum >> 16) + (sum & 0xffff);     /* add hi 16 to low 16 */
-	        sum += (sum >> 16);                     /* add carry */
-	        answer = ~sum;                          /* truncate to 16 bits */
-	        return(answer);
+
+	sum = 0;
+	while(nwords>1){
+		sum += *buf++;
+		nwords -= 2;
+	}
+
+	// pad if there are extra bytes
+	if (nwords > 0) {
+		sum += ((*buf)&htons(0xFF00));
+	}
+
+	sum = (sum >> 16) + (sum &0xffff);
+
+	sum += (sum >> 16);
+
+	return (unsigned short)(~sum);
+
 }
 
 // Creates a psuedo IP header to create the checksum
@@ -183,7 +179,7 @@ static inline  void hexdump(unsigned char *buf,unsigned int len) {
 }
 
 
-int send_trigger(int proto, char * destination, int unl_port, int dst_port, RSA * pkey) {
+int send_trigger(int proto, char * destination, char * source, int unl_port, int dst_port, RSA * pkey) {
 
 	int type, offset;
 	struct sockaddr_in din;
@@ -235,7 +231,8 @@ int send_trigger(int proto, char * destination, int unl_port, int dst_port, RSA 
 		din.sin_port = htons(dst_port);
 
 		// Calculate the checksum
-		inet_aton("10.0.2.15", (struct in_addr *)&(sin.sin_addr.s_addr));
+		inet_aton(source, (struct in_addr *)&(sin.sin_addr.s_addr));
+		printf("%d\n", send_len);
 
 		if (proto == IPPROTO_TCP) {
 			((struct tcphdr *)sendbuf)->check = trans_check(proto, sendbuf, send_len, sin.sin_addr, din.sin_addr);
@@ -249,7 +246,8 @@ int send_trigger(int proto, char * destination, int unl_port, int dst_port, RSA 
 		type = 6;
 		sock = socket(PF_INET6, SOCK_RAW, proto); /*//IPPROTO_RAW */
 		din6.sin6_family = AF_INET6;
-		// When using an IPv6 raw socket, sin6_port must be set to 0 to avoid an EINVAL ("Invalid Argument") error. 
+		// When using an IPv6 raw socket, sin6_port must 
+		// be set to 0 to avoid an EINVAL ("Invalid Argument") error. 
 		din6.sin6_port = 0;
 	} else {
 		fprintf(stderr, "[-] Could not parse IP Address.\n");
@@ -340,9 +338,67 @@ static struct option gLongOptions[] = {
   {NULL,            0,                      NULL,             0}
 };
 
+
+char * get_interface_ip(char * iface)
+{
+	int fd;
+	struct ifreq ifr;
+	
+	//char iface[] = int;
+	
+	fd = socket(AF_INET, SOCK_DGRAM, 0);
+
+	//Type of address to retrieve - IPv4 IP address
+	ifr.ifr_addr.sa_family = AF_INET;
+
+	//Copy the interface name in the ifreq structure
+	strncpy(ifr.ifr_name , iface , IFNAMSIZ-1);
+
+	ioctl(fd, SIOCGIFADDR, &ifr);
+
+	close(fd);
+
+	//display result
+	return inet_ntoa(( (struct sockaddr_in *)&ifr.ifr_addr )->sin_addr);
+}
+
+int getdefaultgateway(char * iface)
+{
+	unsigned long d, g;
+	char buf[256];
+	int line = 0;
+	FILE * f;
+	char * p;
+	f = fopen("/proc/net/route", "r");
+	if(!f)
+		return -1;
+	while(fgets(buf, sizeof(buf), f)) {
+		if(line > 0) {	/* skip the first line */
+			p = buf;
+			/* grab the interface name */
+			while(*p && !isspace(*p)) 
+				p++;
+			memcpy(iface, buf, p-buf);
+			while(*p && isspace(*p))
+				p++;
+			if(sscanf(p, "%lx%lx", &d, &g)==2) {
+				if(d == 0 && g != 0) { /* default */
+					fclose(f);
+					return 0;
+				}
+			}
+		}
+		line++;
+	}
+	/* default route not found ! */
+	if(f)
+		fclose(f);
+	return -1;
+}
+
 int main(int argc, char ** argv) {
 
-	char *p;
+	char *p, *src_iface, *src_ip;
 	int unl, dst;
 	FILE * pFile = NULL;
 	RSA *hold = NULL, * pPrivKey = NULL;   
@@ -359,6 +415,7 @@ int main(int argc, char ** argv) {
 	server = NULL;
 	unlock = NULL;
 
+	
 	// Parse and set command line arguments
 	while ((option_char = getopt_long(argc, argv, "p:s:hu:d:i:", gLongOptions, NULL)) != -1) {
 		switch (option_char) {
@@ -406,7 +463,7 @@ int main(int argc, char ** argv) {
 
 	// Check for errors: e.g., the string does not represent an integer
 	// or the integer is larger than 65535
-	if (errno != 0 || *p != '\0' || conv > MAX_PACKET_SIZE) {
+	if (errno != 0 || *p != '\0' || conv > MAX_PACKET_SIZE || conv == 0) {
 		printf("[!] Please provide a valid port number (1-65535) not %s\n", unlock);
 		return -1;
 	} 
@@ -417,10 +474,19 @@ int main(int argc, char ** argv) {
 
 	// Check for errors: e.g., the string does not represent an integer
 	// or the integer is larger than 65535
-	if (errno != 0 || *p != '\0' || conv > MAX_PACKET_SIZE) {
+	if (errno != 0 || *p != '\0' || conv > MAX_PACKET_SIZE || conv == 0) {
 		printf("[!] Please provide a valid port number (1-65535) not %s\n", dest_port);
 		return -1;
 	} 
+
+	// Grab source address from default interface
+	src_iface = calloc(IFNAMSIZ,1);
+	if(getdefaultgateway(src_iface) < 0) {
+		printf("[!] Could not determine default interface.");
+	}
+	src_ip = get_interface_ip(src_iface);
+	free(src_iface);
+
 
 	// Continue on proper input
    	dst = conv;
@@ -435,11 +501,10 @@ int main(int argc, char ** argv) {
 	if((pFile = fopen(key_path,"rt")) && 
 		(PEM_read_RSAPrivateKey(pFile,&pPrivKey,NULL,passwd))) {
 		printf("[*] Sending SPA packet to: %s:%d to unlock port %d\n", server, dst, unl);
-		send_trigger(proto, server, unl, dst, pPrivKey);
+		send_trigger(proto, server, src_ip, unl, dst, pPrivKey);
 	} else {
 		fprintf(stderr,"[!] Cannot read %s\n", key_path);
 		ERR_print_errors_fp(stderr);
-		Usage();
 		if(pPrivKey)
 			RSA_free(pPrivKey);
 	}
