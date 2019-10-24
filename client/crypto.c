@@ -17,12 +17,17 @@
 
 unsigned char *gen_digest(unsigned char *buf, unsigned int len, unsigned int *olen)
 {
-    EVP_MD_CTX *ctx;
+
+    EVP_MD_CTX *ctx = NULL;
     unsigned char *ret;
     const EVP_MD *sha256;
 
     sha256 = EVP_sha256();
+#if OPENSSL_VERSION_NUMBER < 0x10100000L
+    EVP_MD_CTX_init(ctx);
+#else
     ctx = EVP_MD_CTX_new();
+#endif
 
     if (!(ret = (unsigned char *)malloc(EVP_MAX_MD_SIZE)))
         return NULL;
@@ -35,7 +40,11 @@ unsigned char *gen_digest(unsigned char *buf, unsigned int len, unsigned int *ol
     EVP_DigestUpdate(ctx, buf, len);
     EVP_DigestFinal(ctx, ret, olen);
 
+#if OPENSSL_VERSION_NUMBER < 0x10100000L
+    EVP_MD_CTX_cleanup(ctx);
+#else
     EVP_MD_CTX_free(ctx);
+#endif
     return ret;
 }
 
