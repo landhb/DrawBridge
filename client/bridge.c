@@ -232,7 +232,6 @@ int send_trigger(int proto, char * destination, char * source, int unl_port, int
 
 		// Calculate the checksum
 		inet_aton(source, (struct in_addr *)&(sin.sin_addr.s_addr));
-		printf("%d\n", send_len);
 
 		if (proto == IPPROTO_TCP) {
 			((struct tcphdr *)sendbuf)->check = trans_check(proto, sendbuf, send_len, sin.sin_addr, din.sin_addr);
