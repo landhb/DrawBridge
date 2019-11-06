@@ -16,10 +16,11 @@
 #include "drawbridge.h"
 #include "key.h"
 
-DEFINE_SPINLOCK(listmutex);
+
 #define isascii(c) ((c & ~0x7F) == 0)
 
-struct timer_list * reaper;
+// defined in xt_state.c
+extern struct timer_list * reaper;
 extern conntrack_state * knock_state;
 
 
@@ -176,34 +177,6 @@ static pkey_signature * get_signature(void * pkt, u32 offset) {
 }
 
 
-// Callback function for the reaper: removes expired connections
-void reap_expired_connections(unsigned long timeout) {
-
-	conntrack_state	 * state, *tmp;
-
-	spin_lock(&listmutex);
-
-	list_for_each_entry_safe(state, tmp, &(knock_state->list), list) {
-
-		if(jiffies - state->time_added >= msecs_to_jiffies(timeout)) {
-
-			list_del_rcu(&(state->list));
-			spin_unlock(&listmutex);
-			//synchronize_rcu();
-			kfree(state);
-			spin_lock(&listmutex);
-			continue;
-		}
-	}
-
-	spin_unlock(&listmutex);
-
-	// Set the timeout value
-	mod_timer(reaper, jiffies + msecs_to_jiffies(timeout));
-
-	return;
-} 
-
 
 int listen(void * data) {
 	
@@ -211,14 +184,14 @@ int listen(void * data) {
 	int ret,recv_len,error, offset, version;
 
 	// Packet headers
-	struct ethhdr * eth_h;
-	struct iphdr * ip_h;
-	struct ipv6hdr * ip6_h;
+	struct ethhdr * eth_h = NULL;
+	struct iphdr * ip_h = NULL;
+	struct ipv6hdr * ip6_h = NULL;
 	//struct tcphdr * tcp_h;
 	//struct udphdr * udp_h;
-	unsigned char * proto_h; // either TCP or UDP
+	unsigned char * proto_h = NULL; // either TCP or UDP
 	int proto_h_size;
-	struct packet * res;
+	struct packet * res = NULL;
 
 
 	// Socket info
@@ -419,18 +392,18 @@ int listen(void * data) {
 			}
 
 			// Add the IP to the connection linked list
-			if (version == 4)
+			if (version == 4 && ip_h != NULL)
 			{
 				if(!state_lookup(knock_state, 4, ip_h->saddr, NULL, htons(res->port))) {
 					printk(KERN_INFO "[+] DrawBridge got valid auth packet!   len:%d    from:%s\n", recv_len, src);
-					state_add(&knock_state, 4, ip_h->saddr, NULL, htons(res->port));
+					state_add(knock_state, 4, ip_h->saddr, NULL, htons(res->port));
 				}
 			} 
-			else if (version == 6) 
+			else if (version == 6 && ip6_h != NULL) 
 			{
 				if(!state_lookup(knock_state, 6, 0, &(ip6_h->saddr), htons(res->port))) {
 					printk(KERN_INFO "[+] DrawBridge got valid auth packet!   len:%d    from:%s\n", recv_len, src);
-					state_add(&knock_state, 6, 0, &(ip6_h->saddr), htons(res->port));
+					state_add(knock_state, 6, 0, &(ip6_h->saddr), htons(res->port));
 				}
 			}
 

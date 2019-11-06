@@ -13,12 +13,15 @@
 #include <linux/byteorder/generic.h>
 #include <linux/rculist.h>
 #include <linux/timer.h>
+
+// Version handling
 #include <linux/version.h>
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4,10,0)
 #include <linux/sched/task.h>
 #include <net/netfilter/nf_conntrack.h>
 #endif
+
 
 // Netfilter headers
 #include <linux/netfilter.h>
@@ -40,8 +43,8 @@ MODULE_ALIAS("ip_conntrack_drawbridge");
 // Companion thread
 struct task_struct * raw_thread;
 
-// Globally accessed structs
-conntrack_state * knock_state;
+// defined in xt_state.c
+extern conntrack_state * knock_state;
 
 
 // Global configs
@@ -66,21 +69,10 @@ static unsigned int conn_state_check(int type, __be32 src, struct in6_addr * src
 
 				if(type == 4 && state_lookup(knock_state, 4, src, NULL,  dest_port)) 
 				{
-					printk(KERN_INFO	"[+] DrawBridge accepted connection - source: %d.%d.%d.%d\n", (src) & 0xFF, (src >> 8) & 0xFF,
-							(src >> 16) & 0xFF, (src >> 24) & 0xFF);
 					return NF_ACCEPT;
 				} 
 				else if (type == 6 && state_lookup(knock_state, 6, 0, src_6, dest_port)) 
 				{
-					printk(KERN_INFO	"[+] DrawBridge accepted connection - source: %02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x\n",
-		                 (int)src_6->s6_addr[0], (int)src_6->s6_addr[1],
-		                 (int)src_6->s6_addr[2], (int)src_6->s6_addr[3],
-		                 (int)src_6->s6_addr[4], (int)src_6->s6_addr[5],
-		                 (int)src_6->s6_addr[6], (int)src_6->s6_addr[7],
-		                 (int)src_6->s6_addr[8], (int)src_6->s6_addr[9],
-		                 (int)src_6->s6_addr[10], (int)src_6->s6_addr[11],
-		                 (int)src_6->s6_addr[12], (int)src_6->s6_addr[13],
-		                 (int)src_6->s6_addr[14], (int)src_6->s6_addr[15]);
 					return NF_ACCEPT;
 				}
 
@@ -90,6 +82,7 @@ static unsigned int conn_state_check(int type, __be32 src, struct in6_addr * src
 	return NF_ACCEPT;
 }
 
+
 static unsigned	int pkt_hook_v6(struct sk_buff * skb) {
 
 	struct tcphdr * tcp_header;
@@ -98,11 +91,11 @@ static unsigned	int pkt_hook_v6(struct sk_buff * skb) {
 
 	// We only want to look at NEW connections
 #if LINUX_VERSION_CODE <= KERNEL_VERSION(4,10,0)
-	if(skb->nfctinfo == IP_CT_ESTABLISHED || skb->nfctinfo == IP_CT_ESTABLISHED_REPLY) {
+	if(skb->nfctinfo == IP_CT_ESTABLISHED && skb->nfctinfo == IP_CT_ESTABLISHED_REPLY) {
 		return NF_ACCEPT;
 	}
 #else
-	if((skb->_nfct & NFCT_INFOMASK) == IP_CT_ESTABLISHED || (skb->_nfct & NFCT_INFOMASK) == IP_CT_ESTABLISHED_REPLY) {
+	if((skb->_nfct & NFCT_INFOMASK) == IP_CT_ESTABLISHED && (skb->_nfct & NFCT_INFOMASK) == IP_CT_ESTABLISHED_REPLY) {
 		return NF_ACCEPT;
 	}
 #endif
@@ -130,13 +123,14 @@ static unsigned	int pkt_hook_v4(struct sk_buff * skb) {
 	struct udphdr * udp_header;
 	struct iphdr * ip_header = (struct iphdr *)skb_network_header(skb);
 
+
 	// We only want to look at NEW connections
 #if LINUX_VERSION_CODE <= KERNEL_VERSION(4,10,0)
-	if(skb->nfctinfo == IP_CT_ESTABLISHED || skb->nfctinfo == IP_CT_ESTABLISHED_REPLY) {
+	if(skb->nfctinfo == IP_CT_ESTABLISHED && skb->nfctinfo == IP_CT_ESTABLISHED_REPLY) {
 		return NF_ACCEPT;
 	}
 #else
-	if((skb->_nfct & NFCT_INFOMASK) == IP_CT_ESTABLISHED || (skb->_nfct & NFCT_INFOMASK) == IP_CT_ESTABLISHED_REPLY) {
+	if((skb->_nfct & NFCT_INFOMASK) == IP_CT_ESTABLISHED && (skb->_nfct & NFCT_INFOMASK) == IP_CT_ESTABLISHED_REPLY) {
 		return NF_ACCEPT;
 	}
 #endif
@@ -158,7 +152,7 @@ static unsigned	int pkt_hook_v4(struct sk_buff * skb) {
 }
 
 
-// Version specific callbacks
+//Version specific callbacks
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4,4,0)
 static unsigned	 int hook_wrapper_v4(void * priv, struct sk_buff * skb, const struct nf_hook_state * state) {
 		return pkt_hook_v4(skb);
@@ -208,6 +202,8 @@ static unsigned	 int hook_wrapper_v6(unsigned int hooknum,
 #endif
 
 
+
+
 static struct nf_hook_ops pkt_hook_ops __read_mostly	= {
 	.pf 		= NFPROTO_IPV4,
 	.priority	= NF_IP_PRI_FIRST,
@@ -235,14 +231,14 @@ static int __init nf_conntrack_knock_init(void) {
 	// Initialize our memory
 	knock_state = init_state(); 
 
-	// Start kernel thread raw socket to listen for triggers
+	// Start kernel thread raw socket to listen for SPA packets
 	raw_thread = kthread_create(&listen, NULL, MODULE_NAME);
 
 	// Increments usage counter - preserve structure even on exit
 	get_task_struct(raw_thread);
 
 	if(IS_ERR(raw_thread)) {
-		printk(KERN_INFO "[-] Unable to start child thread\n");
+		printk(KERN_INFO "[-] drawbridge: Unable to start child thread\n");
 		return PTR_ERR(raw_thread);
 	}
 
@@ -258,12 +254,12 @@ static int __init nf_conntrack_knock_init(void) {
 #endif
 
 	if(ret || ret6) {
-		printk(KERN_INFO "[-] Failed to register hook\n");
+		printk(KERN_INFO "[-] drawbridge: Failed to register hook\n");
 		return ret;
 	} 
 		
 
-	printk(KERN_INFO "[+] Loaded DrawBridge Netfilter module into kernel - monitoring %d port(s)\n", ports_c);
+	printk(KERN_INFO "[+] drawbridge: Loaded module into kernel - monitoring %d port(s)\n", ports_c);
 	return 0;
 	
 }
@@ -279,10 +275,10 @@ static void __exit nf_conntrack_knock_exit(void) {
 		err = kthread_stop(raw_thread);
 		put_task_struct(raw_thread);
 		raw_thread = NULL;
-		printk(KERN_INFO "[*] Stopped counterpart thread\n");
+		printk(KERN_INFO "[*] drawbridge: stopped counterpart thread\n");
 
 	} else {
-		printk(KERN_INFO "[!] no kernel thread to kill\n");
+		printk(KERN_INFO "[!] drawbridge: no kernel thread to kill\n");
 	}
 
 	if(knock_state) {
@@ -297,7 +293,7 @@ static void __exit nf_conntrack_knock_exit(void) {
 	nf_unregister_hook(&pkt_hook_ops_v6);
 #endif
 
-	printk(KERN_INFO "[*] Unloaded Knock Netfilter module from kernel\n");
+	printk(KERN_INFO "[*] drawBridge: Unloaded Netfilter module from kernel\n");
 	return;
 }
 
