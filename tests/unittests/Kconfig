@@ -1,0 +1,10 @@
+menu "Drawbridge support"
+
+config DRAWBRIDGE
+	bool "Actual Drawbridge Module"
+
+config DRAWBRIDGE_TESTS
+	bool "Tests for Drawbridge SPA module"
+	depends on DRAWBRIDGE && TEST
+
+endmenu
