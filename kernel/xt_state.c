@@ -12,7 +12,7 @@
 #include <linux/rwlock.h>
 #include <linux/rculist.h>
 #include <linux/timer.h>
-
+#include <linux/version.h>
 #include "drawbridge.h"
 
 /*
@@ -239,6 +239,12 @@ void cleanup_states(conntrack_state * head) {
 				Reaper Timeout Functions
    ----------------------------------------------- */
 
+#if LINUX_VERSION_CODE > KERNEL_VERSION(4,14,153)
+void reap_expired_connections_new(struct timer_list * timer) {
+	reap_expired_connections(timer->expires);
+	return;
+}
+#endif
 
 // Initializes the reaper callback
 struct timer_list * init_reaper(unsigned long timeout) {
@@ -252,7 +258,11 @@ struct timer_list * init_reaper(unsigned long timeout) {
 	}
 
 	// setup timer to callback reap_expired
+#if LINUX_VERSION_CODE > KERNEL_VERSION(4,14,153)
+	timer_setup(my_timer, reap_expired_connections_new, 0);
+#else
 	setup_timer(my_timer, reap_expired_connections, timeout);
+#endif 
 
 	// Set the timeout value
 	mod_timer(my_timer, jiffies + msecs_to_jiffies(timeout));
@@ -275,7 +285,7 @@ void cleanup_reaper(struct timer_list * my_timer) {
 *  @param timeout Conn
 */
 void reap_expired_connections(unsigned long timeout) {
-
+	
 	conntrack_state	 * state, *tmp;
 
 	spin_lock(&listmutex);
@@ -299,4 +309,5 @@ void reap_expired_connections(unsigned long timeout) {
 
 	return;
 } 
+
 
