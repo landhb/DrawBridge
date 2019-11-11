@@ -67,22 +67,41 @@ else
 	echo $MSG_OK
 fi
 
+
 # setup Drawbridge config
 printf "Checking for drawbridge testfiles: "
-if [ ! -d "./drawbridge" ]; then
+if [ ! -d "./drivers/misc/drawbridge" ]; then
 	echo "Creating..."
-	mkdir drawbridge
-	cp ../../kernel/*.c drawbridge/
-	cp ../../kernel/*.h drawbridge/
-	cp ../unittests/* drawbridge/
-	echo 'source "drawbridge/Kconfig"' >> Kconfig
+	mkdir -p drivers/misc/drawbridge/tests
+	cp ../../kernel/*.c drivers/misc/drawbridge/
+	cp ../../kernel/*.h drivers/misc/drawbridge/
+	cp ../unittests/* drivers/misc/drawbridge/
+	echo 'source "drivers/misc/drawbridge/Kconfig"' >> Kconfig
+	echo 'obj-$(CONFIG_DRAWBRIDGE)	+= drawbridge/' >> drivers/misc/Makefile
+	echo 'obj-$(CONFIG_DRAWBRIDGE_TESTS) 	+= drawbridge/' >> drivers/misc/Makefile
 else
+	cp ../../kernel/*.c drivers/misc/drawbridge/
+	cp ../../kernel/*.h drivers/misc/drawbridge/
+	cp ../unittests/* drivers/misc/drawbridge/
 	echo $MSG_OK
 fi
+
+#PKG_OK=$(grep "drawbridge/Kconfig" Kconfig) 
+#printf "Checking for bc: "
+#if [ "" == "$PKG_OK" ]; then
+#	echo $MSG_FAIL
+#	echo "No bc. Please install with 'apt install bc' or your system's equivalent"
+#	exit
+#else
+#	echo $MSG_OK
+#fi
+
+
 
 # setup config
 make mrproper
 
 # build and start the tests 
-./tools/testing/kunit/kunit.py run 2>/dev/null
+./tools/testing/kunit/kunit.py run 
+#2>/dev/null
 
