@@ -2,8 +2,8 @@ import os
 import pytest
 import testinfra
 #import testinfra.utils.ansible_runner
-from ansible.template import Templar
-from ansible.parsing.dataloader import DataLoader
+#from ansible.template import Templar
+#from ansible.parsing.dataloader import DataLoader
 
 #runner = testinfra.utils.ansible_runner.AnsibleRunner(
 #    os.environ['MOLECULE_INVENTORY_FILE']
