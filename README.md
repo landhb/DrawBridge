@@ -1,5 +1,7 @@
 ![logo](https://github.com/landhb/DrawBridge/blob/master/img/logo.PNG?raw=true)
 
+[![Actions Status](https://github.com/landhb/Drawbridge/workflows/Ubuntu%20Latest%20Build%20CI/badge.svg)](https://github.com/landhb/Drawbridge/actions)
+
 A layer 4 Single Packet Authentication (SPA) Module, used to conceal TCP/UDP ports on public facing machines and add an extra layer of security. 
 
 Note: DrawBridge now supports both IPv4 and IPv6 traffic

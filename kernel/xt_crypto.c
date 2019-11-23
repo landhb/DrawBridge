@@ -158,7 +158,7 @@ void * gen_digest(void * buf, unsigned int len) {
 
 // Derived from https://github.com/torvalds/linux/blob/db6c43bd2132dc2dd63d73a6d1ed601cffd0ae06/crypto/asymmetric_keys/rsa.c#L101
 // and https://tools.ietf.org/html/rfc8017#section-9.2
-// thanks to Maarten Bodewes for answering the question on Stackoverflow
+// thanks to Maarten Bodewes for answering my question on Stackoverflow
 // https://stackoverflow.com/questions/49662595/linux-kernel-rsa-signature-verification-crypto-akcipher-verify-output
 static char *pkcs_1_v1_5_decode_emsa(unsigned char * EM,
 						unsigned long  EMlen,
