@@ -1,0 +1,4 @@
+- hosts: localhost
+  gather_facts: True
+  roles:
+    - { role: drawbridge, DRAWBRIDGE_PASS: privatekeypassword, DRAWBRIDGE_PORTS: 8888,9999}

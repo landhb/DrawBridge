@@ -8,6 +8,7 @@
   ignore_errors: yes
   failed_when: False
   no_log: True
+  become: yes
 
 
 # conditionally apply installation
