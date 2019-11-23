@@ -1,0 +1,22 @@
+---
+# main tasks file for drawbridge
+
+
+- name: check if drawbridge is installed
+  shell: modinfo drawbridge
+  register: modinfo_result
+  ignore_errors: yes
+  failed_when: False
+  no_log: True
+
+
+# conditionally apply installation
+- name: Apply install if necessary
+  include_tasks: "drawbridge.yml"
+  when: modinfo_result.rc == 1
+
+
+
+
+
+

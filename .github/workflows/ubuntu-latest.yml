@@ -9,8 +9,13 @@ jobs:
     
     steps:
     - uses: actions/checkout@v1
-    - name: Install kernel headers
-      run: sudo apt install linux-headers-$(uname -r)
-    - name: make
-      run: make
+    - name: Ensure kmod is installed
+      run: sudo apt install kmod
+    - name: Export role directory 
+      run: export ANSIBLE_ROLES_PATH="$(pwd)/ansible/roles"
+    - name: Install Drawbridge
+      run: ansible localhost -m include_role -a name=drawbridge
+    - name: Run tests
+      run: py.test --hosts=localhost --connection=ansible roles/drawbridge/tests/test_drawbridge.py
+      working-directory: ./ansible
     

@@ -1,0 +1,4 @@
+---
+# defaults file for drawbridge
+DRAWBRIDGE_PASS: test
+DRAWBRIDGE_PORTS: 8888,9999

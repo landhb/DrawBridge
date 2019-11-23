@@ -1,0 +1,98 @@
+- name: Update APT package cache
+  apt:
+    update_cache: true
+    cache_valid_time: 3600
+  become: true
+
+- name: Install Kernel Headers
+  apt:
+      name: "linux-headers-{{ ansible_kernel }}"
+  become: true
+
+- name: Clone drawbridge
+  git:
+    repo: https://github.com/landhb/DrawBridge.git
+    dest: /tmp/drawbridge
+    version: master
+  tags: drawbridge
+
+- name: Install build tools
+  become: yes
+  apt:
+    name: "{{ packages }}"
+    update_cache: yes
+  vars:
+    packages:
+      - make
+      - python-pip
+      - python-pkg-resources
+  tags: drawbridge
+
+- name: install pexpect
+  pip:
+    name: pexpect
+  become: yes
+  tags: drawbridge
+
+- name: Generate new keys
+  expect:
+    command: "./gen_keys.sh"
+    chdir: /tmp/drawbridge
+    creates: /tmp/drawbridge/key.h
+    responses:
+      (?i)private.pem: "{{ DRAWBRIDGE_PASS }}"
+  tags: drawbridge
+
+- name: Move key.h to kernel directory
+  shell: "mv ../key.h ."
+  args:
+    chdir: /tmp/drawbridge/kernel
+    creates: /tmp/drawbridge/kernel/key.h
+  tags: drawbridge
+
+- name: Retrieve private key
+  fetch:
+    src: /tmp/drawbridge/private.pem
+    dest: ~/drawbridge/private_{{ hostvars[inventory_hostname]['ansible_default_ipv4']['address'] }}.pem
+  tags: drawbridge
+
+- name: Compile drawbridge
+  command: "make"
+  args:
+    chdir: /tmp/drawbridge/kernel
+    creates: /tmp/drawbridge/kernel/drawbridge.ko
+  tags: drawbridge
+
+- name: Install drawbridge
+  command: "{{ item }}"
+  with_items:
+    - "cp /tmp/drawbridge/kernel/drawbridge.ko /lib/modules/{{ ansible_kernel }}/kernel/drivers/net"
+    - "depmod -a"
+  become: yes
+  tags: drawbridge
+
+- name: Load drawbridge
+  modprobe:
+      name: drawbridge
+      state: present
+      params: "ports={{ DRAWBRIDGE_PORTS }}"
+  become: yes
+  tags: drawbridge
+
+- name: Cleanup tmp directory
+  file:
+    path: "rm -rf /tmp/drawbridge"
+    state: absent
+  tags: drawbridge
+
+- name: Uninstall unnecessary packages
+  become: yes
+  apt:
+    name: "{{ packages }}"
+    state: absent
+  vars:
+    packages:
+      - make
+      - python-pip
+      - python-pkg-resources
+  tags: drawbridge
