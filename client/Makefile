@@ -13,13 +13,13 @@ endif
 all: bridge
 
 # the noasan version can be used with valgrind
-all_noasan: bridge_noasan
+all_asan: bridge_asan
 
 
-bridge: bridge.o crypto.o
+bridge_asan: bridge.o crypto.o
 	$(CC) -o $@ $(CFLAGS) $(ASAN_FLAGS) $^ $(LDFLAGS) $(ASAN_LIBS)
 
-bridge_noasan: bridge_noasan.o crypto_noasan.o
+bridge: bridge_noasan.o crypto_noasan.o
 	$(CC) -o $@ $(CFLAGS) $^ $(LDFLAGS) 
 
 install:

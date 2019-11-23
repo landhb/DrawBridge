@@ -1,5 +1,5 @@
-#ifndef _LINUX_NETFILTER_XT_KNOCK_H
-#define _LINUX_NETFILTER_XT_KNOCK_H 1
+#ifndef _LINUX_DRAWBRIDGE_H
+#define _LINUX_DRAWBRIDGE_H 1
 
 
 // Protocol headers
@@ -19,8 +19,10 @@
 // Time
 #include <linux/time.h>
 
-// Timout Configuration
-#define STATE_TIMEOUT 60000
+
+
+// Timout Configuration - default 5 min = 300000msec
+#define STATE_TIMEOUT 300000
 
 // Defaults
 #define MAX_PACKET_SIZE 65535
@@ -54,11 +56,13 @@ typedef struct conntrack_state {
 		__be32 addr_4;
 	} src;
 
-	// Timestamp
+	// Timestamps
 	unsigned long time_added;
+	unsigned long time_updated;
 
 	// List entry
 	struct list_head list;
+	struct rcu_head rcu;
 
 } conntrack_state;
 
@@ -86,7 +90,7 @@ void inet_ntoa(char * str_ip, __be32 int_ip);
 // State API
 conntrack_state	* init_state(void);
 int state_lookup(conntrack_state * head, int type, __be32 src, struct in6_addr * src_6, __be16 port);
-void state_add(conntrack_state ** head, int type, __be32 src, struct in6_addr * src_6, __be16 port);
+void state_add(conntrack_state * head, int type, __be32 src, struct in6_addr * src_6, __be16 port);
 void cleanup_states(conntrack_state * head);
 
 // Connection Reaper API
@@ -101,4 +105,7 @@ int verify_sig_rsa(akcipher_request * req, pkey_signature * sig);
 void * gen_digest(void * buf, unsigned int len);
 
 
-#endif /* _LINUX_NETFILTER_XT_KNOCK_H */
+
+
+
+#endif /* _LINUX_DRAWBRIDGE_H */
