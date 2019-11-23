@@ -10,7 +10,7 @@ jobs:
     steps:
     - uses: actions/checkout@v1
     - name: Install kernel headers
-      run: apt install linux-headers-$(uname -r)
+      run: sudo apt install linux-headers-$(uname -r)
     - name: make
       run: make
     
