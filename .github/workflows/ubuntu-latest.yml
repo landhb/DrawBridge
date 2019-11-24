@@ -11,8 +11,8 @@ jobs:
     - uses: actions/checkout@v1
     - name: Ensure kmod is installed
       run: sudo apt install kmod
-    - name: Ensure testinfra is installed
-      run: sudo pip3 install testinfra
+    - name: Ensure testinfra and ansible-inventory are installed
+      run: sudo pip3 install testinfra ansible
     - name: Export role directory 
       run: export ANSIBLE_ROLES_PATH="$(pwd)/ansible/roles"
     - name: Install Drawbridge
