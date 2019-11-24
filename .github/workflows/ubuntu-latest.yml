@@ -12,7 +12,7 @@ jobs:
     - name: Ensure kmod is installed
       run: sudo apt install kmod
     - name: Ensure testinfra is installed
-      run: sudo pip install testinfra
+      run: sudo pip3 install testinfra
     - name: Export role directory 
       run: export ANSIBLE_ROLES_PATH="$(pwd)/ansible/roles"
     - name: Install Drawbridge
