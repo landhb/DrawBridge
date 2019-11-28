@@ -234,6 +234,13 @@ int send_trigger(int proto, char * destination, char * source, int unl_port, int
 		inet_aton(source, (struct in_addr *)&(sin.sin_addr.s_addr));
 		((struct iphdr *)sendbuf)->check = trans_check(proto, sendbuf, send_len, sin.sin_addr, din.sin_addr);
 
+		// set UDP len & checksum if applicable
+		if (proto == IPPROTO_UDP) {
+			((struct udphdr *)sendbuf)->len = htons((short)send_len);
+			((struct udphdr *)sendbuf)->check = trans_check(proto, sendbuf, send_len, sin.sin_addr, din.sin_addr);
+		}
+
+
 	} else if (inet_pton(AF_INET6, destination, &(din6.sin6_addr)) == 1) {
 		type = 6;
 		sock = socket(PF_INET6, SOCK_RAW, proto); /*//IPPROTO_RAW */
