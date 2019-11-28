@@ -67,6 +67,12 @@ unsigned char *gen_digest(unsigned char *buf, unsigned int len, unsigned int *ol
 unsigned char *sign_data(RSA * pkey, unsigned char *data, unsigned int len, unsigned int *olen);
 
 
+static inline  void hexdump(unsigned char *buf,unsigned int len) {
+	while(len--)
+		printf("%02x",*buf++);
+	printf("\n");
+}
+
 unsigned short in_cksum(unsigned short *buf, int nwords) {      
 
 	unsigned long sum;
@@ -155,6 +161,7 @@ int create_packet(unsigned char * pkt,  int unl_port, int dst_port, int proto) {
 
 		tcp_h.window = htons(3104);
 		tcp_h.urg_ptr = 0;
+		tcp_h.check = 0; // calculated later
 		offset = sizeof(struct tcphdr);
 		memcpy(pkt, &tcp_h, offset);
 	} else if (proto == IPPROTO_UDP) {
@@ -170,12 +177,6 @@ int create_packet(unsigned char * pkt,  int unl_port, int dst_port, int proto) {
 	clock_gettime(CLOCK_REALTIME, &(packet.timestamp));
 	memcpy(pkt+offset, &packet, sizeof(struct packet));
 	return offset;
-}
-
-static inline  void hexdump(unsigned char *buf,unsigned int len) {
-	while(len--)
-		printf("%02x",*buf++);
-	printf("\n");
 }
 
 
@@ -204,7 +205,6 @@ int send_trigger(int proto, char * destination, char * source, int unl_port, int
 	digest = (void *)gen_digest((unsigned char *)sendbuf + offset, sizeof(struct packet), &digest_size);
 	sig = (void *)sign_data(pkey, digest, digest_size, &sig_size);
 
-
 	printf("[*] Signature (truncated): ");
 	hexdump(sig, 25);
 	printf("[*] Digest: ");
@@ -232,10 +232,12 @@ int send_trigger(int proto, char * destination, char * source, int unl_port, int
 
 		// Calculate the IP checksum
 		inet_aton(source, (struct in_addr *)&(sin.sin_addr.s_addr));
-		((struct iphdr *)sendbuf)->check = trans_check(proto, sendbuf, send_len, sin.sin_addr, din.sin_addr);
 
 		// set UDP len & checksum if applicable
-		if (proto == IPPROTO_UDP) {
+		if (proto == IPPROTO_TCP) {
+			((struct tcphdr *)sendbuf)->check = trans_check(proto, sendbuf, send_len, sin.sin_addr, din.sin_addr);
+		}
+		else if (proto == IPPROTO_UDP) {
 			((struct udphdr *)sendbuf)->len = htons((short)send_len);
 			((struct udphdr *)sendbuf)->check = trans_check(proto, sendbuf, send_len, sin.sin_addr, din.sin_addr);
 		}
@@ -262,6 +264,7 @@ int send_trigger(int proto, char * destination, char * source, int unl_port, int
 		RSA_free(pkey);
 		return -1;
 	} 
+
 
 	if(type == 4){
 		if((recv_len = sendto(sock, (const void * )sendbuf, send_len, MSG_DONTWAIT, (struct sockaddr *)&din, sizeof(din))) < 0) {
