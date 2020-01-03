@@ -15,40 +15,40 @@
 #include <sys/types.h>
 
 
+
 unsigned char *gen_digest(unsigned char *buf, unsigned int len, unsigned int *olen)
 {
-#if OPENSSL_VERSION_NUMBER < 0x10100000L
-    EVP_MD_CTX ctx;
-#else
-    EVP_MD_CTX *ctx = NULL;
-#endif
-    unsigned char *ret;
-    const EVP_MD *sha256;
 
-    sha256 = EVP_sha256();
+    // EVP_MD_CTX became opaque in OpenSSL 1.1. 
+    // Consequently, stack allocated EVP_MD_CTXs are no longer supported.
+    unsigned char *ret;
+    EVP_MD_CTX *ctx = NULL;
+    const EVP_MD *sha256 = EVP_sha256();
+    //sha256 = EVP_sha256();
+
+    // EVP_MD_CTX_create() and EVP_MD_CTX_destroy() were 
+    // renamed to EVP_MD_CTX_new() and EVP_MD_CTX_free() in OpenSSL 1.1.
 #if OPENSSL_VERSION_NUMBER < 0x10100000L
-    EVP_MD_CTX_init(&ctx);
+    ctx = EVP_MD_CTX_create();
 #else
     ctx = EVP_MD_CTX_new();
+#endif
+
     if (ctx == NULL) {
         return NULL;
     }
-#endif
 
     if (!(ret = (unsigned char *)malloc(EVP_MAX_MD_SIZE))) {
         return NULL;
     }
 
-    
-#if OPENSSL_VERSION_NUMBER < 0x10100000L
-    EVP_DigestInit(&ctx, sha256);
-    EVP_DigestUpdate(&ctx, buf, len);
-    EVP_DigestFinal(&ctx, ret, olen);
-    EVP_MD_CTX_cleanup(&ctx);
-#else
     EVP_DigestInit(ctx, sha256);
     EVP_DigestUpdate(ctx, buf, len);
     EVP_DigestFinal(ctx, ret, olen);
+    
+#if OPENSSL_VERSION_NUMBER < 0x10100000L
+    EVP_MD_CTX_destroy(&ctx);
+#else
     EVP_MD_CTX_free(ctx);
 #endif
     return ret;
