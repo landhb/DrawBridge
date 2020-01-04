@@ -1,7 +1,7 @@
 CC     = gcc
 ASAN_FLAGS = -fsanitize=address -fno-omit-frame-pointer -Wno-format-security
 ASAN_LIBS = -static-libasan
-CFLAGS := -Wall -W -Werror --std=gnu99 -g3 
+CFLAGS := -Wall -W -Werror --std=gnu99 -O3  
 
 
 ARCH := $(shell uname)
@@ -24,6 +24,7 @@ bridge: bridge_noasan.o crypto_noasan.o
 
 install:
 	if [ ! -f "/usr/bin/bridge" ]; then cp ./bridge /usr/bin/bridge; else echo "[-] /usr/bin/bridge exits. If you want to overwrite use 'make reinstall'"; fi
+	setcap cap_net_raw,cap_net_admin=eip /usr/bin/bridge
 
 reinstall:
 	mv ./bridge /usr/bin/bridge
