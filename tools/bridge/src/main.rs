@@ -16,13 +16,12 @@ use pnet::transport::TransportChannelType::Layer4; // base channel type
 use pnet::packet::ip::IpNextHeaderProtocols;       // layer 3 
 use pnet::transport::TransportProtocol::Ipv4;      // layer 4 
 
-
+use std::mem;
 use libc::timespec;
 use failure::{Error,bail};
 
 
 const MAX_PACKET_SIZE: usize = 2048;
-const DB_PACKET_SIZE: usize = 10; 
 
 // Drawbridge protocol data
 #[repr(C,packed)]
@@ -39,7 +38,7 @@ impl db_packet {
 
         union Overlay<'a> {
             pkt: &'a db_packet,
-            bytes: &'a [u8;DB_PACKET_SIZE],
+            bytes: &'a [u8;mem::size_of::<db_packet>()],
         }
         unsafe { Overlay { pkt: self }.bytes } 
     }
