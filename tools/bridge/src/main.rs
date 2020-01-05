@@ -22,13 +22,28 @@ use failure::{Error,bail};
 
 
 const MAX_PACKET_SIZE: usize = 2048;
+const DB_PACKET_SIZE: usize = 10; 
 
 // Drawbridge protocol data
-#[repr(C)]
+#[repr(C,packed)]
 struct db_packet {
     timestamp: timespec,
     port: u16,
 } 
+
+impl db_packet {
+
+    // db_packet method to convert to &[u8]
+    // which is necessary for most libpnet methods
+    fn as_bytes(&self) -> &[u8] {
+
+        union Overlay<'a> {
+            pkt: &'a db_packet,
+            bytes: &'a [u8;DB_PACKET_SIZE],
+        }
+        unsafe { Overlay { pkt: self }.bytes } 
+    }
+}
 
 
 fn build_data(unlock_port: u16) -> Result<db_packet, Error> {
@@ -52,15 +67,16 @@ fn build_data(unlock_port: u16) -> Result<db_packet, Error> {
 
 
 // Builds an immutable TcpPacket to drop on the wire
-fn build_tcp_packet(dst_port: u16, packet_buffer: Vec<u8>) -> Result<MutableTcpPacket<'static>, Error>{
+fn build_tcp_packet(dst_port: u16, packet_buffer: &mut Vec<u8>) -> Result<MutableTcpPacket, Error>{
 
-    let mut tcp = match MutableTcpPacket::owned(packet_buffer) {
+    let mut tcp = match MutableTcpPacket::new(packet_buffer) {
         Some(res) => res,
         None => {
             println!("[!] Could not allocate packet!");
             bail!(-1);
         }
     };
+
     tcp.set_source(rand::random::<u16>());
     tcp.set_destination(dst_port);
     tcp.set_flags(TcpFlags::SYN);
@@ -76,6 +92,7 @@ fn build_tcp_packet(dst_port: u16, packet_buffer: Vec<u8>) -> Result<MutableTcpP
     return Ok(tcp);
 }
 
+
 fn main() -> Result<(), Error> {
 
     // TODO, make this dynamically set with client args
@@ -89,26 +106,23 @@ fn main() -> Result<(), Error> {
         Err(e) => panic!("An error occurred when creating the transport channel: {}", e)
     };
 
-
     let data: db_packet = match build_data(22) {
         Ok(res) => res,
         Err(e) => {bail!(e)},
     };
 
     // Build the TCP packet
-    let packet_buffer: Vec<u8> = vec![0;MAX_PACKET_SIZE];
+    let mut packet_buffer: Vec<u8> = vec![0;MAX_PACKET_SIZE];
    
 
     // fill out the TCP packet
-    let pkt: MutableTcpPacket = match build_tcp_packet(22, packet_buffer){
+    let mut pkt: MutableTcpPacket = match build_tcp_packet(22, &mut packet_buffer){
         Ok(res) => res,
         Err(e) => {bail!(e)}
     };
 
-
     // add the data
-    pkt.set_payload(data);
-
+    pkt.set_payload(&data.as_bytes());
 
     // send it
     match tx.send_to(pkt, target) {
