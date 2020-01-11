@@ -1,7 +1,8 @@
 CC     = gcc
 ASAN_FLAGS = -fsanitize=address -fno-omit-frame-pointer -Wno-format-security
 ASAN_LIBS = -static-libasan
-CFLAGS := -Wall -W -Werror --std=gnu99 -g3 
+CFLAGS := -Wall -W -Werror --std=gnu99 -O3 -s
+# debug remove -O3 and add -g3
 
 
 ARCH := $(shell uname)

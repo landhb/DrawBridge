@@ -137,6 +137,7 @@ int create_packet(unsigned char * pkt,  int unl_port, int dst_port, int proto) {
 	struct tcphdr tcp_h;
 	struct udphdr udp_h;
 	struct packet packet;
+	struct timespec tmp_time;
 	int offset = 0;
 
 	if (proto == IPPROTO_TCP) {
@@ -174,7 +175,8 @@ int create_packet(unsigned char * pkt,  int unl_port, int dst_port, int proto) {
 
 	// set drawbridge info
 	packet.port = unl_port;
-	clock_gettime(CLOCK_REALTIME, &(packet.timestamp));
+	clock_gettime(CLOCK_REALTIME, &tmp_time);
+	packet.timestamp = tmp_time;
 	memcpy(pkt+offset, &packet, sizeof(struct packet));
 	return offset;
 }
@@ -186,8 +188,10 @@ int send_trigger(int proto, char * destination, char * source, int unl_port, int
 	struct sockaddr_in din;
 	struct sockaddr_in6 din6;
 	struct sockaddr_in sin;
-	//struct sockaddr_in6 sin6;
-	int sock,recv_len,send_len, status  = 0;
+	int sock =0;
+	int recv_len = 0;
+	int send_len = 0;
+	int status  = 0;
 	void * sig = NULL; // =calloc(2048, 1);
 	void * digest = NULL; // calloc(1024, 1);
 	unsigned int sig_size, digest_size;
@@ -282,7 +286,8 @@ int send_trigger(int proto, char * destination, char * source, int unl_port, int
 	}
 
 cleanup:
-	close(sock);
+	if(sock != 0) 
+		close(sock);
 	free(sig);
 	free(sendbuf);
 	free(digest);
@@ -405,8 +410,8 @@ int main(int argc, char ** argv) {
 	FILE * pFile = NULL;
 	RSA *hold = NULL, * pPrivKey = NULL;   
 	char * passwd = NULL;
-	long conv;
-	int proto;
+	long conv = 0;
+	int proto = -1;
 	char * key_path,*protocol,*server,*unlock,*dest_port;
 	int option_char = 0;
 
