@@ -8,7 +8,8 @@ extern crate failure;
 use std::net::{IpAddr, Ipv4Addr}; // TODO: Add Ipv6Addr support
 
 // Supported layer 4 protocols
-use pnet::packet::tcp::{MutableTcpPacket,TcpFlags,TcpOption};
+mod tcp;
+mod route;
 
 // channel
 use pnet::transport::transport_channel;
@@ -21,6 +22,7 @@ use libc::timespec;
 use failure::{Error,bail};
 
 
+//const ETH_HEADER_SIZE: usize = ;
 const MAX_PACKET_SIZE: usize = 2048;
 
 // Drawbridge protocol data
@@ -29,6 +31,7 @@ struct db_packet {
     timestamp: timespec,
     port: u16,
 } 
+
 
 impl db_packet {
 
@@ -65,34 +68,14 @@ fn build_data(unlock_port: u16) -> Result<db_packet, Error> {
 } 
 
 
-// Builds an immutable TcpPacket to drop on the wire
-fn build_tcp_packet(dst_port: u16, packet_buffer: &mut Vec<u8>) -> Result<MutableTcpPacket, Error>{
-
-    let mut tcp = match MutableTcpPacket::new(packet_buffer) {
-        Some(res) => res,
-        None => {
-            println!("[!] Could not allocate packet!");
-            bail!(-1);
-        }
-    };
-
-    tcp.set_source(rand::random::<u16>());
-    tcp.set_destination(dst_port);
-    tcp.set_flags(TcpFlags::SYN);
-    tcp.set_window(64240);
-    tcp.set_data_offset(8);
-    tcp.set_urgent_ptr(0);
-    tcp.set_sequence(rand::random::<u32>());
-
-    tcp.set_options(&[TcpOption::mss(1460), TcpOption::sack_perm(), TcpOption::nop(), TcpOption::nop(), TcpOption::wscale(7)]);
-    /*let checksum = pnet_packet::tcp::ipv4_checksum(&tcp_header.to_immutable(), &partial_packet.iface_ip, &partial_packet.destination_ip);
-    tcp.set_checksum(checksum);*/
-    //println!("{:?}", tcp.get_source());
-    return Ok(tcp);
-}
-
 
 fn main() -> Result<(), Error> {
+
+    let iface = match route::get_default_iface() {
+        Ok(res) => res,
+        Err(e) => {bail!(e)},
+    };
+    println!("[+] Selected Default Interface {}", iface);
 
     // TODO, make this dynamically set with client args
     let config: pnet::transport::TransportChannelType = Layer4(Ipv4(IpNextHeaderProtocols::Tcp));
@@ -102,7 +85,7 @@ fn main() -> Result<(), Error> {
     let (mut tx, _rx) = match transport_channel(MAX_PACKET_SIZE, config) {
         Ok((tx, rx)) => (tx,rx),
         //Ok(_) => panic!("Unhandled channel type"),
-        Err(e) => panic!("An error occurred when creating the transport channel: {}", e)
+        Err(e) => bail!("An error occurred when creating the transport channel: {}", e)
     };
 
     let data: db_packet = match build_data(22) {
@@ -110,12 +93,17 @@ fn main() -> Result<(), Error> {
         Err(e) => {bail!(e)},
     };
 
+    // calculate packet size
+    let mut buf_size: usize = pnet::packet::ethernet::EthernetPacket::minimum_packet_size();
+    buf_size += pnet::packet::ipv4::Ipv4Packet::minimum_packet_size();
+    buf_size += pnet::packet::tcp::MutableTcpPacket::minimum_packet_size();
+    buf_size += mem::size_of::<db_packet>(); 
+
     // Build the TCP packet
-    let mut packet_buffer: Vec<u8> = vec![0;MAX_PACKET_SIZE];
-   
+    let mut packet_buffer: Vec<u8> = vec![0;buf_size];
 
     // fill out the TCP packet
-    let mut pkt: MutableTcpPacket = match build_tcp_packet(22, &mut packet_buffer){
+    let mut pkt: pnet::packet::tcp::MutableTcpPacket = match tcp::build_tcp_packet(22, &mut packet_buffer){
         Ok(res) => res,
         Err(e) => {bail!(e)}
     };
