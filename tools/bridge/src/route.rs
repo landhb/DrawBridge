@@ -1,7 +1,26 @@
-use failure::{Error};
+use failure::{Error, bail};
 use std::io::Read;
 use std::fs::File;
+use std::net::IpAddr;
 
+/*
+* Grab an interface's src IP
+*/
+pub fn get_interface_ip(iface: &String) -> Result<IpAddr,Error>{
+
+    let interfaces = pnet::datalink::interfaces();
+
+    for i in interfaces {
+        if i.name == *iface {
+        	return Ok(i.ips[0].ip())
+        }
+    }
+    bail!("[-] Could not find interface IP address")
+}
+
+/*
+* Get a Linux host's default gateway
+*/
 pub fn get_default_iface() -> Result<String, Error> {
 	let mut file = File::open("/proc/net/route")?;
 	let mut contents = String::new();
