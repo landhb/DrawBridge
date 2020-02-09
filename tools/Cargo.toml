@@ -12,6 +12,7 @@ path = "bridge/src/main.rs"
 
 [dependencies]
 pnet = "0.23.0"
+pnet_sys = "0.25.0"
 libc = "0.2.66"
 failure = "0.1.6"
 rand = "0.3"

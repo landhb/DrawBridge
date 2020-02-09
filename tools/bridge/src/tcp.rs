@@ -7,7 +7,7 @@ use crate::protocol::db_packet;
 
 
 // Builds an immutable TcpPacket to drop on the wire
-pub fn build_tcp_packet(data: db_packet, src_ip: IpAddr, dst_ip: IpAddr, dst_port: u16, packet_buffer: &mut Vec<u8>) -> Result<MutableTcpPacket, Error>{
+pub fn build_tcp_packet<'a>(data: db_packet, src_ip: IpAddr, dst_ip: IpAddr, dst_port: u16, packet_buffer: &'a mut Vec<u8>) -> Result<(), Error> { //Result<MutableTcpPacket, Error>{
 
     let mut tcp = match MutableTcpPacket::new(packet_buffer) {
         Some(res) => res,
@@ -32,7 +32,7 @@ pub fn build_tcp_packet(data: db_packet, src_ip: IpAddr, dst_ip: IpAddr, dst_por
     // compute the checksum
     match (src_ip, dst_ip) {
     	(IpAddr::V4(src_ip4), IpAddr::V4(dst_ip4)) => {
-    		let checksum = pnet::packet::tcp::ipv4_checksum(&tcp.to_immutable(), &src_ip4, &dst_ip4);//, &partial_packet.iface_ip, &partial_packet.destination_ip);
+    		let checksum = pnet::packet::tcp::ipv4_checksum(&tcp.to_immutable(), &src_ip4, &dst_ip4);
     		tcp.set_checksum(checksum);
     	}
     	(IpAddr::V6(_src_ip6), IpAddr::V6(_dst_ip6)) => {
@@ -41,8 +41,7 @@ pub fn build_tcp_packet(data: db_packet, src_ip: IpAddr, dst_ip: IpAddr, dst_por
     	_ => {bail!("[-] Unknown IP Address type")}
     }
 
-    //println!("{:?}", tcp.get_source());
-    return Ok(tcp);
+    return Ok(());
 }
 
 
