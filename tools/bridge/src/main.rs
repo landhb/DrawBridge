@@ -134,7 +134,7 @@ fn main() -> Result<(), Error> {
     println!("[+] Sending {} packet to {}:{} to unlock port {}", proto,target,dport,unlock_port);
 
     //send it
-    match tx.send_to(db_packet.as_packet(), target) {
+    match tx.send_to(*db_packet.as_packet(), target) {
         Ok(res) => {
             println!("[+] Sent {} bytes", res);
         }

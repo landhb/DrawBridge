@@ -1,4 +1,3 @@
-use pnet::packet::Packet;
 use std::mem;
 use std::net::{IpAddr};
 use libc::timespec;
@@ -100,16 +99,13 @@ impl DrawBridgePacket {
 	    return Ok(DrawBridgePacket{ db_packet_data: data, buf_size: buf_size, config: config, proto: *proto, src_ip: src_ip, target: target, dport: dport});
 	}
 
-	pub fn as_packet(&self) -> impl pnet::packet::Packet {
+	pub fn as_packet(self) -> Box<dyn pnet::packet::Packet> {
 
 		// Allocate enough room for the entire packet
 		let mut packet_buffer: Vec<u8> = vec![0;self.buf_size];
 
 		// fill out the buffer with our packet data
-		match protocol::build_packet(self, &mut packet_buffer) {
-			protocol::ProtoPacket::UDPPacket(udp_packet) => udp_packet,
-			protocol::ProtoPacket::TCPPacket(tcp_packet) => tcp_packet,
-		}
+		protocol::build_packet(&mut self, &mut packet_buffer)
 	}
 }
 

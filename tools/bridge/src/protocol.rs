@@ -5,17 +5,10 @@ use pnet::packet::tcp::{MutableTcpPacket,TcpFlags,TcpOption};
 use pnet::packet::udp::{MutableUdpPacket};
 
 
-
-pub enum ProtoPacket<'a> {
-    UDPPacket(Box<MutableUdpPacket<'a>>),
-    TCPPacket(Box<MutableTcpPacket<'a>>),
-}
-
-
-fn build_tcp_packet<'a>(db_packet: &'a DrawBridgePacket, packet_buffer: &'a mut Vec<u8>) -> Box<MutableTcpPacket<'a>> {
+fn build_tcp_packet<'a>(db_packet: &mut DrawBridgePacket, packet_buffer: &'a mut Vec<u8>) -> Box<MutableTcpPacket<'a>> {
 
     let mut tcp = match MutableTcpPacket::new(packet_buffer) {
-        Some(res) => res,
+        Some(res) => Box::new(res),
         None => {
             println!("[!] Could not allocate packet!");
             panic!("Building TCP packet failed catastrophically!")        }
@@ -45,15 +38,15 @@ fn build_tcp_packet<'a>(db_packet: &'a DrawBridgePacket, packet_buffer: &'a mut 
         _ => { println!("[-] Unknown IP Address type") },
     }
 
-    return Box::new(tcp);
+    return tcp;
 }
 
 
-fn build_udp_packet<'a>(db_packet: &DrawBridgePacket, packet_buffer: &'a mut Vec<u8>) -> Box<MutableUdpPacket<'a>>
+fn build_udp_packet<'a>(db_packet: &mut DrawBridgePacket, packet_buffer: &'a mut Vec<u8>) -> Box<MutableUdpPacket<'a>>
 { 
 
     let mut udp = match MutableUdpPacket::new(packet_buffer) {
-        Some(res) => res,
+        Some(res) => Box::new(res),
         None => {
             println!("[!] Could not allocate packet!");
             panic!("Building UDP packet failed catastrophically!");
@@ -81,14 +74,14 @@ fn build_udp_packet<'a>(db_packet: &DrawBridgePacket, packet_buffer: &'a mut Vec
         }
     }
 
-    return Box::new(udp);
+    return udp;
 }
 
-pub fn build_packet<'a>(db_packet: &'a DrawBridgePacket, packet_buffer: &'a mut Vec<u8>) -> ProtoPacket<'a> {
+pub fn build_packet<'a>(db_packet: &mut DrawBridgePacket, packet_buffer: &'a mut Vec<u8>) -> Box<dyn pnet::packet::Packet+ 'a> {
     if db_packet.proto.as_str() == "tcp" {
-        ProtoPacket::TCPPacket(build_tcp_packet(db_packet, packet_buffer))
+        build_tcp_packet(db_packet, packet_buffer)
     } else if db_packet.proto.as_str() == "udp" {
-        ProtoPacket::UDPPacket(build_udp_packet(db_packet, packet_buffer))
+       build_udp_packet(db_packet, packet_buffer)
     } else {
         panic!("Couldn't build the packet!");
     }
