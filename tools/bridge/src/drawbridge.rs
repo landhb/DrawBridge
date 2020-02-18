@@ -5,7 +5,7 @@ use pnet::transport::TransportChannelType::Layer4;
 use pnet::packet::ip::IpNextHeaderProtocols;       
 use pnet::transport::TransportProtocol::Ipv4;      
 use pnet::transport::TransportProtocol::Ipv6;
-use failure::{Error, bail};
+use failure::{Error};
 use crate::protocol;
 use crate::route;
 
@@ -20,7 +20,7 @@ struct db_data {
 pub struct DrawBridgePacket {
 	pub db_packet_data: db_data,
 	pub buf_size: usize,
-    pub config: pnet::transport::TransportChannelType,
+	pub config: pnet::transport::TransportChannelType,
     pub proto: String,
     pub src_ip: IpAddr,
     pub target: IpAddr,
@@ -48,9 +48,22 @@ impl DrawBridgePacket {
 	    // All packets will be ethernet packets
 	    let mut buf_size: usize = pnet::packet::ethernet::EthernetPacket::minimum_packet_size();
 
-	    // Dynamically set the transport protocol, and calculate packet size
+	    // initialize the data
+	    let mut data =  db_data {
+	        port: unlock_port,
+	        timestamp : libc::timespec {
+	            tv_sec: 0,
+	            tv_nsec:0,
+	         },
+	     };
+
+	    // get current timestamp
+	    unsafe {
+	        libc::clock_gettime(libc::CLOCK_REALTIME,&mut data.timestamp);
+	    }
+		// Dynamically set the transport protocol, and calculate packet size
 	    // todo, see if the header size can be calculated and returned in tcp.rs & udp.rs
-	    let config: pnet::transport::TransportChannelType = match (proto.as_str(),target.is_ipv4()) {
+		let config: pnet::transport::TransportChannelType = match (proto.as_str(),target.is_ipv4()) {
 	        ("tcp",true) => {
 	            buf_size += pnet::packet::ipv4::Ipv4Packet::minimum_packet_size();
 	            buf_size += pnet::packet::tcp::MutableTcpPacket::minimum_packet_size();
@@ -71,22 +84,8 @@ impl DrawBridgePacket {
 	            buf_size += pnet::packet::udp::MutableUdpPacket::minimum_packet_size();
 	            Layer4(Ipv6(IpNextHeaderProtocols::Udp))
 	        },
-	        _ => bail!("[-] Protocol/IpAddr pair not supported!"),
+	        _ => unreachable!("Uhh, this shoulnd't ever happen")
 	    };
-
-	    // initialize the data
-	    let mut data =  db_data {
-	        port: unlock_port,
-	        timestamp : libc::timespec {
-	            tv_sec: 0,
-	            tv_nsec:0,
-	         },
-	     };
-
-	    // get current timestamp
-	    unsafe {
-	        libc::clock_gettime(libc::CLOCK_REALTIME,&mut data.timestamp);
-	    }
 
 	    // calculate the size of the payload
 	    buf_size += mem::size_of::<db_data>();
@@ -98,6 +97,7 @@ impl DrawBridgePacket {
 
 	    return Ok(DrawBridgePacket{ db_packet_data: data, buf_size: buf_size, config: config, proto: *proto, src_ip: src_ip, target: target, dport: dport});
 	}
+
 
 	pub fn as_packet(self) -> Box<dyn pnet::packet::Packet> {
 

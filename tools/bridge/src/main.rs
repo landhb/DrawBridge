@@ -1,5 +1,3 @@
-#![feature(impl_trait_in_bindings)]
-
 extern crate rand;
 extern crate pnet;
 extern crate failure; 

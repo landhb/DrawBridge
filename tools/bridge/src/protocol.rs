@@ -78,6 +78,7 @@ fn build_udp_packet<'a>(db_packet: &mut DrawBridgePacket, packet_buffer: &'a mut
 }
 
 pub fn build_packet<'a>(db_packet: &mut DrawBridgePacket, packet_buffer: &'a mut Vec<u8>) -> Box<dyn pnet::packet::Packet+ 'a> {
+
     if db_packet.proto.as_str() == "tcp" {
         build_tcp_packet(db_packet, packet_buffer)
     } else if db_packet.proto.as_str() == "udp" {
