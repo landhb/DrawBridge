@@ -1,3 +1,5 @@
+#![feature(impl_trait_in_bindings)]
+
 extern crate rand;
 extern crate pnet;
 extern crate failure; 
@@ -12,19 +14,16 @@ mod drawbridge;
 
 // channel
 use pnet::transport::transport_channel;
-use pnet::transport::TransportChannelType::Layer4; 
-use pnet::packet::ip::IpNextHeaderProtocols;       
-use pnet::transport::TransportProtocol::Ipv4;      
-use pnet::transport::TransportProtocol::Ipv6; 
+
 
 use clap::{Arg,App};
-use std::mem;
+
 use failure::{Error,bail};
-use drawbridge::db_packet;
+use drawbridge::DrawBridgePacket;
 
 // to get around strict send_to types
-use pnet_sys;
-use pnet::transport::TransportSender;
+
+
 
 //const ETH_HEADER_SIZE: usize = ;
 const MAX_PACKET_SIZE: usize = 2048;
@@ -110,27 +109,7 @@ fn parse_args() -> Result<(String,IpAddr,u16,u16, String),Error> {
     return Ok((proto,addr,dport, uport, iface))
 }
 
-
-/**
- * Stolen from libpnet and modified to directly send the &[u8] data
- * Removing the restriction to implemente the Packet trait
- */
-fn send(tx: &mut TransportSender, packet: &[u8], dst: IpAddr) -> std::io::Result<usize> {
-        let mut caddr = unsafe { mem::zeroed() };
-        let sockaddr = match dst {
-            IpAddr::V4(ip_addr) => std::net::SocketAddr::V4(std::net::SocketAddrV4::new(ip_addr, 0)),
-            IpAddr::V6(ip_addr) => std::net::SocketAddr::V6(std::net::SocketAddrV6::new(ip_addr, 0, 0, 0)),
-        };
-        let slen = pnet_sys::addr_to_sockaddr(sockaddr, &mut caddr);
-        let caddr_ptr = (&caddr as *const pnet_sys::SockAddrStorage) as *const pnet_sys::SockAddr;
-
-        pnet_sys::send_to(tx.socket.fd, packet, caddr_ptr, slen)
-}
-
 fn main() -> Result<(), Error> {
-
-    // All packets will be ethernet packets
-    let mut buf_size: usize = pnet::packet::ethernet::EthernetPacket::minimum_packet_size();
 
     // Grab CLI arguments
     let (proto,target,dport,unlock_port,iface) = match parse_args() {
@@ -138,67 +117,24 @@ fn main() -> Result<(), Error> {
         Err(e) => {bail!("{}", e)},
     };
 
-    let src_ip = match route::get_interface_ip(&iface) {
-        Ok(res) => res,
-        Err(e) => {bail!(e)},
+    //Build db_packet for sending
+    let db_packet: DrawBridgePacket = match DrawBridgePacket::new(&proto, target, dport, unlock_port, iface) {
+        Ok(db_packet) => db_packet,
+        _ => {bail!("Error creating db_packet");},
     };
 
-    println!("[+] Selected Default Interface {}, with address {}", iface, src_ip);
-
-    // Dynamically set the transport protocol, and calculate packet size
-    // todo, see if the header size can be calculated and returned in tcp.rs & udp.rs
-    let config: pnet::transport::TransportChannelType = match (proto.as_str(),target.is_ipv4()) {
-        ("tcp",true) => {
-            buf_size += pnet::packet::ipv4::Ipv4Packet::minimum_packet_size();
-            buf_size += pnet::packet::tcp::MutableTcpPacket::minimum_packet_size();
-            Layer4(Ipv4(IpNextHeaderProtocols::Tcp))
-        },
-        ("tcp",false) => {
-            buf_size += pnet::packet::ipv6::Ipv6Packet::minimum_packet_size();
-            buf_size += pnet::packet::tcp::MutableTcpPacket::minimum_packet_size();
-            Layer4(Ipv6(IpNextHeaderProtocols::Tcp))
-        },
-        ("udp",true) => {
-            buf_size += pnet::packet::ipv4::Ipv4Packet::minimum_packet_size();
-            buf_size += pnet::packet::udp::MutableUdpPacket::minimum_packet_size();
-            Layer4(Ipv4(IpNextHeaderProtocols::Udp))
-        },
-        ("udp",false) => {
-            buf_size += pnet::packet::ipv6::Ipv6Packet::minimum_packet_size();
-            buf_size += pnet::packet::udp::MutableUdpPacket::minimum_packet_size();
-            Layer4(Ipv6(IpNextHeaderProtocols::Udp))
-        },
-        _ => bail!("[-] Protocol/IpAddr pair not supported!"),
-    };
 
     // Create a new channel, dealing with layer 4 packets
-    let (mut tx, _rx) = match transport_channel(MAX_PACKET_SIZE, config) {
+    let (mut tx, _rx) = match transport_channel(MAX_PACKET_SIZE, db_packet.config) {
         Ok((tx, rx)) => (tx,rx),
         Err(e) => bail!("An error occurred when creating the transport channel: {}", e)
     };
 
-    let data: db_packet = match drawbridge::build_data(unlock_port) {
-        Ok(res) => res,
-        Err(e) => {bail!(e)},
-    };
-
-    // calculate the size of the payload
-    buf_size += mem::size_of::<db_packet>(); 
-
-    // Allocate enough room for the entire packet
-    let mut packet_buffer: Vec<u8> = vec![0;buf_size];
-
-    // fill out the buffer with our packet data
-    match proto.as_str() {
-        "tcp" => { protocol::build_tcp_packet(data,src_ip,target,dport,&mut packet_buffer)? },
-        "udp" => { protocol::build_udp_packet(data,src_ip,target,dport,&mut packet_buffer)? },
-        _ => bail!("[-] not implemented"),
-    }; 
 
     println!("[+] Sending {} packet to {}:{} to unlock port {}", proto,target,dport,unlock_port);
 
-    // send it
-    match send(&mut tx,packet_buffer.as_slice(), target) {
+    //send it
+    match tx.send_to(db_packet.as_packet(), target) {
         Ok(res) => {
             println!("[+] Sent {} bytes", res);
         }
@@ -207,14 +143,5 @@ fn main() -> Result<(), Error> {
             bail!(-2);
         }
     }
-    // match tx.send_to(packet_buffer, target) {
-    //     Ok(res) => {
-    //         println!("[+] Sent {} bytes", res);
-    //     }
-    //     Err(e) => {
-    //         println!("[-] Failed to send packet: {}", e);
-    //         bail!(-2);
-    //     }
-    // }
     return Ok(());
 }

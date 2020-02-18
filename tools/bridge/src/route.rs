@@ -1,4 +1,4 @@
-use failure::{Error, bail};
+use failure::{Error};
 use std::io::Read;
 use std::fs::File;
 use std::net::IpAddr;
@@ -6,16 +6,16 @@ use std::net::IpAddr;
 /*
 * Grab an interface's src IP
 */
-pub fn get_interface_ip(iface: &String) -> Result<IpAddr,Error>{
+pub fn get_interface_ip(iface: &String) -> Option<IpAddr>{
 
     let interfaces = pnet::datalink::interfaces();
 
     for i in interfaces {
         if i.name == *iface {
-        	return Ok(i.ips[0].ip())
+        	return Some(i.ips[0].ip())
         }
     }
-    bail!("[-] Could not find interface IP address")
+    None
 }
 
 /*
