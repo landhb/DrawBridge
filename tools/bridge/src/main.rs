@@ -34,7 +34,7 @@ const MAX_PACKET_SIZE: usize = 2048;
 //type PacketBuilder = fn(db_packet, IpAddr, IpAddr, u16, &mut Vec<u8>) -> Result<dyn pnet::packet::Packet+'static, Error>;// where T: impl pnet::packet::Packet;
 
 
-fn parse_args() -> Result<(String,IpAddr,u16,u16),Error> {
+fn parse_args() -> Result<(String,IpAddr,u16,u16, String),Error> {
 
     let args = App::new("bridge")
         .version("0.1.0")
@@ -46,6 +46,12 @@ fn parse_args() -> Result<(String,IpAddr,u16,u16),Error> {
                  .takes_value(true)
                  .required(true)
                  .help("Address of server running Drawbridge"))
+        .arg(Arg::with_name("interface")
+                 .short("e")
+                 .long("interface")
+                 .takes_value(true)
+                 .required(false)
+                 .help("Interface to use"))
         .arg(Arg::with_name("protocol")
                  .short("p")
                  .long("protocol")
@@ -86,13 +92,23 @@ fn parse_args() -> Result<(String,IpAddr,u16,u16),Error> {
         _ => {bail!("{}","[-] Ports must be between 1-65535");}
     };
 
+    let iface = match args.value_of("interface") {
+        Some(interface) => interface.to_string(),
+        None => {
+            match route::get_default_iface() {
+                Ok(res) => res.to_string(),
+                Err(e) => {bail!("{}", e);},            
+            }
+        },
+    };
+
     // check if a valid IpAddr was provided
     let addr = match args.value_of("server").unwrap().parse::<IpAddr>() {
         Ok(e) => e,
         _ => {bail!("{}", "[-] IP address invalid, must be IPv4 or IPv6");},
     };
 
-    return Ok((proto,addr,dport, uport))
+    return Ok((proto,addr,dport, uport, iface))
 }
 
 
@@ -118,15 +134,11 @@ fn main() -> Result<(), Error> {
     let mut buf_size: usize = pnet::packet::ethernet::EthernetPacket::minimum_packet_size();
 
     // Grab CLI arguments
-    let (proto,target,dport,unlock_port) = match parse_args() {
-        Ok((proto,target,port,unlock_port)) => (proto,target,port,unlock_port),
+    let (proto,target,dport,unlock_port,iface) = match parse_args() {
+        Ok((proto,target,port,unlock_port,iface)) => (proto,target,port,unlock_port,iface),
         Err(e) => {bail!("{}", e)},
     };
 
-    let iface = match route::get_default_iface() {
-        Ok(res) => res,
-        Err(e) => {bail!(e)},
-    };
     let src_ip = match route::get_interface_ip(&iface) {
         Ok(res) => res,
         Err(e) => {bail!(e)},
