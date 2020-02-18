@@ -6,10 +6,9 @@ extern crate failure;
 use std::net::{IpAddr}; // TODO: Add Ipv6Addr support
 
 // Supported layer 4 protocols
-mod tcp;
-mod udp;
 mod route;
 mod protocol;
+mod drawbridge;
 
 // channel
 use pnet::transport::transport_channel;
@@ -21,7 +20,7 @@ use pnet::transport::TransportProtocol::Ipv6;
 use clap::{Arg,App};
 use std::mem;
 use failure::{Error,bail};
-use protocol::db_packet;
+use drawbridge::db_packet;
 
 // to get around strict send_to types
 use pnet_sys;
@@ -178,7 +177,7 @@ fn main() -> Result<(), Error> {
         Err(e) => bail!("An error occurred when creating the transport channel: {}", e)
     };
 
-    let data: db_packet = match protocol::build_data(unlock_port) {
+    let data: db_packet = match drawbridge::build_data(unlock_port) {
         Ok(res) => res,
         Err(e) => {bail!(e)},
     };
@@ -191,8 +190,8 @@ fn main() -> Result<(), Error> {
 
     // fill out the buffer with our packet data
     match proto.as_str() {
-        "tcp" => { tcp::build_tcp_packet(data,src_ip,target,dport,&mut packet_buffer)? },
-        "udp" => { udp::build_udp_packet(data,src_ip,target,dport,&mut packet_buffer)? },
+        "tcp" => { protocol::build_tcp_packet(data,src_ip,target,dport,&mut packet_buffer)? },
+        "udp" => { protocol::build_udp_packet(data,src_ip,target,dport,&mut packet_buffer)? },
         _ => bail!("[-] not implemented"),
     }; 
 
@@ -208,6 +207,14 @@ fn main() -> Result<(), Error> {
             bail!(-2);
         }
     }
-
+    // match tx.send_to(packet_buffer, target) {
+    //     Ok(res) => {
+    //         println!("[+] Sent {} bytes", res);
+    //     }
+    //     Err(e) => {
+    //         println!("[-] Failed to send packet: {}", e);
+    //         bail!(-2);
+    //     }
+    // }
     return Ok(());
 }
