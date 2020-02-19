@@ -4,14 +4,38 @@ use std::net::{IpAddr};
 use pnet::packet::tcp::{MutableTcpPacket,TcpFlags,TcpOption};
 use pnet::packet::udp::{MutableUdpPacket};
 
+use failure::{Error,bail};
 
-fn build_tcp_packet<'a>(db_packet: &mut DrawBridgePacket, packet_buffer: &'a mut Vec<u8>) -> Box<MutableTcpPacket<'a>> {
 
-    let mut tcp = match MutableTcpPacket::new(packet_buffer) {
-        Some(res) => Box::new(res),
+pub enum Pkt<'a> {
+    TCP(MutableTcpPacket<'a>),
+    UDP(MutableUdpPacket<'a>),
+}
+
+impl pnet::packet::Packet for Pkt<'_> {
+    fn packet(&self) -> &[u8] {
+        match self {
+            Pkt::TCP(pkt) => pkt.packet(),
+            Pkt::UDP(pkt) => pkt.packet(),
+        }
+    }
+    fn payload(&self) -> &[u8] {
+        match self {
+            Pkt::TCP(pkt) => pkt.payload(),
+            Pkt::UDP(pkt) => pkt.payload(),
+        }
+    }
+}
+
+
+fn build_tcp_packet<'a>(db_packet: &'a mut DrawBridgePacket) -> Option<MutableTcpPacket<'a>> {
+
+    let mut tcp = match MutableTcpPacket::new(db_packet.packet_buffer.as_mut_slice()) {
+        Some(res) => res,
         None => {
             println!("[!] Could not allocate packet!");
-            panic!("Building TCP packet failed catastrophically!")        }
+            return None;        
+        }
     };
 
     tcp.set_source(rand::random::<u16>());
@@ -35,21 +59,24 @@ fn build_tcp_packet<'a>(db_packet: &mut DrawBridgePacket, packet_buffer: &'a mut
         (IpAddr::V6(_src_ip6), IpAddr::V6(_dst_ip6)) => {
             println!("[-] Ipv6 is unsupported right now");
         }
-        _ => { println!("[-] Unknown IP Address type") },
+        _ => { 
+            println!("[-] Unknown IP Address type");
+            return None;
+        },
     }
 
-    return tcp;
+    return Some(tcp);
 }
 
 
-fn build_udp_packet<'a>(db_packet: &mut DrawBridgePacket, packet_buffer: &'a mut Vec<u8>) -> Box<MutableUdpPacket<'a>>
+fn build_udp_packet<'a>(db_packet: &'a mut DrawBridgePacket) -> Option<MutableUdpPacket<'a>>
 { 
 
-    let mut udp = match MutableUdpPacket::new(packet_buffer) {
-        Some(res) => Box::new(res),
+    let mut udp = match MutableUdpPacket::new(db_packet.packet_buffer.as_mut_slice()) {
+        Some(res) => res,
         None => {
             println!("[!] Could not allocate packet!");
-            panic!("Building UDP packet failed catastrophically!");
+            return None;
         }
     };
 
@@ -71,20 +98,19 @@ fn build_udp_packet<'a>(db_packet: &mut DrawBridgePacket, packet_buffer: &'a mut
         }
         _ => { 
             println!("[-] Unknown IP Address type");
+            return None;
         }
     }
 
-    return udp;
+    return Some(udp);
 }
 
-pub fn build_packet<'a>(db_packet: &mut DrawBridgePacket, packet_buffer: &'a mut Vec<u8>) -> Box<dyn pnet::packet::Packet+ 'a> {
+pub fn build_packet<'a>(db_packet: &'a mut DrawBridgePacket) -> Result<Pkt<'a>, Error> {
 
-    if db_packet.proto.as_str() == "tcp" {
-        build_tcp_packet(db_packet, packet_buffer)
-    } else if db_packet.proto.as_str() == "udp" {
-       build_udp_packet(db_packet, packet_buffer)
-    } else {
-        panic!("Couldn't build the packet!");
+    match db_packet.proto.as_str() {
+        "tcp" => Ok(Pkt::TCP(build_tcp_packet(db_packet).unwrap())),
+        "udp" => Ok(Pkt::UDP(build_udp_packet(db_packet).unwrap())),
+        _ => bail!("Could not build packet!")
     }
 }
 

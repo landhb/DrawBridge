@@ -6,30 +6,18 @@ use pnet::packet::ip::IpNextHeaderProtocols;
 use pnet::transport::TransportProtocol::Ipv4;      
 use pnet::transport::TransportProtocol::Ipv6;
 use failure::{Error};
-use crate::protocol;
+
 use crate::route;
 
 
 // Drawbridge protocol data
 #[repr(C,packed)]
-struct db_data {
+pub struct db_data {
     timestamp: timespec,
     port: u16,
 }
 
-pub struct DrawBridgePacket {
-	pub db_packet_data: db_data,
-	pub buf_size: usize,
-	pub config: pnet::transport::TransportChannelType,
-    pub proto: String,
-    pub src_ip: IpAddr,
-    pub target: IpAddr,
-    pub dport: u16,
-}
-
-
 impl db_data {
-
     // db_packet method to convert to &[u8]
     // which is necessary for most libpnet methods
     pub fn as_bytes(&self) -> &[u8] {
@@ -42,6 +30,17 @@ impl db_data {
     }
 
 }
+
+pub struct DrawBridgePacket {
+	pub db_packet_data: db_data,
+	pub config: pnet::transport::TransportChannelType,
+    pub proto: String,
+    pub src_ip: IpAddr,
+    pub target: IpAddr,
+    pub dport: u16,
+    pub packet_buffer: Vec<u8>,
+}
+
 
 impl DrawBridgePacket {
 		pub fn new(proto: &String, target: IpAddr, dport: u16, unlock_port: u16, iface: String) -> Result<DrawBridgePacket, Error> {
@@ -89,23 +88,15 @@ impl DrawBridgePacket {
 
 	    // calculate the size of the payload
 	    buf_size += mem::size_of::<db_data>();
+	    // Allocate enough room for the entire packet
+		let packet_buffer: Vec<u8> = vec![0;buf_size];
 
    	    let src_ip = route::get_interface_ip(&iface).unwrap();
  	    println!("[+] Selected Interface {}, with address {}", iface, src_ip);
 
  
 
-	    return Ok(DrawBridgePacket{ db_packet_data: data, buf_size: buf_size, config: config, proto: *proto, src_ip: src_ip, target: target, dport: dport});
-	}
-
-
-	pub fn as_packet(self) -> Box<dyn pnet::packet::Packet> {
-
-		// Allocate enough room for the entire packet
-		let mut packet_buffer: Vec<u8> = vec![0;self.buf_size];
-
-		// fill out the buffer with our packet data
-		protocol::build_packet(&mut self, &mut packet_buffer)
+	    return Ok(DrawBridgePacket{ db_packet_data: data,config: config, proto: proto.to_string(), src_ip: src_ip, target: target, dport: dport, packet_buffer: packet_buffer});
 	}
 }
 

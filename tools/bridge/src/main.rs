@@ -116,7 +116,7 @@ fn main() -> Result<(), Error> {
     };
 
     //Build db_packet for sending
-    let db_packet: DrawBridgePacket = match DrawBridgePacket::new(&proto, target, dport, unlock_port, iface) {
+    let mut db_packet: DrawBridgePacket = match DrawBridgePacket::new(&proto, target, dport, unlock_port, iface) {
         Ok(db_packet) => db_packet,
         _ => {bail!("Error creating db_packet");},
     };
@@ -128,11 +128,15 @@ fn main() -> Result<(), Error> {
         Err(e) => bail!("An error occurred when creating the transport channel: {}", e)
     };
 
+    let packet: protocol::Pkt = match protocol::build_packet(&mut db_packet) {
+        Ok(pkt) => pkt,
+        _ => bail!("Couldn't buy packet!")
+    };
 
     println!("[+] Sending {} packet to {}:{} to unlock port {}", proto,target,dport,unlock_port);
 
     //send it
-    match tx.send_to(*db_packet.as_packet(), target) {
+    match tx.send_to(packet, target) {
         Ok(res) => {
             println!("[+] Sent {} bytes", res);
         }
