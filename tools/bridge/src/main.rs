@@ -20,11 +20,12 @@ use pnet::transport::TransportProtocol::Ipv6;
 mod tcp;
 mod udp;
 mod route;
-mod protocol;
+//mod crypto;
+mod drawbridge;
 
 use clap::{Arg,App};
 use failure::{Error,bail};
-use protocol::db_data;
+use drawbridge::db_data;
 
 //const ETH_HEADER_SIZE: usize = ;
 const MAX_PACKET_SIZE: usize = 2048;
@@ -53,6 +54,7 @@ impl pnet::packet::Packet for PktWrapper<'_> {
         }
     }
 }
+
 
 fn parse_args() -> Result<(String,IpAddr,u16,u16),Error> {
 
@@ -151,12 +153,13 @@ fn main() -> Result<(), Error> {
         Err(e) => bail!("An error occurred when creating the transport channel: {}", e)
     };
 
-    let data: db_data = match protocol::build_data(unlock_port) {
+    // build the Drawbridge specific protocol data
+    let data: db_data = match drawbridge::build_data(unlock_port) {
         Ok(res) => res,
         Err(e) => {bail!(e)},
     };
 
-    // fill out the buffer with our packet data
+    // Create the packet
     let pkt: PktWrapper = match proto.as_str() {
         "tcp" => { PktWrapper::Tcp(tcp::build_tcp_packet(data,src_ip,target,dport)?) },
         "udp" => { PktWrapper::Udp(udp::build_udp_packet(data,src_ip,target,dport)?) },

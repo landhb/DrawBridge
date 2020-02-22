@@ -3,7 +3,7 @@ use std::net::{IpAddr}; // TODO: Add Ipv6Addr support
 use pnet::packet::udp::{MutableUdpPacket};
 
 
-use crate::protocol::db_data;
+use crate::drawbridge::db_data;
 
 
 // Builds an immutable UdpPacket to drop on the wire
