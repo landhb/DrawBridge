@@ -16,7 +16,7 @@ pub struct db_data {
 impl db_data {
 
     // db_data method to convert to &[u8]
-    // which is necessary for most libpnet methods
+    // which is necessary to use as a packet payload
     pub fn as_bytes(&self) -> &[u8] {
 
         union Overlay<'a> {
@@ -27,6 +27,9 @@ impl db_data {
     }
 }
 
+/**
+ * Convert a u32 to a [u8] in network byte order
+ */
 fn transform_u32_to_array_of_u8(x:u32) -> [u8;4] {
     let b1 : u8 = ((x >> 24) & 0xff) as u8;
     let b2 : u8 = ((x >> 16) & 0xff) as u8;
@@ -35,9 +38,21 @@ fn transform_u32_to_array_of_u8(x:u32) -> [u8;4] {
     return [b4, b3, b2, b1]
 }
 
-fn build_data(unlock_port: u16) -> Result<db_data, Error> {
+/**
+ * Drawbridge protocol payload will result in the following structure:
+ * 
+ * data: db_data
+ * sig_size: u32     (must be network byte order)
+ * signature: [u8]
+ * digest_size: u32  (must be network byte order)
+ * digest: [u8] 
+ *
+ */
+pub fn build_packet<'a>(unlock_port: u16, private_key_path: String) -> Result<Vec<u8>, Error> {
 
-    // initialize the data
+    let path = Path::new(&private_key_path);
+
+    // initialize the Drawbridge protocol data
     let mut data =  db_data {
         port: unlock_port,
         timestamp : libc::timespec {
@@ -51,26 +66,16 @@ fn build_data(unlock_port: u16) -> Result<db_data, Error> {
         libc::clock_gettime(libc::CLOCK_REALTIME,&mut data.timestamp);
     }
 
-    return Ok(data);
-} 
-
-
-pub fn build_packet<'a>(unlock_port: u16, private_key_path: String) -> Result<Vec<u8>, Error> {
-
-    let path = Path::new(&private_key_path);
-
-    let data: db_data = match build_data(unlock_port) {
-        Ok(res) => res,
-        Err(e) => {bail!(e)},
-    };
-
+    // sign the data
     let signature = match crypto::sign_rsa(data.as_bytes(),path) {
         Ok(s) => s,
         Err(e) => {bail!("{:?}",e)},
     };
 
+    // hash the data
     let digest = crypto::sha256_digest(data.as_bytes()).unwrap();
 
+    // build the final payload
     let mut result = data.as_bytes().to_vec();
     result.extend(&transform_u32_to_array_of_u8(signature.len() as u32));
     result.extend(signature.iter().cloned());
