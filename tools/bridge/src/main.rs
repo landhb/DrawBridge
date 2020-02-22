@@ -27,7 +27,6 @@ mod drawbridge;
 use clap::{Arg,App};
 use failure::{Error,bail};
 
-//const ETH_HEADER_SIZE: usize = ;
 const MAX_PACKET_SIZE: usize = 2048;
 
 // Packet wrapper to pass to TransportSender
