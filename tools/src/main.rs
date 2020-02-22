@@ -1,7 +1,7 @@
 extern crate rand;
 extern crate pnet;
-//extern crate failure; 
-#[macro_use] extern crate failure;
+extern crate failure; 
+//#[macro_use] extern crate failure;
 
 // Supported layer 3 protocols
 use std::net::{IpAddr};
@@ -24,7 +24,7 @@ mod route;
 mod crypto;
 mod drawbridge;
 
-use clap::{Arg,App};
+use clap::{Arg,App,SubCommand};
 use failure::{Error,bail};
 
 const MAX_PACKET_SIZE: usize = 2048;
@@ -54,76 +54,27 @@ impl pnet::packet::Packet for PktWrapper<'_> {
     }
 }
 
-
-fn parse_args() -> Result<(String,IpAddr,u16,u16,String),Error> {
-
-    let args = App::new("bridge")
-        .version("0.1.0")
-        .author("landhb <blog.landhb.dev>")
-        .about("Drawbridge Client")
-        .arg(Arg::with_name("server")
-                 .short("s")
-                 .long("server")
-                 .takes_value(true)
-                 .required(true)
-                 .help("Address of server running Drawbridge"))
-        .arg(Arg::with_name("protocol")
-                 .short("p")
-                 .long("protocol")
-                 .takes_value(true)
-                 .required(false)
-                 .possible_values(&["tcp", "udp"])
-                 .default_value("tcp")
-                 .help("Auth packet protocol"))
-        .arg(Arg::with_name("dport")
-                 .short("d")
-                 .long("dport")
-                 .takes_value(true)
-                 .required(true)
-                 .help("Auth packet destination port"))
-         .arg(Arg::with_name("uport")
-                 .short("u")
-                 .long("unlock")
-                 .takes_value(true)
-                 .required(true)
-                 .help("Port to unlock"))
-         .arg(Arg::with_name("key")
-                 .short("i")
-                 .long("key")
-                 .takes_value(true)
-                 .required(true)
-                 .default_value("~/.bridge/db_rsa")
-                 .help("Private key for signing"))
-        .get_matches();
-
-    // required so safe to unwrap
+/**
+ * The auth subcommand, authenticates with a remote 
+ * Drawbridge Server
+ */
+fn auth(args: &clap::ArgMatches) -> Result<(), Error> {
+     // required so safe to unwrap
     let proto = args.value_of("protocol").unwrap().to_string();
     let dtmp = args.value_of("dport").unwrap();
     let utmp = args.value_of("uport").unwrap();
     let key = args.value_of("key").unwrap().to_string();
 
     // check if valid ports were provided
-    let (uport,dport) = match (utmp.parse::<u16>(), dtmp.parse::<u16>()) {
+    let (unlock_port,dport) = match (utmp.parse::<u16>(), dtmp.parse::<u16>()) {
         (Ok(uport),Ok(dport)) => (uport,dport),
         _ => {bail!("{}","[-] Ports must be between 1-65535");}
     };
 
     // check if a valid IpAddr was provided
-    let addr = match args.value_of("server").unwrap().parse::<IpAddr>() {
+    let target = match args.value_of("server").unwrap().parse::<IpAddr>() {
         Ok(e) => e,
         _ => {bail!("{}", "[-] IP address invalid, must be IPv4 or IPv6");},
-    };
-
-    return Ok((proto,addr,dport, uport,key))
-}
-
-
-fn main() -> Result<(), Error> {
-
-    // Grab CLI arguments
-    let (proto,target,dport,unlock_port,key) = match parse_args() {
-        Ok((proto,target,port,unlock_port,key)) => (proto,target,port,unlock_port,key),
-        Err(e) => {bail!("{}", e)},
     };
 
     let iface = match route::get_default_iface() {
@@ -179,5 +130,76 @@ fn main() -> Result<(), Error> {
         }
     }
 
+    Ok(())
+}
+
+
+fn main() -> Result<(), Error> {
+
+     let args = App::new("db")
+        .version("1.0.0")
+        .author("landhb <https://blog.landhb.dev>")
+        .about("Drawbridge Client")
+        .subcommand(
+            SubCommand::with_name("keygen")
+            .about("Generate Drawbridge Keys")
+            .arg(Arg::with_name("algorithm")
+                     .short("a")
+                     .long("alg")
+                     .takes_value(true)
+                     .required(true)
+                     .possible_values(&["rsa", "ecdsa"])
+                     .help("Algorithm to use"))
+            .arg(Arg::with_name("bits")
+                     .short("b")
+                     .long("bits")
+                     .takes_value(true)
+                     .required(true)
+                     .help("Key size"))
+        )
+        .subcommand(
+            SubCommand::with_name("auth")
+            .about("Authenticate with a Drawbridge server")
+            .arg(Arg::with_name("server")
+                     .short("s")
+                     .long("server")
+                     .takes_value(true)
+                     .required(true)
+                     .help("Address of server running Drawbridge"))
+            .arg(Arg::with_name("protocol")
+                     .short("p")
+                     .long("protocol")
+                     .takes_value(true)
+                     .required(false)
+                     .possible_values(&["tcp", "udp"])
+                     .default_value("tcp")
+                     .help("Auth packet protocol"))
+            .arg(Arg::with_name("dport")
+                     .short("d")
+                     .long("dport")
+                     .takes_value(true)
+                     .required(true)
+                     .help("Auth packet destination port"))
+             .arg(Arg::with_name("uport")
+                     .short("u")
+                     .long("unlock")
+                     .takes_value(true)
+                     .required(true)
+                     .help("Port to unlock"))
+             .arg(Arg::with_name("key")
+                     .short("i")
+                     .long("key")
+                     .takes_value(true)
+                     .required(true)
+                     .default_value("~/.drawbridge/db_rsa")
+                     .help("Private key for signing"))
+             )
+        .get_matches();
+
+    match args.subcommand() {
+        ("auth", Some(auth_args)) =>  {auth(auth_args)? },
+        _ => {println!("Please provide a valid subcommand. Run db -h for more information.");},
+    }
+  
     return Ok(());
 }
