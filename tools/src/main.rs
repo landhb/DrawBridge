@@ -18,10 +18,9 @@ use pnet::transport::TransportProtocol::Ipv4;
 use pnet::transport::TransportProtocol::Ipv6; 
 
 // internal modules
-mod tcp;
-mod udp;
 mod route;
 mod crypto;
+mod protocols;
 mod drawbridge;
 
 use clap::{Arg,App,SubCommand};
@@ -112,8 +111,8 @@ fn auth(args: &clap::ArgMatches) -> Result<(), Error> {
 
     // Create the packet
     let pkt: PktWrapper = match proto.as_str() {
-        "tcp" => { PktWrapper::Tcp(tcp::build_tcp_packet(data.as_slice(),src_ip,target,dport)?) },
-        "udp" => { PktWrapper::Udp(udp::build_udp_packet(data.as_slice(),src_ip,target,dport)?) },
+        "tcp" => { PktWrapper::Tcp(protocols::build_tcp_packet(data.as_slice(),src_ip,target,dport)?) },
+        "udp" => { PktWrapper::Udp(protocols::build_udp_packet(data.as_slice(),src_ip,target,dport)?) },
         _ => bail!("[-] not implemented"),
     }; 
 
