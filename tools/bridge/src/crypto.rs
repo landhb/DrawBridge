@@ -32,14 +32,11 @@ pub fn sha256_digest<'a>(data: &[u8]) -> Result<Vec<u8>, CryptoError> {
 pub fn sign_rsa<'a>(data: &[u8], private_key_path: &std::path::Path) 
                         -> Result<Vec<u8>, CryptoError> 
 {
-    // Create an `RsaKeyPair` from the DER-encoded bytes. This example uses
-    // a 2048-bit key, but larger keys are also supported.
+    // Create an `RsaKeyPair` from the DER-encoded bytes. 
     let private_key_der = read_file(private_key_path)?;
     let key_pair = signature::RsaKeyPair::from_der(&private_key_der).map_err(|_| CryptoError::BadPrivateKey)?;
 
-    // Sign the message "hello, world", using PKCS#1 v1.5 padding and the
-    // SHA256 digest algorithm.
-    //const MESSAGE: &'static [u8] = b"hello, world";
+    // Sign the data, using PKCS#1 v1.5 padding and the SHA256 digest 
     let rng = rand::SystemRandom::new();
     let mut signature = vec![0; key_pair.public_modulus_len()];
     key_pair.sign(&signature::RSA_PKCS1_SHA256, &rng, data, &mut signature).map_err(|_| CryptoError::OOM)?;
