@@ -3,36 +3,56 @@ extern crate pnet;
 extern crate failure; 
 
 // Supported layer 3 protocols
-use std::net::{IpAddr}; // TODO: Add Ipv6Addr support
+use std::net::{IpAddr};
 
 // Supported layer 4 protocols
-mod tcp;
-mod udp;
-mod route;
-mod protocol;
+use pnet::packet::tcp::MutableTcpPacket;
+use pnet::packet::udp::MutableUdpPacket;
 
-// channel
+// Transport Channel Types 
 use pnet::transport::transport_channel;
 use pnet::transport::TransportChannelType::Layer4; 
 use pnet::packet::ip::IpNextHeaderProtocols;       
 use pnet::transport::TransportProtocol::Ipv4;      
 use pnet::transport::TransportProtocol::Ipv6; 
 
-use clap::{Arg,App};
-use std::mem;
-use failure::{Error,bail};
-use protocol::db_packet;
+// internal modules
+mod tcp;
+mod udp;
+mod route;
+mod protocol;
 
-// to get around strict send_to types
-use pnet_sys;
-use pnet::transport::TransportSender;
+use clap::{Arg,App};
+use failure::{Error,bail};
+use protocol::db_data;
 
 //const ETH_HEADER_SIZE: usize = ;
 const MAX_PACKET_SIZE: usize = 2048;
 
-// Function pointer to our Layer4 builder
-//type PacketBuilder = fn(db_packet, IpAddr, IpAddr, u16, &mut Vec<u8>) -> Result<dyn pnet::packet::Packet+'static, Error>;// where T: impl pnet::packet::Packet;
+// Packet wrapper to pass to TransportSender
+// This allows us to return both MutableTcpPacket
+// and MutableUdpPacket from the builders
+enum PktWrapper<'a> {
+    Tcp(MutableTcpPacket<'a>),
+    Udp(MutableUdpPacket<'a>),
+}
 
+// tx.send_to's first argument must implement
+// the pnet::packet::Packet Trait
+impl pnet::packet::Packet for PktWrapper<'_> {
+    fn packet(&self) -> &[u8] {
+        match self {
+            PktWrapper::Tcp(pkt) => pkt.packet(),
+            PktWrapper::Udp(pkt) => pkt.packet(),
+        }
+    }
+    fn payload(&self) -> &[u8] {
+        match self {
+            PktWrapper::Tcp(pkt) => pkt.payload(),
+            PktWrapper::Udp(pkt) => pkt.payload(),
+        }
+    }
+}
 
 fn parse_args() -> Result<(String,IpAddr,u16,u16),Error> {
 
@@ -96,26 +116,7 @@ fn parse_args() -> Result<(String,IpAddr,u16,u16),Error> {
 }
 
 
-/**
- * Stolen from libpnet and modified to directly send the &[u8] data
- * Removing the restriction to implemente the Packet trait
- */
-fn send(tx: &mut TransportSender, packet: &[u8], dst: IpAddr) -> std::io::Result<usize> {
-        let mut caddr = unsafe { mem::zeroed() };
-        let sockaddr = match dst {
-            IpAddr::V4(ip_addr) => std::net::SocketAddr::V4(std::net::SocketAddrV4::new(ip_addr, 0)),
-            IpAddr::V6(ip_addr) => std::net::SocketAddr::V6(std::net::SocketAddrV6::new(ip_addr, 0, 0, 0)),
-        };
-        let slen = pnet_sys::addr_to_sockaddr(sockaddr, &mut caddr);
-        let caddr_ptr = (&caddr as *const pnet_sys::SockAddrStorage) as *const pnet_sys::SockAddr;
-
-        pnet_sys::send_to(tx.socket.fd, packet, caddr_ptr, slen)
-}
-
 fn main() -> Result<(), Error> {
-
-    // All packets will be ethernet packets
-    let mut buf_size: usize = pnet::packet::ethernet::EthernetPacket::minimum_packet_size();
 
     // Grab CLI arguments
     let (proto,target,dport,unlock_port) = match parse_args() {
@@ -137,26 +138,10 @@ fn main() -> Result<(), Error> {
     // Dynamically set the transport protocol, and calculate packet size
     // todo, see if the header size can be calculated and returned in tcp.rs & udp.rs
     let config: pnet::transport::TransportChannelType = match (proto.as_str(),target.is_ipv4()) {
-        ("tcp",true) => {
-            buf_size += pnet::packet::ipv4::Ipv4Packet::minimum_packet_size();
-            buf_size += pnet::packet::tcp::MutableTcpPacket::minimum_packet_size();
-            Layer4(Ipv4(IpNextHeaderProtocols::Tcp))
-        },
-        ("tcp",false) => {
-            buf_size += pnet::packet::ipv6::Ipv6Packet::minimum_packet_size();
-            buf_size += pnet::packet::tcp::MutableTcpPacket::minimum_packet_size();
-            Layer4(Ipv6(IpNextHeaderProtocols::Tcp))
-        },
-        ("udp",true) => {
-            buf_size += pnet::packet::ipv4::Ipv4Packet::minimum_packet_size();
-            buf_size += pnet::packet::udp::MutableUdpPacket::minimum_packet_size();
-            Layer4(Ipv4(IpNextHeaderProtocols::Udp))
-        },
-        ("udp",false) => {
-            buf_size += pnet::packet::ipv6::Ipv6Packet::minimum_packet_size();
-            buf_size += pnet::packet::udp::MutableUdpPacket::minimum_packet_size();
-            Layer4(Ipv6(IpNextHeaderProtocols::Udp))
-        },
+        ("tcp",true)  => Layer4(Ipv4(IpNextHeaderProtocols::Tcp)),
+        ("tcp",false) => Layer4(Ipv6(IpNextHeaderProtocols::Tcp)),
+        ("udp",true)  => Layer4(Ipv4(IpNextHeaderProtocols::Udp)),
+        ("udp",false) => Layer4(Ipv6(IpNextHeaderProtocols::Udp)),
         _ => bail!("[-] Protocol/IpAddr pair not supported!"),
     };
 
@@ -166,28 +151,22 @@ fn main() -> Result<(), Error> {
         Err(e) => bail!("An error occurred when creating the transport channel: {}", e)
     };
 
-    let data: db_packet = match protocol::build_data(unlock_port) {
+    let data: db_data = match protocol::build_data(unlock_port) {
         Ok(res) => res,
         Err(e) => {bail!(e)},
     };
 
-    // calculate the size of the payload
-    buf_size += mem::size_of::<db_packet>(); 
-
-    // Allocate enough room for the entire packet
-    let mut packet_buffer: Vec<u8> = vec![0;buf_size];
-
     // fill out the buffer with our packet data
-    match proto.as_str() {
-        "tcp" => { tcp::build_tcp_packet(data,src_ip,target,dport,&mut packet_buffer)? },
-        "udp" => { udp::build_udp_packet(data,src_ip,target,dport,&mut packet_buffer)? },
+    let pkt: PktWrapper = match proto.as_str() {
+        "tcp" => { PktWrapper::Tcp(tcp::build_tcp_packet(data,src_ip,target,dport)?) },
+        "udp" => { PktWrapper::Udp(udp::build_udp_packet(data,src_ip,target,dport)?) },
         _ => bail!("[-] not implemented"),
     }; 
 
     println!("[+] Sending {} packet to {}:{} to unlock port {}", proto,target,dport,unlock_port);
 
     // send it
-    match send(&mut tx,packet_buffer.as_slice(), target) {
+    match tx.send_to(pkt, target) {
         Ok(res) => {
             println!("[+] Sent {} bytes", res);
         }

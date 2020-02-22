@@ -4,31 +4,31 @@ use failure::Error;
 
 // Drawbridge protocol data
 #[repr(C,packed)]
-pub struct db_packet {
+pub struct db_data {
     timestamp: timespec,
     port: u16,
 } 
 
 
-impl db_packet {
+impl db_data {
 
-    // db_packet method to convert to &[u8]
+    // db_data method to convert to &[u8]
     // which is necessary for most libpnet methods
     pub fn as_bytes(&self) -> &[u8] {
 
         union Overlay<'a> {
-            pkt: &'a db_packet,
-            bytes: &'a [u8;mem::size_of::<db_packet>()],
+            pkt: &'a db_data,
+            bytes: &'a [u8;mem::size_of::<db_data>()],
         }
         unsafe { Overlay { pkt: self }.bytes } 
     }
 }
 
 
-pub fn build_data(unlock_port: u16) -> Result<db_packet, Error> {
+pub fn build_data(unlock_port: u16) -> Result<db_data, Error> {
 
     // initialize the data
-    let mut data =  db_packet {
+    let mut data =  db_data {
         port: unlock_port,
         timestamp : libc::timespec {
             tv_sec: 0,
@@ -43,3 +43,4 @@ pub fn build_data(unlock_port: u16) -> Result<db_packet, Error> {
 
     return Ok(data);
 } 
+
