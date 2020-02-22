@@ -3,17 +3,14 @@ use std::net::{IpAddr}; // TODO: Add Ipv6Addr support
 use pnet::packet::udp::{MutableUdpPacket};
 
 
-use crate::drawbridge::db_data;
-
-
 // Builds an immutable UdpPacket to drop on the wire
-pub fn build_udp_packet<'a>(data: db_data, src_ip: IpAddr, dst_ip: IpAddr, dst_port: u16) -> Result<MutableUdpPacket <'a>, Error> 
+pub fn build_udp_packet<'a>(data: &'a [u8], src_ip: IpAddr, dst_ip: IpAddr, dst_port: u16) -> Result<MutableUdpPacket <'a>, Error> 
 { 
 
     // calculate total length
     let mut length: usize = pnet::packet::ethernet::EthernetPacket::minimum_packet_size();
     length += pnet::packet::udp::MutableUdpPacket::minimum_packet_size();
-    length += data.as_bytes().len();
+    length += data.len();
 
     // the IP layer is variable
     if dst_ip.is_ipv4() && src_ip.is_ipv4() { 
@@ -39,7 +36,7 @@ pub fn build_udp_packet<'a>(data: db_data, src_ip: IpAddr, dst_ip: IpAddr, dst_p
     udp.set_length(length as u16);
     
     // add the data
-    udp.set_payload(&data.as_bytes());
+    udp.set_payload(data);
 
     // compute the checksum
     match (src_ip, dst_ip) {

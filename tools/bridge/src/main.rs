@@ -1,6 +1,7 @@
 extern crate rand;
 extern crate pnet;
-extern crate failure; 
+//extern crate failure; 
+#[macro_use] extern crate failure;
 
 // Supported layer 3 protocols
 use std::net::{IpAddr};
@@ -20,12 +21,11 @@ use pnet::transport::TransportProtocol::Ipv6;
 mod tcp;
 mod udp;
 mod route;
-//mod crypto;
+mod crypto;
 mod drawbridge;
 
 use clap::{Arg,App};
 use failure::{Error,bail};
-use drawbridge::db_data;
 
 //const ETH_HEADER_SIZE: usize = ;
 const MAX_PACKET_SIZE: usize = 2048;
@@ -56,7 +56,7 @@ impl pnet::packet::Packet for PktWrapper<'_> {
 }
 
 
-fn parse_args() -> Result<(String,IpAddr,u16,u16),Error> {
+fn parse_args() -> Result<(String,IpAddr,u16,u16,String),Error> {
 
     let args = App::new("bridge")
         .version("0.1.0")
@@ -101,6 +101,7 @@ fn parse_args() -> Result<(String,IpAddr,u16,u16),Error> {
     let proto = args.value_of("protocol").unwrap().to_string();
     let dtmp = args.value_of("dport").unwrap();
     let utmp = args.value_of("uport").unwrap();
+    let key = args.value_of("key").unwrap().to_string();
 
     // check if valid ports were provided
     let (uport,dport) = match (utmp.parse::<u16>(), dtmp.parse::<u16>()) {
@@ -114,15 +115,15 @@ fn parse_args() -> Result<(String,IpAddr,u16,u16),Error> {
         _ => {bail!("{}", "[-] IP address invalid, must be IPv4 or IPv6");},
     };
 
-    return Ok((proto,addr,dport, uport))
+    return Ok((proto,addr,dport, uport,key))
 }
 
 
 fn main() -> Result<(), Error> {
 
     // Grab CLI arguments
-    let (proto,target,dport,unlock_port) = match parse_args() {
-        Ok((proto,target,port,unlock_port)) => (proto,target,port,unlock_port),
+    let (proto,target,dport,unlock_port,key) = match parse_args() {
+        Ok((proto,target,port,unlock_port,key)) => (proto,target,port,unlock_port,key),
         Err(e) => {bail!("{}", e)},
     };
 
@@ -154,15 +155,15 @@ fn main() -> Result<(), Error> {
     };
 
     // build the Drawbridge specific protocol data
-    let data: db_data = match drawbridge::build_data(unlock_port) {
+    let data = match drawbridge::build_packet(unlock_port,key) {
         Ok(res) => res,
         Err(e) => {bail!(e)},
     };
 
     // Create the packet
     let pkt: PktWrapper = match proto.as_str() {
-        "tcp" => { PktWrapper::Tcp(tcp::build_tcp_packet(data,src_ip,target,dport)?) },
-        "udp" => { PktWrapper::Udp(udp::build_udp_packet(data,src_ip,target,dport)?) },
+        "tcp" => { PktWrapper::Tcp(tcp::build_tcp_packet(data.as_slice(),src_ip,target,dport)?) },
+        "udp" => { PktWrapper::Udp(udp::build_udp_packet(data.as_slice(),src_ip,target,dport)?) },
         _ => bail!("[-] not implemented"),
     }; 
 
