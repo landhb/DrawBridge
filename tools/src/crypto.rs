@@ -10,7 +10,6 @@ pub enum CryptoError {
    OOM,
 }
 
-
 // crypto callback prototype, can be used to implement multiple types in the future
 //type GenericSignMethod = fn(data: &mut [u8], private_key_path: &std::path::Path) -> Result<Vec<u8>, CryptoError>;
 
@@ -25,12 +24,32 @@ fn read_file(path: &std::path::Path) -> Result<Vec<u8>, CryptoError> {
 }
 
 /**
- * Public method to write to a file
+ * Private method to write to a file
  */
 fn write_file(contents: Vec<u8>, path: &std::path::Path) -> Result<(), CryptoError> {
     let mut file = std::fs::File::create(path).map_err(|e| CryptoError::IO(e))?;
     file.write_all(&contents).map_err(|e| CryptoError::IO(e))?;
     Ok(())
+}
+
+/**
+ * Private method to convert a DER public key
+ * to a C header
+ */
+fn public_key_to_c_header(contents: &Vec<u8>) -> String {
+    let mut res = String::from("void * public_key = \n\"");
+    let mut count = 1;
+    for i in contents.iter() {
+        res.push_str("\\x");
+        res.push_str(format!("{:02X}", i).as_str());
+        if count % 16 == 0 {
+            res.push_str("\"\n\"");
+            count = 0;
+        }
+        count+=1;
+    }
+    res.push_str("\";\n");
+    return res;
 }
 
 /**
@@ -67,6 +86,8 @@ pub fn sign_rsa<'a>(data: &[u8], private_key_path: &std::path::Path)
  */
 pub fn gen_rsa(bits: u32, private_path: &std::path::Path, public_path: &std::path::Path) -> Result<(), Error> {
     
+    let key_path = std::path::Path::new("key.h");
+
     let rsa = match Rsa::generate(bits) {
         Ok(key) => key,
         Err(e) => {bail!(e)},
@@ -81,6 +102,9 @@ pub fn gen_rsa(bits: u32, private_path: &std::path::Path, public_path: &std::pat
         Ok(res) => res,
         Err(e) => {bail!("[-] Could not convert public key to DER format: {}", e)},
     };
+
+    // create the public key C-header for Drawbridge
+    let header = public_key_to_c_header(&public);
 
     // Write private key to file
     match write_file(private,private_path) {
@@ -97,5 +121,14 @@ pub fn gen_rsa(bits: u32, private_path: &std::path::Path, public_path: &std::pat
     }
 
     println!("\t[+] created {}",public_path.display());
+
+    // Write public key to file
+    match write_file(header.as_bytes().to_vec(),key_path) {
+        Ok(_res) => (),
+        Err(e) => {bail!("[-] Could not write public key to file. {:?}",e)},
+    }
+
+    println!("\t[+] created ./key.h");
+
     Ok(())
 }
