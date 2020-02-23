@@ -28,16 +28,20 @@ use failure::{Error,bail};
 
 const MAX_PACKET_SIZE: usize = 2048;
 
-// Packet wrapper to pass to TransportSender
-// This allows us to return both MutableTcpPacket
-// and MutableUdpPacket from the builders
+/**
+ * Packet wrapper to pass to TransportSender
+ * This allows us to return both MutableTcpPacket
+ * and MutableUdpPacket from the builders
+ */
 enum PktWrapper<'a> {
     Tcp(MutableTcpPacket<'a>),
     Udp(MutableUdpPacket<'a>),
 }
 
-// tx.send_to's first argument must implement
-// the pnet::packet::Packet Trait
+/**
+ * tx.send_to's first argument must implement
+ * the pnet::packet::Packet Trait
+ */
 impl pnet::packet::Packet for PktWrapper<'_> {
     fn packet(&self) -> &[u8] {
         match self {
@@ -54,12 +58,12 @@ impl pnet::packet::Packet for PktWrapper<'_> {
 }
 
 /**
- * The auth subcommand, authenticates with a remote 
- * Drawbridge Server
+ * Method for the auth subcommand, 
+ * authenticates with a remote Drawbridge Server
  */
 fn auth(args: &clap::ArgMatches) -> Result<(), Error> {
      // required so safe to unwrap
-    let proto = args.value_of("protocol").unwrap().to_string();
+    let proto = args.value_of("protocol").unwrap(); 
     let dtmp = args.value_of("dport").unwrap();
     let utmp = args.value_of("uport").unwrap();
     let key = args.value_of("key").unwrap().to_string();
@@ -89,7 +93,7 @@ fn auth(args: &clap::ArgMatches) -> Result<(), Error> {
 
     // Dynamically set the transport protocol, and calculate packet size
     // todo, see if the header size can be calculated and returned in tcp.rs & udp.rs
-    let config: pnet::transport::TransportChannelType = match (proto.as_str(),target.is_ipv4()) {
+    let config: pnet::transport::TransportChannelType = match (proto,target.is_ipv4()) {
         ("tcp",true)  => Layer4(Ipv4(IpNextHeaderProtocols::Tcp)),
         ("tcp",false) => Layer4(Ipv6(IpNextHeaderProtocols::Tcp)),
         ("udp",true)  => Layer4(Ipv4(IpNextHeaderProtocols::Udp)),
@@ -110,7 +114,7 @@ fn auth(args: &clap::ArgMatches) -> Result<(), Error> {
     };
 
     // Create the packet
-    let pkt: PktWrapper = match proto.as_str() {
+    let pkt: PktWrapper = match proto {
         "tcp" => { PktWrapper::Tcp(protocols::build_tcp_packet(data.as_slice(),src_ip,target,dport)?) },
         "udp" => { PktWrapper::Udp(protocols::build_udp_packet(data.as_slice(),src_ip,target,dport)?) },
         _ => bail!("[-] not implemented"),
@@ -133,9 +137,39 @@ fn auth(args: &clap::ArgMatches) -> Result<(), Error> {
 }
 
 
+/**
+ * Method for the keygen subcommand, generate new 
+ * Drawbridge keys
+ */
+fn keygen(args: &clap::ArgMatches) -> Result<(), Error> {
+    let alg = args.value_of("algorithm").unwrap();
+    let tmpbits = args.value_of("bits").unwrap();
+    let outfile = args.value_of("outfile").unwrap();
+    let outfile_pub = outfile.to_owned() + ".pub";
+
+    let priv_path = std::path::Path::new(outfile);
+    let pub_path = std::path::Path::new(&outfile_pub);
+
+    let bits = match tmpbits.parse::<u32>() {
+        Ok(b) => b,
+        Err(e) => {bail!(e)},
+    };
+
+    println!("[*] Generating {} keys w/{} bits",alg,bits);
+
+    match alg {
+        "rsa" => { crypto::gen_rsa(bits,priv_path,pub_path)? },
+        "ecdsa" => { bail!("[-] ECDSA is not implemented yet. Stay tuned.")},
+        _ => unreachable!(),
+    };
+
+    println!("[+] Generated {} keys w/{} bits",alg,bits);
+    Ok(())
+}
+
 fn main() -> Result<(), Error> {
 
-     let args = App::new("db")
+    let args = App::new("db")
         .version("1.0.0")
         .author("landhb <https://blog.landhb.dev>")
         .about("Drawbridge Client")
@@ -148,13 +182,22 @@ fn main() -> Result<(), Error> {
                      .takes_value(true)
                      .required(true)
                      .possible_values(&["rsa", "ecdsa"])
+                     .default_value("rsa")
                      .help("Algorithm to use"))
             .arg(Arg::with_name("bits")
                      .short("b")
                      .long("bits")
                      .takes_value(true)
                      .required(true)
+                     .default_value("4096")
                      .help("Key size"))
+            .arg(Arg::with_name("outfile")
+                     .short("o")
+                     .long("out")
+                     .takes_value(true)
+                     .required(true)
+                     .default_value("~/.drawbridge/db_rsa")
+                     .help("Output file name"))
         )
         .subcommand(
             SubCommand::with_name("auth")
@@ -195,8 +238,11 @@ fn main() -> Result<(), Error> {
              )
         .get_matches();
 
+
+    // Match on each subcommand to handle different functionality
     match args.subcommand() {
-        ("auth", Some(auth_args)) =>  {auth(auth_args)? },
+        ("auth", Some(auth_args)) =>  { auth(auth_args)? },
+        ("keygen", Some(keygen_args)) =>  { keygen(keygen_args)? },
         _ => {println!("Please provide a valid subcommand. Run db -h for more information.");},
     }
   
