@@ -25,6 +25,8 @@ mod drawbridge;
 
 use clap::{Arg,App,SubCommand};
 use failure::{Error,bail};
+use std::io::Write;
+
 
 const MAX_PACKET_SIZE: usize = 2048;
 
@@ -66,7 +68,13 @@ fn auth(args: &clap::ArgMatches) -> Result<(), Error> {
     let proto = args.value_of("protocol").unwrap(); 
     let dtmp = args.value_of("dport").unwrap();
     let utmp = args.value_of("uport").unwrap();
-    let key = args.value_of("key").unwrap().to_string();
+    let tmpkey = args.value_of("key").unwrap();
+
+    // expand the path
+    let key = match shellexpand::full(tmpkey) {
+        Ok(res) => res.to_string(),
+        Err(e) => {bail!(e)},
+    };
 
     // check if valid ports were provided
     let (unlock_port,dport) = match (utmp.parse::<u16>(), dtmp.parse::<u16>()) {
@@ -144,18 +152,40 @@ fn auth(args: &clap::ArgMatches) -> Result<(), Error> {
 fn keygen(args: &clap::ArgMatches) -> Result<(), Error> {
     let alg = args.value_of("algorithm").unwrap();
     let tmpbits = args.value_of("bits").unwrap();
-    let outfile = args.value_of("outfile").unwrap();
-    let outfile_pub = outfile.to_owned() + ".pub";
+    let tmpfile = args.value_of("outfile").unwrap();
 
-    let priv_path = std::path::Path::new(outfile);
+    // expand the path
+    let outfile = match shellexpand::full(tmpfile) {
+        Ok(res) => res.to_string(),
+        Err(e) => {bail!(e)},
+    };
+
+    let outfile_pub = outfile.to_owned() + ".pub";
+    let priv_path = std::path::Path::new(&outfile);
     let pub_path = std::path::Path::new(&outfile_pub);
+    let parent = priv_path.parent().unwrap();
+
+    // create the output directory if it doesn't exist
+    if !parent.exists() {
+        print!("[!] {} doesn't exist yet, would you like to create it [Y/n]: ", parent.display());
+        std::io::stdout().flush().unwrap();
+        let mut input = String::new();
+        std::io::stdin().read_line(&mut input).expect("error: unable to read user input");
+        if input == "Y\n" || input == "\n" || input == "y\n" {
+            println!("[*] Creating {:?}", parent.display());
+            std::fs::create_dir(parent)?;
+        }
+        else {
+            bail!("[-] Specify or create a directory for the new keys.")
+        }
+    }
 
     let bits = match tmpbits.parse::<u32>() {
         Ok(b) => b,
         Err(e) => {bail!(e)},
     };
 
-    println!("[*] Generating {} keys w/{} bits",alg,bits);
+    println!("[*] Generating {} keys...",alg);
 
     match alg {
         "rsa" => { crypto::gen_rsa(bits,priv_path,pub_path)? },

@@ -5,6 +5,7 @@ use std::path::Path;
 
 use crate::crypto;
 
+
 // Drawbridge protocol data
 #[repr(C,packed)]
 pub struct db_data {
@@ -51,6 +52,9 @@ fn transform_u32_to_array_of_u8(x:u32) -> [u8;4] {
 pub fn build_packet<'a>(unlock_port: u16, private_key_path: String) -> Result<Vec<u8>, Error> {
 
     let path = Path::new(&private_key_path);
+    if !path.exists() {
+        bail!("[-] {} does not exist.", path.display())
+    }
 
     // initialize the Drawbridge protocol data
     let mut data =  db_data {

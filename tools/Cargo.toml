@@ -20,3 +20,4 @@ rand = "0.3"
 clap = "2.33.0"
 ring = "0.16.11"
 openssl = { version = "0.10.28", features = ["vendored"] }
+shellexpand = "2.0.0"
