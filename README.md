@@ -12,28 +12,73 @@ Note: DrawBridge now supports both IPv4 and IPv6 traffic
 
 Please read the corresponding [article](https://www.landhb.me/posts/bODdK/port-knocking-with-netfilter-kernel-modules/) for a more in-depth look at the design. 
 
-## Easy Setup and Configuration
+## Build and Install the Drawbridge Utilities
 
-To automagically generate keys run the following on your client machine:
+The usermode tools are now written in Rust! Build and install them with cargo:
 
-```bash
-./gen_keys.sh
+```
+git clone https://github.com/landhb/Drawbridge
+cargo install --path Drawbridge/tools
 ```
 
-The output of the gen_keys.sh script will be two files: `private.pem` and `key.h`. Keep `private.pem` on your client machine and put a copy of `key.h` on the server with the kernel source before you build it. 
+There are two sub-utilities built in, the first allows you to generate keys:
 
+```
+db-keygen 
+Generate Drawbridge Keys
 
-To compile either the client application or the kernel module simply cd into the respective directories and run `make`. 
+USAGE:
+    db keygen --alg <algorithm> --bits <bits> --out <outfile>
+
+FLAGS:
+    -h, --help       Prints help information
+    -V, --version    Prints version information
+
+OPTIONS:
+    -a, --alg <algorithm>    Algorithm to use [default: rsa]  [possible values: rsa, ecdsa]
+    -b, --bits <bits>        Key size [default: 4096]
+    -o, --out <outfile>      Output file name [default: ~/.drawbridge/db_rsa]
+
+```
+
+The second is used to open ports on a remote server running Drawbridge:
+
+```
+db-auth 
+Authenticate with a Drawbridge server
+
+USAGE:
+    db auth [OPTIONS] --dport <dport> --key <key> --server <server> --unlock <uport>
+
+FLAGS:
+    -h, --help       Prints help information
+    -V, --version    Prints version information
+
+OPTIONS:
+    -d, --dport <dport>          Auth packet destination port
+    -i, --key <key>              Private key for signing [default: ~/.drawbridge/db_rsa]
+    -p, --protocol <protocol>    Auth packet protocol [default: tcp]  [possible values: tcp, udp]
+    -s, --server <server>        Address of server running Drawbridge
+    -u, --unlock <uport>         Port to unlock
+```
+
+## Easy Setup and Configuration
+
+To automagically generate keys, run the following on your client machine:
 
 ```bash
-# on the client machine
-sudo apt-get install libssl-dev
-cd client
-make
+db keygen
+```
 
+The output of the keygen utility will be three files: `~/.drawbridge/db_rsa`, `~/.drawbridge/db_rsa.pub` and `key.h`. Keep `db_rsa` safe, it's your private key. `key.h` is the public key formated as a C-header file. It will be compiled into the kernel module.  
+
+
+To compile the kernel module simply, bring `key.h`, cd into the kernel directory and run `make`. 
+
+```bash
 # on the server compile the module and load it
 # pass the ports you want to monitor as an argument
-
+mv key.h kernel/
 cd kernel
 make
 sudo modprobe x_tables
@@ -49,7 +94,7 @@ sudo apt-get update && sudo apt-get upgrade
 
 This code has been tested on Linux Kernel 4.4, 4.10, and 4.13. I don't plan to support anything earlier than 4.X but let me know if you encounter some portabilitity issues on newer kernels. 
 
-## Customizing a Unique 'knock' Packet
+## Customizing a Unique 'knock' Packet 
 
 If you wish to customize your knock a little more you can edit the TCP header options in client/bridge.c. For instance, maybe you want to make your knock packet have the PSH,RST,and ACK flags set and a window size of 3104. Turn those on:
 
