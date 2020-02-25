@@ -49,7 +49,7 @@
     chdir: /tmp/drawbridge
     creates: /tmp/drawbridge/key.h
     responses:
-      (?i)[Y/n]: "Y"
+      (?i)create: "Y"
   tags: drawbridge
 
 - name: Move key.h to kernel directory
