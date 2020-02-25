@@ -1,2 +1,6 @@
 ---
 # vars file for drawbridge
+cargo_requirements:
+  - curl
+  - file
+  - bash

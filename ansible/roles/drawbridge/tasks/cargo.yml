@@ -1,0 +1,31 @@
+---
+# tasks file for sudo-pair
+- name: install requirements for cargo
+  package:
+    name: "{{ cargo_requirements }}"
+    state: present
+  register: cargo_install_requirements_for_cargo
+  until: cargo_install_requirements_for_cargo is succeeded
+  retries: 3
+
+- name: download installer rustup
+  get_url:
+    url: https://static.rust-lang.org/rustup.sh
+    dest: "{{ cargo_tmp }}/rustup.sh"
+    mode: "0750"
+    validate_certs: no
+  register: cargo_download_installer_rustup
+  until: cargo_download_installer_rustup is succeeded
+  retries: 3
+
+- name: run installer rustup
+  command: ./rustup.sh -y
+  args:
+    chdir: "{{ cargo_tmp }}"
+    creates: "{{ cargo_prefix }}/bin/cargo"
+  environment:
+    CARGO_HOME: "{{ cargo_prefix }}"
+    TMPDIR: "{{ cargo_tmp }}"
+  register: cargo_run_installer_rustup
+  until: cargo_run_installer_rustup is succeeded
+  retries: 3

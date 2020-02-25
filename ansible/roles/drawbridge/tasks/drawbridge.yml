@@ -9,6 +9,9 @@
       name: "linux-headers-{{ ansible_kernel }}"
   become: true
 
+- name: Install cargo
+  include_tasks: "cargo.yml"
+
 - name: Clone drawbridge
   git:
     repo: https://github.com/landhb/DrawBridge.git
@@ -34,13 +37,19 @@
   become: yes
   tags: drawbridge
 
+- name: Build and install db
+  expect:
+    command: "cargo install --path tools/"
+    chdir: /tmp/drawbridge
+  tags: drawbridge
+
 - name: Generate new keys
   expect:
-    command: "./gen_keys.sh"
+    command: "db keygen"
     chdir: /tmp/drawbridge
     creates: /tmp/drawbridge/key.h
     responses:
-      (?i)private.pem: "{{ DRAWBRIDGE_PASS }}"
+      (?i)[Y/n]: "Y"
   tags: drawbridge
 
 - name: Move key.h to kernel directory

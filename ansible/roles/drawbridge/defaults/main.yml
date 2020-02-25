@@ -2,3 +2,9 @@
 # defaults file for drawbridge
 DRAWBRIDGE_PASS: test
 DRAWBRIDGE_PORTS: 8888,9999
+
+# The destination where cargo should be installed.
+cargo_prefix: /usr/local
+
+# Where to drop the downloaded installer.
+cargo_tmp: /root
