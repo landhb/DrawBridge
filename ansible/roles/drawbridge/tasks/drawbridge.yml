@@ -38,8 +38,8 @@
   tags: drawbridge
 
 - name: Build and install db
-  expect:
-    command: "cargo install --path tools/"
+  command: "cargo install --path tools/"
+  args:
     chdir: /tmp/drawbridge
   tags: drawbridge
 
