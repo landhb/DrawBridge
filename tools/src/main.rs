@@ -88,10 +88,16 @@ fn auth(args: &clap::ArgMatches) -> Result<(), Error> {
         _ => {bail!("{}", "[-] IP address invalid, must be IPv4 or IPv6");},
     };
 
-    let iface = match route::get_default_iface() {
-        Ok(res) => res,
-        Err(e) => {bail!(e)},
+    let iface = match args.value_of("interface") {
+        Some(interface) => interface.to_string(),
+        None=> {
+            match route::get_default_iface() {
+                Ok(res) => res,
+                Err(e) => {bail!(e)},
+            }
+        },
     };
+
     let src_ip = match route::get_interface_ip(&iface) {
         Ok(res) => res,
         Err(e) => {bail!(e)},
@@ -239,6 +245,11 @@ fn main() -> Result<(), Error> {
                      .takes_value(true)
                      .required(true)
                      .help("Address of server running Drawbridge"))
+            .arg(Arg::with_name("interface")
+                    .short("e")
+                    .long("interface")
+                    .takes_value(true)
+                    .help("Specify the outgoing interface to use"))
             .arg(Arg::with_name("protocol")
                      .short("p")
                      .long("protocol")
