@@ -23,7 +23,7 @@ mod crypto;
 mod protocols;
 mod drawbridge;
 
-use clap::{Arg,App,SubCommand};
+use clap::{Arg,App,AppSettings,SubCommand};
 use failure::{Error,bail};
 use std::io::Write;
 
@@ -203,6 +203,7 @@ fn main() -> Result<(), Error> {
         .version("1.0.0")
         .author("landhb <https://blog.landhb.dev>")
         .about("Drawbridge Client")
+        .setting(AppSettings::ArgRequiredElseHelp)
         .subcommand(
             SubCommand::with_name("keygen")
             .about("Generate Drawbridge Keys")
