@@ -103,7 +103,7 @@ fn auth(args: &clap::ArgMatches) -> Result<(), Error> {
         Err(e) => {bail!(e)},
     };
 
-    println!("[+] Selected Default Interface {}, with address {}", iface, src_ip);
+    println!("[+] Selected Interface {}, with address {}", iface, src_ip);
 
     // Dynamically set the transport protocol, and calculate packet size
     // todo, see if the header size can be calculated and returned in tcp.rs & udp.rs

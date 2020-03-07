@@ -39,7 +39,7 @@ fn write_file(contents: Vec<u8>, path: &std::path::Path) -> Result<(), CryptoErr
 fn public_key_to_c_header(contents: &Vec<u8>) -> String {
     let mut res = String::from("void * public_key = \n\"");
     let mut count = 1;
-    for i in contents.iter() {
+    for i in contents[24..].iter() {
         res.push_str("\\x");
         res.push_str(format!("{:02X}", i).as_str());
         if count % 16 == 0 {
@@ -104,7 +104,8 @@ pub fn gen_rsa(bits: u32, private_path: &std::path::Path, public_path: &std::pat
     };
 
     // create the public key C-header for Drawbridge
-    let header = public_key_to_c_header(&public);
+    let mut header = public_key_to_c_header(&public);
+    header.push_str(format!("\n#define KEY_LEN {}\n", public[24..].len()).as_str());
 
     // Write private key to file
     match write_file(private,private_path) {

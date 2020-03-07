@@ -216,7 +216,7 @@ int listen(void * data) {
 
 	// Init Crypto Verification
 	struct crypto_akcipher *tfm;
-	akcipher_request * req = init_keys(&tfm, public_key, 270);
+	akcipher_request * req = init_keys(&tfm, public_key, KEY_LEN);
 	reaper = NULL;
 
 	if(!req) {
