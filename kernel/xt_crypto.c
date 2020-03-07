@@ -46,21 +46,21 @@ akcipher_request * init_keys(crypto_akcipher **tfm, void * data, int len) {
 	*tfm = crypto_alloc_akcipher("rsa", 0, 0);
 
 	if(IS_ERR(*tfm)) {
-		printk(KERN_INFO	"[!] Could not allocate akcipher handle\n");
+		DEBUG_PRINT(KERN_INFO	"[!] Could not allocate akcipher handle\n");
 		return NULL;
 	}
 
 	req = akcipher_request_alloc(*tfm, GFP_KERNEL);
 
 	if(!req) {
-		printk(KERN_INFO	"[!] Could not allocate akcipher_request struct\n");
+		DEBUG_PRINT(KERN_INFO	"[!] Could not allocate akcipher_request struct\n");
 		return NULL;
 	}
 
 	err = crypto_akcipher_set_pub_key(*tfm, data, len);
 
 	if(err) {
-		printk(KERN_INFO	"[!] Could not set the public key\n");
+		DEBUG_PRINT(KERN_INFO	"[!] Could not set the public key\n");
 		akcipher_request_free(req);
 		return NULL;
 	}
@@ -102,8 +102,8 @@ static int wait_async_op(op_result * res, int ret) {
 
 static inline  void hexdump(unsigned char *buf,unsigned int len) {
 	while(len--)
-		printk("%02x",*buf++);
-	printk("\n");
+		DEBUG_PRINT("%02x",*buf++);
+	DEBUG_PRINT("\n");
 }
 
 
@@ -179,13 +179,13 @@ static char *pkcs_1_v1_5_decode_emsa(unsigned char * EM,
 #if LINUX_VERSION_CODE < KERNEL_VERSION(4,8,0)
 	ps_start = 1;
 	if (EM[0] != 0x01) {
-		printk(" = -EBADMSG [EM[0] == %02u]\n", EM[0]);
+		DEBUG_PRINT(" = -EBADMSG [EM[0] == %02u]\n", EM[0]);
 		return NULL;
 	}
 #else
 	ps_start = 2;
 	if (EM[0] != 0x00 || EM[1] != 0x01) {
-		printk(" = -EBADMSG [EM[0] == %02u] [EM[1] == %02u]\n", EM[0], EM[1]);
+		DEBUG_PRINT(" = -EBADMSG [EM[0] == %02u] [EM[1] == %02u]\n", EM[0], EM[1]);
 		return NULL;
 	}
 #endif
@@ -196,21 +196,21 @@ static char *pkcs_1_v1_5_decode_emsa(unsigned char * EM,
 
 	// Check if there's a 0x00 seperator between PS and T
 	if (EM[ps_end] != 0x00) {
-		printk(" = -EBADMSG [EM[T-1] == %02u]\n", EM[ps_end]);
+		DEBUG_PRINT(" = -EBADMSG [EM[T-1] == %02u]\n", EM[ps_end]);
 		return NULL;
 	}
 
 	// Check the PS 0xff padding 
 	for (i = ps_start; i < ps_end; i++) {
 		if (EM[i] != 0xff) {
-			printk(" = -EBADMSG [EM[PS%x] == %02u]\n", i - 2, EM[i]);
+			DEBUG_PRINT(" = -EBADMSG [EM[PS%x] == %02u]\n", i - 2, EM[i]);
 			return NULL;
 		}
 	}
 
 	// Compare the DER encoding T of the DigestInfo value
 	if (crypto_memneq(asn1_template, EM + t_offset, asn1_size) != 0) {
-		printk(" = -EBADMSG [EM[T] ASN.1 mismatch]\n");
+		DEBUG_PRINT(" = -EBADMSG [EM[T] ASN.1 mismatch]\n");
 		return NULL;
 	}
 
@@ -262,7 +262,7 @@ int verify_sig_rsa(akcipher_request * req, pkey_signature * sig) {
 	err = wait_async_op(&res, crypto_akcipher_verify(req));
 
 	if(err) {
-		printk(KERN_INFO "[!] Digest computation failed %d\n", err);
+		DEBUG_PRINT(KERN_INFO "[!] Digest computation failed %d\n", err);
 		kfree(inbuf);
 		kfree(outbuf);
 		kfree(result);
@@ -277,24 +277,24 @@ int verify_sig_rsa(akcipher_request * req, pkey_signature * sig) {
 
 	err = -EINVAL;
 	if(!result) {
-		printk(KERN_INFO "[!] EMSA PKCS#1 v1.5 decode failed\n");
+		DEBUG_PRINT(KERN_INFO "[!] EMSA PKCS#1 v1.5 decode failed\n");
 		kfree(inbuf);
 		kfree(outbuf);
 		return err;
 	}
 
-	/*printk(KERN_INFO "\nComputation:\n");
+	/*DEBUG_PRINT(KERN_INFO "\nComputation:\n");
 	hexdump(result, 32); */
 
 	/* Do the actual verification step. */
 	if (crypto_memneq(sig->digest, result, sig->digest_size) != 0) {
-		printk(KERN_INFO "[!] Signature verification failed - Key Rejected: %d\n", -EKEYREJECTED);
+		DEBUG_PRINT(KERN_INFO "[!] Signature verification failed - Key Rejected: %d\n", -EKEYREJECTED);
 		kfree(inbuf);
 		kfree(outbuf);
 		return -EKEYREJECTED;
 	}
 		
-	//printk(KERN_INFO "[+] RSA signature verification passed\n");
+	//DEBUG_PRINT(KERN_INFO "[+] RSA signature verification passed\n");
 	kfree(inbuf);
 	kfree(outbuf);
 	return 0;

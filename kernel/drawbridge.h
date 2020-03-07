@@ -29,6 +29,14 @@
 #define MAX_SIG_SIZE 4096
 #define MAX_DIGEST_SIZE 256
 
+#ifdef DEBUG
+#define DEBUG_PRINT(fmt, args...)    printk(KERN_DEBUG fmt, ## args)
+#else
+#define DEBUG_PRINT(fmt, args...)    /* Don't do anything in release builds */
+#endif
+
+#define LOG_PRINT(fmt, args...)      printk(KERN_NOTICE fmt, ## args)
+
 /*
  * Public key cryptography signature data
  */

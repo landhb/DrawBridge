@@ -55,11 +55,11 @@ static inline int ipv6_addr_cmp(const struct in6_addr *a1, const struct in6_addr
 static inline void log_connection(struct conntrack_state * state, __be32 src, struct in6_addr * src_6) {
 
 	if(state->type == 4 && (jiffies - state->time_added <= 200)) {
-		printk(KERN_INFO	"[+] DrawBridge accepted connection - source: %d.%d.%d.%d\n", (src) & 0xFF, (src >> 8) & 0xFF,
+		DEBUG_PRINT("[+] DrawBridge accepted connection - source: %d.%d.%d.%d\n", (src) & 0xFF, (src >> 8) & 0xFF,
 							(src >> 16) & 0xFF, (src >> 24) & 0xFF);
 	}
 	else if (state->type == 6 && (jiffies - state->time_added <= 200)) {
-		printk(KERN_INFO	"[+] DrawBridge accepted connection - source: %02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x\n",
+		DEBUG_PRINT("[+] DrawBridge accepted connection - source: %02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x\n",
 		                 (int)src_6->s6_addr[0], (int)src_6->s6_addr[1],
 		                 (int)src_6->s6_addr[2], (int)src_6->s6_addr[3],
 		                 (int)src_6->s6_addr[4], (int)src_6->s6_addr[5],
@@ -165,13 +165,17 @@ int state_lookup(conntrack_state * head, int type, __be32 src, struct in6_addr *
 
         if(state->type == 4 && state->src.addr_4 == src && state->port == port) {
             update_state(state);
+#ifdef DEBUG
             log_connection(state, src, src_6);
+#endif
             rcu_read_unlock();
             call_rcu(&state->rcu, reclaim_state_entry);
             return 1;
         } else if (state->type == 6 && ipv6_addr_cmp(&(state->src.addr_6), src_6) == 0 && state->port == port) {
             update_state(state);
+#ifdef DEBUG
             log_connection(state, src, src_6);
+#endif
             rcu_read_unlock();
             call_rcu(&state->rcu, reclaim_state_entry);
             return 1;

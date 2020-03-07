@@ -17,8 +17,6 @@
 #include "key.h"
 
 
-#define isascii(c) ((c & ~0x7F) == 0)
-
 // defined in xt_state.c
 extern struct timer_list * reaper;
 extern conntrack_state * knock_state;
@@ -121,8 +119,8 @@ static int ksocket_receive(struct socket* sock, struct sockaddr_in* addr, unsign
 
 static inline  void hexdump(unsigned char *buf,unsigned int len) {
 	while(len--)
-		printk("%02x",*buf++);
-	printk("\n");
+		DEBUG_PRINT("%02x",*buf++);
+	DEBUG_PRINT("\n");
 }
 
 static void free_signature(pkey_signature * sig) {
@@ -230,7 +228,7 @@ int listen(void * data) {
 	error = sock_create(PF_PACKET, SOCK_RAW, htons(ETH_P_ALL), &sock);
 
 	if (error < 0) {
-		printk(KERN_INFO "[-] Could not initialize raw socket\n");
+		DEBUG_PRINT(KERN_INFO "[-] Could not initialize raw socket\n");
 		kfree(pkt);
 		kfree(src);
 		free_keys(tfm, req);
@@ -240,7 +238,7 @@ int listen(void * data) {
 	ret = sock_setsockopt(sock, SOL_SOCKET, SO_ATTACH_FILTER, (void *)&bpf, sizeof(bpf));
 
 	if(ret < 0) {
-		printk(KERN_INFO "[-] Could not attach bpf filter to socket\n");
+		DEBUG_PRINT(KERN_INFO "[-] Could not attach bpf filter to socket\n");
 		sock_release(sock);
 		free_keys(tfm, req);
 		kfree(pkt);
@@ -252,7 +250,7 @@ int listen(void * data) {
 	reaper = init_reaper(STATE_TIMEOUT);
 
 	if(!reaper) {
-		printk(KERN_INFO "[-] Failed to initialize connection reaper\n");
+		DEBUG_PRINT(KERN_INFO "[-] Failed to initialize connection reaper\n");
 		sock_release(sock);
 		free_keys(tfm, req);
 		kfree(pkt);
@@ -261,7 +259,7 @@ int listen(void * data) {
 	}
 
 
-	//printk(KERN_INFO "[+] BPF raw socket thread initialized\n");
+	//DEBUG_PRINT(KERN_INFO "[+] BPF raw socket thread initialized\n");
 
 
 	while(1) {
@@ -319,8 +317,8 @@ int listen(void * data) {
 
 				// check protocol
 				if((ip_h->protocol & 0xFF) == 0x06) {
-					proto_h_size = sizeof(struct tcphdr);
-					offset += sizeof(struct tcphdr) + sizeof(struct packet);
+					proto_h_size = (((struct tcphdr *)proto_h)->doff)*4; 
+					offset += (((struct tcphdr *)proto_h)->doff*4) + sizeof(struct packet);
 				} else if ((ip_h->protocol & 0xFF) == 0x11) {
 					proto_h_size = sizeof(struct udphdr);
 					offset += sizeof(struct udphdr) + sizeof(struct packet);
@@ -336,8 +334,8 @@ int listen(void * data) {
 
 				// check protocol
 				if((ip6_h->nexthdr & 0xFF) == 0x06) {
-					proto_h_size = sizeof(struct tcphdr);
-					offset += sizeof(struct tcphdr) + sizeof(struct packet);
+					proto_h_size = (((struct tcphdr *)proto_h)->doff)*4; 
+					offset += (((struct tcphdr *)proto_h)->doff*4) + sizeof(struct packet);
 				} else if ((ip6_h->nexthdr & 0xFF) == 0x11) {
 					proto_h_size = sizeof(struct udphdr);
 					offset += sizeof(struct udphdr) + sizeof(struct packet);
@@ -356,7 +354,7 @@ int listen(void * data) {
 			sig = get_signature(pkt, offset);
 
 			if(!sig) {
-				//printk(KERN_INFO "[-] Signature not found in packet\n");
+				DEBUG_PRINT(KERN_INFO "[-] Signature not found in packet\n");
 				continue;
 			}
 
@@ -370,7 +368,7 @@ int listen(void * data) {
 
 			// Check that the hash matches 
 			if(memcmp(sig->digest, hash, sig->digest_size) != 0) {
-				printk(KERN_INFO "-----> Hash not the same\n");
+				DEBUG_PRINT(KERN_INFO "-----> Hash not the same\n");
 				free_signature(sig);
 				kfree(hash);
 				continue;
@@ -395,14 +393,14 @@ int listen(void * data) {
 			if (version == 4 && ip_h != NULL)
 			{
 				if(!state_lookup(knock_state, 4, ip_h->saddr, NULL, htons(res->port))) {
-					printk(KERN_INFO "[+] DrawBridge got valid auth packet!   len:%d    from:%s\n", recv_len, src);
+					LOG_PRINT(KERN_INFO "[+] DrawBridge got valid auth packet!   len:%d    from:%s\n", recv_len, src);
 					state_add(knock_state, 4, ip_h->saddr, NULL, htons(res->port));
 				}
 			} 
 			else if (version == 6 && ip6_h != NULL) 
 			{
 				if(!state_lookup(knock_state, 6, 0, &(ip6_h->saddr), htons(res->port))) {
-					printk(KERN_INFO "[+] DrawBridge got valid auth packet!   len:%d    from:%s\n", recv_len, src);
+					LOG_PRINT(KERN_INFO "[+] DrawBridge got valid auth packet!   len:%d    from:%s\n", recv_len, src);
 					state_add(knock_state, 6, 0, &(ip6_h->saddr), htons(res->port));
 				}
 			}

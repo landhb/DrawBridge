@@ -238,7 +238,7 @@ static int __init nf_conntrack_knock_init(void) {
 	get_task_struct(raw_thread);
 
 	if(IS_ERR(raw_thread)) {
-		printk(KERN_INFO "[-] drawbridge: Unable to start child thread\n");
+		DEBUG_PRINT(KERN_INFO "[-] drawbridge: Unable to start child thread\n");
 		return PTR_ERR(raw_thread);
 	}
 
@@ -254,12 +254,12 @@ static int __init nf_conntrack_knock_init(void) {
 #endif
 
 	if(ret || ret6) {
-		printk(KERN_INFO "[-] drawbridge: Failed to register hook\n");
+		DEBUG_PRINT(KERN_INFO "[-] drawbridge: Failed to register hook\n");
 		return ret;
 	} 
 		
 
-	printk(KERN_INFO "[+] drawbridge: Loaded module into kernel - monitoring %d port(s)\n", ports_c);
+	LOG_PRINT(KERN_INFO "[+] drawbridge: Loaded module into kernel - monitoring %d port(s)\n", ports_c);
 	return 0;
 	
 }
@@ -275,10 +275,10 @@ static void __exit nf_conntrack_knock_exit(void) {
 		err = kthread_stop(raw_thread);
 		put_task_struct(raw_thread);
 		raw_thread = NULL;
-		printk(KERN_INFO "[*] drawbridge: stopped counterpart thread\n");
+		DEBUG_PRINT(KERN_INFO "[*] drawbridge: stopped counterpart thread\n");
 
 	} else {
-		printk(KERN_INFO "[!] drawbridge: no kernel thread to kill\n");
+		DEBUG_PRINT(KERN_INFO "[!] drawbridge: no kernel thread to kill\n");
 	}
 
 	if(knock_state) {
@@ -293,7 +293,7 @@ static void __exit nf_conntrack_knock_exit(void) {
 	nf_unregister_hook(&pkt_hook_ops_v6);
 #endif
 
-	printk(KERN_INFO "[*] drawBridge: Unloaded Netfilter module from kernel\n");
+	LOG_PRINT(KERN_INFO "[*] drawBridge: Unloaded Netfilter module from kernel\n");
 	return;
 }
 
