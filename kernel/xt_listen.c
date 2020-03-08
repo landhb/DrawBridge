@@ -22,7 +22,7 @@ extern struct timer_list * reaper;
 extern conntrack_state * knock_state;
 
 // rust functions
-extern int validate_packet(void *c_array,int length);
+//extern int validate_packet(void *c_array,int length);
 
 
 // For both IPv4 and IPv6 compiled w/
@@ -320,7 +320,7 @@ int listen(void * data) {
             }
 
             // rust parser
-            validate_packet(pkt, MAX_PACKET_SIZE);
+            //validate_packet(pkt, MAX_PACKET_SIZE);
             
             // Check IP version
             eth_h = (struct ethhdr *)pkt;
