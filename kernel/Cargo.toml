@@ -1,0 +1,12 @@
+[package]
+name = "db-packet-parser"
+version = "0.1.0"
+authors = ["Bradley Landherr"]
+edition = "2018"
+
+[lib]
+crate-type = ["staticlib"]
+path = "parser/lib.rs"
+
+[dependencies]
+byteorder = { version = "1", default-features = false }
