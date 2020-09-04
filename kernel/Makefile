@@ -17,7 +17,7 @@ endif
 
 debug:
 ifneq ("$(wildcard ./key.h)","")
-	KCPPFLAGS="-DDEBUG" $(MAKE) -C $(KDIR) SUBDIRS=$(PWD) modules
+	KCPPFLAGS="-DDEBUG" $(MAKE) -C $(KDIR) M=$(PWD) modules
 	rm -fr *.o .*.cmd Module.symvers modules.order drawbridge.mod.c
 else
 	@echo "[!] Please ensure you've generated a public key, and that key.h is in this directory"
