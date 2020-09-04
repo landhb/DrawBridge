@@ -210,7 +210,7 @@ int listen(void * data) {
     // Socket info
     struct socket * sock;
     struct sockaddr_in source;
-    struct timespec tm;
+    struct timespec64 tm;
 
     // Buffers
     unsigned char * pkt = kmalloc(MAX_PACKET_SIZE, GFP_KERNEL);
@@ -412,7 +412,7 @@ int listen(void * data) {
             } 
 
             // Check timestamp (Currently allows 60 sec skew)
-            getnstimeofday(&tm);
+            ktime_get_real_ts64(&tm);
             if(tm.tv_sec > res->timestamp.tv_sec + 60) {
                 free_signature(sig);
                 kfree(hash);

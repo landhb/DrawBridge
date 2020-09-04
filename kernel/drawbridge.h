@@ -17,7 +17,7 @@
 #include <crypto/akcipher.h>
 
 // Time
-#include <linux/time.h>
+#include <linux/time64.h>
 
 
 
@@ -79,7 +79,7 @@ typedef struct conntrack_state {
 struct packet {
 
 	// Protocol data
-	struct timespec timestamp;
+	struct timespec64 timestamp;
 	__be16 port;
 
 } __attribute__( ( packed ) ); 
