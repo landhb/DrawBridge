@@ -259,7 +259,11 @@ int verify_sig_rsa(akcipher_request * req, pkey_signature * sig) {
 				      CRYPTO_TFM_REQ_MAY_SLEEP, op_complete, &res);
 
 	// Compute the expected digest
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5,2,0)
 	err = wait_async_op(&res, crypto_akcipher_verify(req));
+#else
+	err = wait_async_op(&res, crypto_akcipher_encrypt(req));
+#endif
 
 	if(err) {
 		DEBUG_PRINT(KERN_INFO "[!] Digest computation failed %d\n", err);
