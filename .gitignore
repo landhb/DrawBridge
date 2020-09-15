@@ -1,2 +1,6 @@
 *.o
 *.pyc
+
+kernel/key.h
+
+tools/target
