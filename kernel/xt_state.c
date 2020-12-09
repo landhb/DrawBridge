@@ -229,9 +229,8 @@ void cleanup_states(conntrack_state * head) {
     list_for_each_entry_safe(state, tmp, &(head->list), list) {
 
         list_del_rcu(&(state->list));
-        spin_unlock(&listmutex);
-        call_rcu(&state->rcu, reclaim_state_entry);
-        spin_lock(&listmutex);
+        synchronize_rcu();
+        kfree(state);
 
     }
 
@@ -297,11 +296,9 @@ void reap_expired_connections(unsigned long timeout) {
 	list_for_each_entry_safe(state, tmp, &(knock_state->list), list) {
 
 		if(jiffies - state->time_updated >= msecs_to_jiffies(timeout)) {
-
 			list_del_rcu(&(state->list));
-			spin_unlock(&listmutex);
-			call_rcu(&state->rcu, reclaim_state_entry);
-			spin_lock(&listmutex);
+			synchronize_rcu();
+            kfree(state);
 			continue;
 		}
 	}
