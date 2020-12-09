@@ -14,20 +14,20 @@ Please read the corresponding [article](https://www.landhb.me/posts/bODdK/port-k
 
 # Basic usage
 
-```
+```bash
 sudo db auth --server [REMOTE_SERVER] --dport 53 -p udp --unlock [PORT_TO_UNLOCK]
 ```
 
 To give the `db` binary CAP_NET_RAW privs so that you don't need `sudo` to run it:
 
-```
+```bash
 chmod 500 ~/.cargo/bin/db
 sudo setcap cap_net_raw=pe ~/.cargo/bin/db
 ```
 
 It's also convenient to create a bash alias to run `db` automatically when you want to access the port that it's guarding.
 
-```
+```bash
 alias "connect"="db auth -s [REMOTE] --dport 53 -p udp --unlock [PORT] && ssh -p [PORT] user@[REMOTE]"
 ```
 
@@ -43,48 +43,7 @@ cargo install --path Drawbridge/tools
 cargo install --git https://github.com/landhb/DrawBridge dbtools
 ```
 
-There are two sub-utilities built in, the first allows you to generate keys:
-
-```
-db-keygen 
-Generate Drawbridge Keys
-
-USAGE:
-    db keygen --alg <algorithm> --bits <bits> --out <outfile>
-
-FLAGS:
-    -h, --help       Prints help information
-    -V, --version    Prints version information
-
-OPTIONS:
-    -a, --alg <algorithm>    Algorithm to use [default: rsa]  [possible values: rsa, ecdsa]
-    -b, --bits <bits>        Key size [default: 4096]
-    -o, --out <outfile>      Output file name [default: ~/.drawbridge/db_rsa]
-
-```
-
-The second is used to open ports on a remote server running Drawbridge:
-
-```
-db-auth 
-Authenticate with a Drawbridge server
-
-USAGE:
-    db auth [OPTIONS] --dport <dport> --key <key> --server <server> --unlock <uport>
-
-FLAGS:
-    -h, --help       Prints help information
-    -V, --version    Prints version information
-
-OPTIONS:
-    -d, --dport <dport>          Auth packet destination port
-    -i, --key <key>              Private key for signing [default: ~/.drawbridge/db_rsa]
-    -p, --protocol <protocol>    Auth packet protocol [default: tcp]  [possible values: tcp, udp]
-    -s, --server <server>        Address of server running Drawbridge
-    -u, --unlock <uport>         Port to unlock
-```
-
-## Easy Setup and Configuration
+## Build and Install the Drawbridge Module
 
 To automagically generate keys, run the following on your client machine:
 
@@ -114,7 +73,7 @@ sudo apt-get install linux-headers-$(uname -r)
 sudo apt-get update && sudo apt-get upgrade
 ```
 
-This code has been tested on Linux Kernel 4.4, 4.10, and 4.13. I don't plan to support anything earlier than 4.X but let me know if you encounter some portabilitity issues on newer kernels. 
+This code has been tested on Linux Kernels between 4.X and 5.9. I don't plan to support anything earlier than 4.X but let me know if you encounter some portabilitity issues on newer kernels. 
 
 ## Customizing a Unique 'knock' Packet 
 
