@@ -28,7 +28,7 @@ sudo setcap cap_net_raw=pe ~/.cargo/bin/db
 It's also convenient to create a bash alias to run `db` automatically when you want to access the port that it's guarding.
 
 ```bash
-alias "connect"="db auth -s [REMOTE] --dport 53 -p udp --unlock [PORT] && ssh -p [PORT] user@[REMOTE]"
+alias "connect"="db auth -s [REMOTE] -d 53 -p udp --unlock [PORT] && ssh -p [PORT] user@[REMOTE]"
 ```
 
 ## Build and Install the Drawbridge Utilities
