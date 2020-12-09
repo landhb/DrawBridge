@@ -12,6 +12,25 @@ Note: DrawBridge now supports both IPv4 and IPv6 traffic
 
 Please read the corresponding [article](https://www.landhb.me/posts/bODdK/port-knocking-with-netfilter-kernel-modules/) for a more in-depth look at the design. 
 
+# Basic usage
+
+```
+sudo db auth --server [REMOTE_SERVER] --dport 53 -p udp --unlock [PORT_TO_UNLOCK]
+```
+
+To give the `db` binary CAP_NET_RAW privs so that you don't need `sudo` to run it:
+
+```
+chmod 500 ~/.cargo/bin/db
+sudo setcap cap_net_raw=pe ~/.cargo/bin/db
+```
+
+It's also convenient to create a bash alias to run `db` automatically when you want to access the port that it's guarding.
+
+```
+alias "connect"="db auth -s [REMOTE] --dport 53 -p udp --unlock [PORT] && ssh -p [PORT] user@[REMOTE]"
+```
+
 ## Build and Install the Drawbridge Utilities
 
 The usermode tools are now written in Rust! Build and install them with cargo:
@@ -19,6 +38,9 @@ The usermode tools are now written in Rust! Build and install them with cargo:
 ```
 git clone https://github.com/landhb/Drawbridge
 cargo install --path Drawbridge/tools
+
+# or 
+cargo install --git https://github.com/landhb/DrawBridge dbtools
 ```
 
 There are two sub-utilities built in, the first allows you to generate keys:
