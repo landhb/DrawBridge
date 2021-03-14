@@ -12,7 +12,7 @@ categories = ["command-line-utilities"]
 homepage = "https://github.com/landhb/Drawbridge"
 repository = "https://github.com/landhb/Drawbridge"
 readme = "README.md"
-license = "GNU General Public License (GPL)"
+license = "GPL-3.0-or-later"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
