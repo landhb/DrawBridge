@@ -8,11 +8,11 @@ Usermode tools for Drawbridge. A Layer 4 Single Packet Authentication Linux kern
 module utilizing Netfilter hooks and kernel supported Berkeley Packet Filters (BPF) 
 """
 keywords = ["spa", "auth", "netfilter", "linux-kernel"]
+categories = ["command-line-utilities"]
 homepage = "https://github.com/landhb/Drawbridge"
-documentation = "https://docs.rs/dbtools"
 repository = "https://github.com/landhb/Drawbridge"
 readme = "README.md"
-license = "GNU"
+license = "GNU General Public License (GPL)"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
