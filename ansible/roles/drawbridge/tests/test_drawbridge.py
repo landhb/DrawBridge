@@ -43,8 +43,8 @@ def test_ports_closed(host, get_vars):
 
 def test_apt_cleanup(host):
 	make = host.package("make")
-	pip = host.package("python-pip")
-	pkg_resources = host.package("python-pkg-resources")
+	pip = host.package("python3-pip")
+	pkg_resources = host.package("python3-pkg-resources")
 
 	assert make.is_installed is False
 	assert pip.is_installed is False
