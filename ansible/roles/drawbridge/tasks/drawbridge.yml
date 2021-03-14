@@ -102,6 +102,6 @@
   vars:
     packages:
       - make
-      - python-pip
-      - python-pkg-resources
+      - python3-pip
+      - python3-pkg-resources
   tags: drawbridge
