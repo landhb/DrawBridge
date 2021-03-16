@@ -32,7 +32,7 @@ git clone https://github.com/landhb/Drawbridge
 cargo install --path Drawbridge/tools
 
 # or 
-cargo install --git https://github.com/landhb/DrawBridge dbtools
+cargo install dbtools
 ```
 
 ## Build and Install the Drawbridge Module
