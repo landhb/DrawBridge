@@ -1,6 +1,6 @@
 *.o
 *.pyc
-
+*.ko
+*.tmp*
 kernel/key.h
-
 tools/target
