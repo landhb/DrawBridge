@@ -1,7 +1,7 @@
 CONFIG_MODULE_SIG=n
 
 obj-m += drawbridge.o
-drawbridge-objs := xt_hook.o xt_listen.o xt_state.o xt_crypto.o
+drawbridge-objs := xt_hook.o xt_listen.o xt_state.o xt_crypto.o utils.o
 
 KDIR := /lib/modules/$(shell uname -r)/build
 PWD := $(shell pwd)
