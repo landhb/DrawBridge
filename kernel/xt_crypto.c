@@ -38,6 +38,11 @@ typedef struct RSA_ASN1_template {
 
 RSA_ASN1_template sha256_template;
 
+/**
+ *  @brief Allocates & initializes Drawbridge keys from memory
+ *
+ *  @return akcipher_request struct on success, NULL on error
+ */
 akcipher_request *init_keys(crypto_akcipher **tfm, void *data, int len)
 {
     // Request struct
@@ -70,6 +75,11 @@ akcipher_request *init_keys(crypto_akcipher **tfm, void *data, int len)
     return req;
 }
 
+/**
+ *  @brief Frees Drawbridge keys from memory
+ *
+ *  @return akcipher_request struct on success, NULL on error
+ */
 void free_keys(crypto_akcipher *tfm, akcipher_request *req)
 {
     if (req) {
@@ -80,7 +90,11 @@ void free_keys(crypto_akcipher *tfm, akcipher_request *req)
     }
 }
 
-// Callback for crypto_async_request completion routine
+/**
+ *  @brief Callback for crypto_async_request completion routine
+ *
+ *  @return void
+ */
 static void op_complete(struct crypto_async_request *req, int err)
 {
     op_result *res = (op_result *)(req->data);
@@ -92,7 +106,11 @@ static void op_complete(struct crypto_async_request *req, int err)
     complete(&res->completion);
 }
 
-// Wait on crypto operation
+/**
+ *  @brief Blocking call to wait for an asynchronous operation
+ *
+ *  @return completion status when finished (!EINPROGRESS && !EBUSY)
+ */
 static int wait_async_op(op_result *res, int ret)
 {
     if (ret == -EINPROGRESS || ret == -EBUSY) {
@@ -103,6 +121,16 @@ static int wait_async_op(op_result *res, int ret)
     return ret;
 }
 
+/**
+ *  @brief Generate a digest from the provided buffer
+ *
+ *  @note Allocates a buffer to fit the digest. Must be free'd
+ *  by the caller.
+ *
+ *  @param buf The input/source buffer
+ *  @param len The length of the source buffer
+ *  @return Pointer to the digest
+ */
 void *gen_digest(void *buf, unsigned int len)
 {
     struct scatterlist src;
@@ -164,7 +192,7 @@ static char *pkcs_1_v1_5_decode_emsa(unsigned char *EM, unsigned long EMlen,
     if (EMlen < 2 + 1 + asn1_size + hash_size)
         return NULL;
 
-        /* Decode the EMSA-PKCS1-v1_5
+    /* Decode the EMSA-PKCS1-v1_5
      * note: leading zeros are stripped by the RSA implementation in older kernels
      * so   EM = 0x00 || 0x01 || PS || 0x00 || T
      * will become EM = 0x01 || PS || 0x00 || T.
