@@ -51,19 +51,22 @@ pub fn build_packet<'a>(unlock_port: u16, private_key_path: String) -> Result<Ve
         bail!("[-] {} does not exist.", path.display())
     }
 
-    // initialize the Drawbridge protocol data
-    let mut data = db_data {
-        port: unlock_port,
-        timestamp: libc::timespec {
-            tv_sec: 0,
-            tv_nsec: 0,
-        },
+    // Init tempsepc
+    let mut timestamp = libc::timespec {
+        tv_sec: 0,
+        tv_nsec: 0,
     };
 
     // get current timestamp
     unsafe {
-        libc::clock_gettime(libc::CLOCK_REALTIME, &mut data.timestamp);
+        libc::clock_gettime(libc::CLOCK_REALTIME, &mut timestamp);
     }
+
+    // initialize the Drawbridge protocol data
+    let data = db_data {
+        port: unlock_port,
+        timestamp,
+    };
 
     // sign the data
     let signature = match crypto::sign_rsa(data.as_bytes(), path) {
