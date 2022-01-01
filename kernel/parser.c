@@ -1,5 +1,12 @@
 #include "drawbridge.h"
 
+/**
+ *  @brief Parse an IPv4 Packet
+ *
+ *  Extracts the Source IP and determines the offset of the inner DB packet
+ *
+ *  @return 0 on success, -1 on error
+ */
 static ssize_t parse_ipv4(void * pkt, parsed_packet * info, size_t maxsize) {
     size_t proto_h_size = 0;
     struct tcphdr * tcp_hdr = NULL;
@@ -45,6 +52,13 @@ static ssize_t parse_ipv4(void * pkt, parsed_packet * info, size_t maxsize) {
     return -1;
 }
 
+/**
+ *  @brief Parse an IPv6 Packet
+ *
+ *  Extracts the Source IP and determines the offset of the inner DB packet
+ *
+ *  @return 0 on success, -1 on error
+ */
 static ssize_t parse_ipv6(void * pkt, parsed_packet * info, size_t maxsize) {
     size_t proto_h_size = 0;
     struct tcphdr * tcp_hdr = NULL;
@@ -90,8 +104,14 @@ static ssize_t parse_ipv6(void * pkt, parsed_packet * info, size_t maxsize) {
     return -1;
 }
 
-// Check IP version
-ssize_t validate_packet(void * pkt, parsed_packet * info, size_t maxsize) {
+/**
+ *  @brief Parses the received packet.
+ *
+ *  Extracts the Source IP and determines the offset of the inner DB packet
+ *
+ *  @return 0 on success, -1 on error
+ */
+ssize_t parse_packet(void * pkt, parsed_packet * info, size_t maxsize) {
     struct ethhdr *eth_h = NULL;
 
     // Check size before indexing into header

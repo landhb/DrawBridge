@@ -131,6 +131,6 @@ void hexdump(unsigned char *buf, unsigned int len);
 
 
 // Parser
-ssize_t validate_packet(void * pkt, parsed_packet * info, size_t maxsize);
+ssize_t parse_packet(void * pkt, parsed_packet * info, size_t maxsize);
 
 #endif /* _LINUX_DRAWBRIDGE_H */
