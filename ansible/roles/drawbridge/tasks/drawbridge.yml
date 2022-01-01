@@ -38,7 +38,7 @@
   tags: drawbridge
 
 - name: Build and install db
-  command: "cargo install dbtools
+  command: "cargo install dbtools"
   args:
     chdir: /tmp/drawbridge
   tags: drawbridge
