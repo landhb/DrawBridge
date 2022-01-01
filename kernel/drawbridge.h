@@ -78,6 +78,16 @@ typedef struct conntrack_state {
 
 } conntrack_state;
 
+typedef struct _parsed_packet_t {
+    uint8_t version;
+    size_t offset;
+    uint8_t ipstr[33];
+    union {
+        struct in6_addr addr_6;
+        __be32 addr_4;
+    } ip;
+} parsed_packet;
+
 // Must be packed so that the compiler doesn't byte align the structure
 struct packet {
     // Protocol data
@@ -118,5 +128,9 @@ void *gen_digest(void *buf, unsigned int len);
 void inet6_ntoa(char *str_ip, struct in6_addr *src_6);
 void inet_ntoa(char *str_ip, __be32 int_ip);
 void hexdump(unsigned char *buf, unsigned int len);
+
+
+// Parser
+ssize_t validate_packet(void * pkt, parsed_packet * info, size_t maxsize);
 
 #endif /* _LINUX_DRAWBRIDGE_H */

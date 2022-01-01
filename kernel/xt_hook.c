@@ -58,6 +58,9 @@ static unsigned int ports_c = 0;
 module_param_array(ports, ushort, &ports_c, 0400);
 MODULE_PARM_DESC(ports, "Port numbers to require knocks for");
 
+DECLARE_COMPLETION(thread_setup);
+DECLARE_COMPLETION(thread_done);
+
 static struct nf_hook_ops pkt_hook_ops __read_mostly = {
     .pf         = NFPROTO_IPV4,
     .priority   = NF_IP_PRI_FIRST,
@@ -221,6 +224,16 @@ static int __init nf_conntrack_knock_init(void)
 
     // Now it is safe to start kthread - exiting from it doesn't destroy its struct.
     wake_up_process(raw_thread);
+
+    // Wait for the child thread to finish setting up
+    wait_for_completion(&thread_setup);
+
+    // Check if the thread has exited
+    if (completion_done(&thread_done)) {
+        DEBUG_PRINT(KERN_INFO "[-] drawbridge: Unable to setup child thread\n");
+        cleanup_states(knock_state);
+        return -1;
+    }
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 13, 0)
     ret = nf_register_net_hook(&init_net, &pkt_hook_ops);

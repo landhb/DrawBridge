@@ -22,6 +22,9 @@
 extern struct timer_list *reaper;
 extern conntrack_state *knock_state;
 
+extern struct completion thread_setup;
+extern struct completion thread_done;
+
 // For both IPv4 and IPv6 compiled w/
 // tcpdump "udp dst port 53" -dd
 struct sock_filter code[] = {
@@ -33,6 +36,11 @@ struct sock_filter code[] = {
     { 0x45, 4, 0, 0x00001fff }, { 0xb1, 0, 0, 0x0000000e },
     { 0x48, 0, 0, 0x00000010 }, { 0x15, 0, 1, 0x00000035 },
     { 0x6, 0, 0, 0x00040000 },  { 0x6, 0, 0, 0x00000000 },
+};
+
+struct sock_fprog bpf = {
+    .len = ARRAY_SIZE(code),
+    .filter = code,
 };
 
 static int ksocket_receive(struct socket *sock, struct sockaddr_in *addr,
@@ -134,15 +142,10 @@ static pkey_signature *get_signature(void *pkt, u32 offset)
 
 int listen(void *data)
 {
-    int ret, recv_len, error, offset, version;
+    int ret, recv_len, error, version; // offset
 
     // Packet headers
-    struct ethhdr *eth_h = NULL;
-    struct iphdr *ip_h = NULL;
-    struct ipv6hdr *ip6_h = NULL;
-    //struct tcphdr * tcp_h;
-    //struct udphdr * udp_h;
-    unsigned char *proto_h = NULL; // either TCP or UDP
+    parsed_packet pktinfo = {0};
     int proto_h_size;
     struct packet *res = NULL;
 
@@ -153,14 +156,8 @@ int listen(void *data)
 
     // Buffers
     unsigned char *pkt = kmalloc(MAX_PACKET_SIZE, GFP_KERNEL);
-    char *src = kmalloc(32 + 1, GFP_KERNEL);
     pkey_signature *sig = NULL;
     void *hash = NULL;
-
-    struct sock_fprog bpf = {
-        .len = ARRAY_SIZE(code),
-        .filter = code,
-    };
 
     // Initialize wait queue
     DECLARE_WAITQUEUE(recv_wait, current);
@@ -172,8 +169,9 @@ int listen(void *data)
 
     if (!req) {
         kfree(pkt);
-        kfree(src);
-        return -1;
+        complete(&thread_setup);
+        complete(&thread_done);
+        do_exit(-1);
     }
 
     //sock = socket(PF_PACKET, SOCK_RAW, htons(ETH_P_ALL));
@@ -182,26 +180,28 @@ int listen(void *data)
     if (error < 0) {
         DEBUG_PRINT(KERN_INFO "[-] Could not initialize raw socket\n");
         kfree(pkt);
-        kfree(src);
         free_keys(tfm, req);
-        return -1;
+        complete(&thread_setup);
+        complete(&thread_done);
+        do_exit(-1);
     }
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 9, 0)
     ret = sock_setsockopt(sock, SOL_SOCKET, SO_ATTACH_FILTER,
-                          KERNEL_SOCKPTR((void *)&bpf), sizeof(bpf));
+                          KERNEL_SOCKPTR((void*)&bpf), sizeof(bpf));
 #else
     ret = sock_setsockopt(sock, SOL_SOCKET, SO_ATTACH_FILTER, (void *)&bpf,
                           sizeof(bpf));
 #endif
 
     if (ret < 0) {
-        DEBUG_PRINT(KERN_INFO "[-] Could not attach bpf filter to socket\n");
+        DEBUG_PRINT(KERN_INFO "[-] Could not attach bpf filter to socket %d\n", ret);
         sock_release(sock);
         free_keys(tfm, req);
         kfree(pkt);
-        kfree(src);
-        return -1;
+        complete(&thread_setup);
+        complete(&thread_done);
+        do_exit(-1);
     }
 
     reaper = init_reaper(STATE_TIMEOUT);
@@ -211,11 +211,13 @@ int listen(void *data)
         sock_release(sock);
         free_keys(tfm, req);
         kfree(pkt);
-        kfree(src);
-        return -1;
+        complete(&thread_setup);
+        complete(&thread_done);
+        do_exit(-1);
     }
 
     //DEBUG_PRINT(KERN_INFO "[+] BPF raw socket thread initialized\n");
+    complete(&thread_setup);
 
     while (1) {
         // Add socket to wait queue
@@ -237,10 +239,10 @@ int listen(void *data)
                 sock_release(sock);
                 free_keys(tfm, req);
                 kfree(pkt);
-                kfree(src);
                 if (reaper) {
                     cleanup_reaper(reaper);
                 }
+                complete(&thread_done);
                 do_exit(0);
             }
         }
@@ -249,76 +251,31 @@ int listen(void *data)
         set_current_state(TASK_RUNNING);
         remove_wait_queue(&sock->sk->sk_wq->wait, &recv_wait);
 
+        // Clear buffers
         memset(pkt, 0, MAX_PACKET_SIZE);
+        memset(&pktinfo, 0, sizeof(parsed_packet));
+
+        // Attempt to receive the incoming packet
         if ((recv_len = ksocket_receive(sock, &source, pkt, MAX_PACKET_SIZE)) >
             0) {
+
+            // Invalid length
             if (recv_len < sizeof(struct packet) ||
                 recv_len > MAX_PACKET_SIZE) {
                 continue;
             }
 
-            // rust parser
-            //validate_packet(pkt, MAX_PACKET_SIZE);
-
-            // Check IP version
-            eth_h = (struct ethhdr *)pkt;
-            proto_h_size = 0;
-            if ((eth_h->h_proto & 0xFF) == 0x08 &&
-                ((eth_h->h_proto >> 8) & 0xFF) == 0x00) {
-                version = 4;
-                ip_h = (struct iphdr *)(pkt + sizeof(struct ethhdr));
-                proto_h = (unsigned char *)(pkt + sizeof(struct ethhdr) +
-                                            sizeof(struct iphdr));
-                inet_ntoa(src, ip_h->saddr);
-                offset = sizeof(struct ethhdr) + sizeof(struct iphdr);
-
-                // check protocol
-                if ((ip_h->protocol & 0xFF) == 0x06) {
-                    proto_h_size = (((struct tcphdr *)proto_h)->doff) * 4;
-
-                    // tcp spec
-                    if (proto_h_size < 20 || proto_h_size > 60) {
-                        continue;
-                    }
-
-                    offset += proto_h_size + sizeof(struct packet);
-                } else if ((ip_h->protocol & 0xFF) == 0x11) {
-                    proto_h_size = sizeof(struct udphdr);
-                    offset += sizeof(struct udphdr) + sizeof(struct packet);
-                }
-            } else if ((eth_h->h_proto & 0xFF) == 0x86 &&
-                       ((eth_h->h_proto >> 8) & 0xFF) == 0xDD) {
-                version = 6;
-                ip6_h = (struct ipv6hdr *)(pkt + sizeof(struct ethhdr));
-                proto_h = (unsigned char *)(pkt + sizeof(struct ethhdr) +
-                                            sizeof(struct ipv6hdr));
-                inet6_ntoa(src, &(ip6_h->saddr));
-                offset = sizeof(struct ethhdr) + sizeof(struct ipv6hdr);
-
-                // check protocol
-                if ((ip6_h->nexthdr & 0xFF) == 0x06) {
-                    proto_h_size = (((struct tcphdr *)proto_h)->doff) * 4;
-
-                    // tcp spec
-                    if (proto_h_size < 20 || proto_h_size > 60) {
-                        continue;
-                    }
-
-                    offset += proto_h_size + sizeof(struct packet);
-                } else if ((ip6_h->nexthdr & 0xFF) == 0x11) {
-                    proto_h_size = sizeof(struct udphdr);
-                    offset += sizeof(struct udphdr) + sizeof(struct packet);
-                }
-            } else {
-                // unsupported protocol
+            // Validate the packet and obtain the offset to the Drawbridge data
+            if((validate_packet(pkt, &pktinfo, recv_len)) < 0) {
+                DEBUG_PRINT(KERN_INFO "-----> Validation/Parsing failed\n");
                 continue;
             }
 
             // Process packet
-            res = (struct packet *)(pkt + offset - sizeof(struct packet));
+            res = (struct packet *)(pkt + pktinfo.offset - sizeof(struct packet));
 
             // Parse the packet for a signature
-            sig = get_signature(pkt, offset);
+            sig = get_signature(pkt, pktinfo.offset);
 
             if (!sig) {
                 DEBUG_PRINT(KERN_INFO "[-] Signature not found in packet\n");
@@ -326,7 +283,7 @@ int listen(void *data)
             }
 
             // Hash timestamp + port to unlock
-            hash = gen_digest(proto_h + proto_h_size, sizeof(struct packet));
+            hash = gen_digest(res, sizeof(struct packet));
 
             if (!hash) {
                 free_signature(sig);
@@ -357,22 +314,22 @@ int listen(void *data)
             }
 
             // Add the IP to the connection linked list
-            if (version == 4 && ip_h != NULL) {
-                if (!state_lookup(knock_state, 4, ip_h->saddr, NULL,
+            if (pktinfo.version == 4) {
+                if (!state_lookup(knock_state, 4, pktinfo.ip.addr_4, NULL,
                                   htons(res->port))) {
                     LOG_PRINT(KERN_INFO
                               "[+] drawbridge: Authentication from:%s\n",
-                              src);
-                    state_add(knock_state, 4, ip_h->saddr, NULL,
+                              pktinfo.ipstr);
+                    state_add(knock_state, 4, pktinfo.ip.addr_4, NULL,
                               htons(res->port));
                 }
-            } else if (version == 6 && ip6_h != NULL) {
-                if (!state_lookup(knock_state, 6, 0, &(ip6_h->saddr),
+            } else if (pktinfo.version == 6) {
+                if (!state_lookup(knock_state, 6, 0, &(pktinfo.ip.addr_6),
                                   htons(res->port))) {
                     LOG_PRINT(KERN_INFO
                               "[+] drawbridge: Authentication from:%s\n",
-                              src);
-                    state_add(knock_state, 6, 0, &(ip6_h->saddr),
+                              pktinfo.ipstr);
+                    state_add(knock_state, 6, 0, &(pktinfo.ip.addr_6),
                               htons(res->port));
                 }
             }
@@ -385,9 +342,9 @@ int listen(void *data)
     sock_release(sock);
     free_keys(tfm, req);
     kfree(pkt);
-    kfree(src);
     if (reaper) {
         cleanup_reaper(reaper);
     }
+    complete(&thread_done);
     do_exit(0);
 }

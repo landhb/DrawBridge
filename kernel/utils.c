@@ -9,6 +9,7 @@
 #include <linux/module.h>
 #include <linux/kernel.h>
 #include <net/sock.h>
+#include "drawbridge.h"
 
 /**
  *  @brief IPv4 Network to address display format
