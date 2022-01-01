@@ -11,9 +11,9 @@
 #include <linux/kthread.h>
 #include <linux/string.h>
 #include <linux/unistd.h>
-#include <linux/wait.h> // DECLARE_WAITQUEUE
+#include <linux/wait.h>
 #include <linux/filter.h>
-#include <linux/uio.h> // iov_iter
+#include <linux/uio.h>
 #include <linux/version.h>
 #include "drawbridge.h"
 #include "key.h"
@@ -22,6 +22,7 @@
 extern struct timer_list *reaper;
 extern conntrack_state *knock_state;
 
+// defined in xt_hook.c
 extern struct completion thread_setup;
 extern struct completion thread_done;
 
@@ -78,8 +79,17 @@ static int ksocket_receive(struct socket *sock, struct sockaddr_in *addr,
     return size;
 }
 
-
-
+/**
+ *  @brief Listener Thread Entrypoint
+ *
+ *  Has two completions that must be set to synchronize with the
+ *  main thread on module load + unload.
+ *
+ *  thread_setup completion - Upon initialization success/failure
+ *  thread_done completion - Upon thread exit
+ *
+ *  @return 0 on success, -1 on error
+ */
 int listen(void *data)
 {
     int ret, recv_len, error; // offset
@@ -105,8 +115,7 @@ int listen(void *data)
     if (!req) {
         kfree(pkt);
         complete(&thread_setup);
-        complete(&thread_done);
-        do_exit(-1);
+        complete_and_exit(&thread_done, -1);
     }
 
     //sock = socket(PF_PACKET, SOCK_RAW, htons(ETH_P_ALL));
@@ -117,8 +126,7 @@ int listen(void *data)
         kfree(pkt);
         free_keys(tfm, req);
         complete(&thread_setup);
-        complete(&thread_done);
-        do_exit(-1);
+        complete_and_exit(&thread_done, -1);
     }
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 9, 0)
@@ -131,27 +139,20 @@ int listen(void *data)
 
     if (ret < 0) {
         DEBUG_PRINT(KERN_INFO "[-] Could not attach bpf filter to socket %d\n", ret);
-        sock_release(sock);
-        free_keys(tfm, req);
-        kfree(pkt);
         complete(&thread_setup);
-        complete(&thread_done);
-        do_exit(-1);
+        goto cleanup;
     }
 
     reaper = init_reaper(STATE_TIMEOUT);
 
     if (!reaper) {
         DEBUG_PRINT(KERN_INFO "[-] Failed to initialize connection reaper\n");
-        sock_release(sock);
-        free_keys(tfm, req);
-        kfree(pkt);
         complete(&thread_setup);
-        complete(&thread_done);
-        do_exit(-1);
+        goto cleanup;
     }
 
-    //DEBUG_PRINT(KERN_INFO "[+] BPF raw socket thread initialized\n");
+    // Initialization has successfully completed, allow
+    // the main thread and module insertin to proceed
     complete(&thread_setup);
 
     while (1) {
@@ -169,16 +170,7 @@ int listen(void *data)
                 // Crucial to remove the wait queue before exiting
                 set_current_state(TASK_RUNNING);
                 remove_wait_queue(&sock->sk->sk_wq->wait, &recv_wait);
-
-                // Cleanup and exit thread
-                sock_release(sock);
-                free_keys(tfm, req);
-                kfree(pkt);
-                if (reaper) {
-                    cleanup_reaper(reaper);
-                }
-                complete(&thread_done);
-                do_exit(0);
+                goto cleanup;
             }
         }
 
@@ -236,12 +228,12 @@ int listen(void *data)
         }
     }
 
+cleanup:
     sock_release(sock);
     free_keys(tfm, req);
     kfree(pkt);
     if (reaper) {
         cleanup_reaper(reaper);
     }
-    complete(&thread_done);
-    do_exit(0);
+    complete_and_exit(&thread_done, 0);
 }
