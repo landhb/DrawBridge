@@ -2,7 +2,7 @@ CONFIG_MODULE_SIG=n
 
 TARGET=drawbridge
 obj-m += $(TARGET).o
-$(TARGET)-objs := xt_hook.o xt_listen.o xt_state.o xt_crypto.o utils.o parser.o
+$(TARGET)-objs := xt_hook.o xt_listen.o xt_state.o xt_crypto.o utils.o parser.o validator.o
 
 KERNEL := /lib/modules/$(shell uname -r)/build
 KDIR := $(KERNEL)

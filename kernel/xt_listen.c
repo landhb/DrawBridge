@@ -78,86 +78,21 @@ static int ksocket_receive(struct socket *sock, struct sockaddr_in *addr,
     return size;
 }
 
-static void free_signature(pkey_signature *sig)
-{
-    if (sig->s) {
-        kfree(sig->s);
-    }
-    if (sig->digest) {
-        kfree(sig->digest);
-    }
-    kfree(sig);
-}
 
-// Pointer arithmatic to parse out the signature and digest
-static pkey_signature *get_signature(void *pkt, u32 offset)
-{
-    // Allocate the result struct
-    pkey_signature *sig = kzalloc(sizeof(pkey_signature), GFP_KERNEL);
-
-    if (sig == NULL) {
-        return NULL;
-    }
-
-    // Get the signature size
-    sig->s_size = *(u32 *)(pkt + offset);
-
-    // Sanity check the sig size
-    if (sig->s_size > MAX_SIG_SIZE ||
-        (offset + sig->s_size + sizeof(u32) > MAX_PACKET_SIZE)) {
-        kfree(sig);
-        return NULL;
-    }
-
-    // Copy the signature from the packet
-    sig->s = kzalloc(sig->s_size, GFP_KERNEL);
-
-    if (sig == NULL) {
-        return NULL;
-    }
-
-    // copy the signature
-    offset += sizeof(u32);
-    memcpy(sig->s, pkt + offset, sig->s_size);
-
-    // Get the digest size
-    offset += sig->s_size;
-    sig->digest_size = *(u32 *)(pkt + offset);
-
-    // Sanity check the digest size
-    if (sig->digest_size > MAX_DIGEST_SIZE ||
-        (offset + sig->digest_size + sizeof(u32) > MAX_PACKET_SIZE)) {
-        kfree(sig->s);
-        kfree(sig);
-        return NULL;
-    }
-
-    // Copy the digest from the packet
-    sig->digest = kzalloc(sig->digest_size, GFP_KERNEL);
-    offset += sizeof(u32);
-    memcpy(sig->digest, pkt + offset, sig->digest_size);
-
-    return sig;
-}
 
 int listen(void *data)
 {
-    int ret, recv_len, error, version; // offset
+    int ret, recv_len, error; // offset
 
     // Packet headers
     parsed_packet pktinfo = {0};
-    int proto_h_size;
-    struct packet *res = NULL;
 
     // Socket info
     struct socket *sock;
     struct sockaddr_in source;
-    struct timespec64 tm;
 
-    // Buffers
+    // Receive buffer
     unsigned char *pkt = kmalloc(MAX_PACKET_SIZE, GFP_KERNEL);
-    pkey_signature *sig = NULL;
-    void *hash = NULL;
 
     // Initialize wait queue
     DECLARE_WAITQUEUE(recv_wait, current);
@@ -267,75 +202,37 @@ int listen(void *data)
 
             // Validate the packet and obtain the offset to the Drawbridge data
             if((parse_packet(pkt, &pktinfo, recv_len)) < 0) {
-                DEBUG_PRINT(KERN_INFO "-----> Validation/Parsing failed\n");
+                DEBUG_PRINT(KERN_INFO "-----> Parsing failed\n");
                 continue;
             }
 
-            // Process packet
-            res = (struct packet *)(pkt + pktinfo.offset - sizeof(struct packet));
-
-            // Parse the packet for a signature
-            sig = get_signature(pkt, pktinfo.offset);
-
-            if (!sig) {
-                DEBUG_PRINT(KERN_INFO "[-] Signature not found in packet\n");
-                continue;
-            }
-
-            // Hash timestamp + port to unlock
-            hash = gen_digest(res, sizeof(struct packet));
-
-            if (!hash) {
-                free_signature(sig);
-                continue;
-            }
-
-            // Check that the hash matches
-            if (memcmp(sig->digest, hash, sig->digest_size) != 0) {
-                DEBUG_PRINT(KERN_INFO "-----> Hash not the same\n");
-                free_signature(sig);
-                kfree(hash);
-                continue;
-            }
-
-            // Verify the signature
-            if (verify_sig_rsa(req, sig) != 0) {
-                free_signature(sig);
-                kfree(hash);
-                continue;
-            }
-
-            // Check timestamp (Currently allows 60 sec skew)
-            ktime_get_real_ts64(&tm);
-            if (tm.tv_sec > res->timestamp.tv_sec + 60) {
-                free_signature(sig);
-                kfree(hash);
+            // Assume there's at least enough bytes in the message for the 
+            // information + signature
+            if(validate_packet(req, pkt, &pktinfo, recv_len) < 0) {
+                DEBUG_PRINT(KERN_INFO "-----> Validation failed\n");
                 continue;
             }
 
             // Add the IP to the connection linked list
             if (pktinfo.version == 4) {
                 if (!state_lookup(knock_state, 4, pktinfo.ip.addr_4, NULL,
-                                  htons(res->port))) {
+                                    htons(pktinfo.port))) {
                     LOG_PRINT(KERN_INFO
-                              "[+] drawbridge: Authentication from:%s\n",
-                              pktinfo.ipstr);
+                                "[+] drawbridge: Authentication from:%s\n",
+                                pktinfo.ipstr);
                     state_add(knock_state, 4, pktinfo.ip.addr_4, NULL,
-                              htons(res->port));
+                                htons(pktinfo.port));
                 }
             } else if (pktinfo.version == 6) {
                 if (!state_lookup(knock_state, 6, 0, &(pktinfo.ip.addr_6),
-                                  htons(res->port))) {
+                                    htons(pktinfo.port))) {
                     LOG_PRINT(KERN_INFO
-                              "[+] drawbridge: Authentication from:%s\n",
-                              pktinfo.ipstr);
+                                "[+] drawbridge: Authentication from:%s\n",
+                                pktinfo.ipstr);
                     state_add(knock_state, 6, 0, &(pktinfo.ip.addr_6),
-                              htons(res->port));
+                                htons(pktinfo.port));
                 }
             }
-
-            free_signature(sig);
-            kfree(hash);
         }
     }
 

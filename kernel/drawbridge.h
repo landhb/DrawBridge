@@ -80,6 +80,7 @@ typedef struct conntrack_state {
 
 typedef struct _parsed_packet_t {
     uint8_t version;
+    __be16 port;
     size_t offset;
     uint8_t ipstr[33];
     union {
@@ -132,5 +133,6 @@ void hexdump(unsigned char *buf, unsigned int len);
 
 // Parser
 ssize_t parse_packet(void * pkt, parsed_packet * info, size_t maxsize);
+ssize_t validate_packet(akcipher_request *req, void * pkt, parsed_packet * info, size_t maxsize);
 
 #endif /* _LINUX_DRAWBRIDGE_H */
