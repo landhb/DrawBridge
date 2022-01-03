@@ -32,16 +32,43 @@ fn compare_results(res: ssize_t, info: &packet_info, input: &[u8]) {
                 Some(InternetSlice::Ipv4(hdr, _)) => {
                     assert_eq!(info.version, 4);
                     unsafe {assert_eq!(info.ip.addr_4, u32::from_ne_bytes(hdr.source()));}
+                    match hdr.protocol() {
+                        x if x == etherparse::IpNumber::Tcp as u8 => assert_eq!(res, 0),
+                        x if x == etherparse::IpNumber::Udp as u8 => assert_eq!(res, 0),
+                        _ => assert_eq!(res, -1),
+                    }
                 },
-                Some(InternetSlice::Ipv6(_hdr, _)) => {
+                Some(InternetSlice::Ipv6(hdr, _)) => {
                     assert_eq!(info.version, 6);
-                    //assert_eq!(info.ip)
+                    unsafe {assert_eq!(info.ip.addr_6.s6_addr, hdr.source());}
+                    match hdr.next_header() {
+                        x if x == etherparse::IpNumber::Tcp as u8 => assert_eq!(res, 0),
+                        x if x == etherparse::IpNumber::Udp as u8 => assert_eq!(res, 0),
+                        _ => assert_eq!(res, -1),
+                    }
                 },
                 None => assert_eq!(res, -1), // non-IP packets shouldn't be valid
             }
-            assert_eq!(res, 0);
         }
     }
+}
+
+#[test]
+fn start() {
+    use std::fs::File;
+    use std::io::Read;
+    let mut data = [0u8; 4096];
+    let mut crashfile = File::open("in/dns_queries.raw").unwrap();
+    let rsize = crashfile.read(&mut data).unwrap();
+    println!("Using packet data {:02X?}", &data[..rsize]);
+    println!("Packet length: {:?}", rsize);
+    let mut info = packet_info::new();
+    let res = unsafe {
+        parse_packet(data[..rsize].as_ptr() as _, &mut info as *mut _, data.len())
+    };
+    println!("{:?}", info);
+    compare_results(res, &info, &data[..rsize]);
+    assert_eq!(res, -1);
 }
 
 #[test]
