@@ -67,16 +67,13 @@ static ssize_t parse_udp(void * pkt, parsed_packet * info, size_t maxsize) {
 static ssize_t parse_ipv4(void * pkt, parsed_packet * info, size_t maxsize) {
     struct iphdr *ip_h = NULL;
 
-    // Calculate offset start
-    info->offset = sizeof(struct ethhdr) + sizeof(struct iphdr);
-
     // Check size before indexing into header
-    if (maxsize < info->offset) {
+    if (maxsize < info->offset + sizeof(struct iphdr)) {
         return -1;
     }
 
     // IPv4 Header
-    ip_h = (struct iphdr *)(pkt + sizeof(struct ethhdr));
+    ip_h = (struct iphdr *)((uint8_t*)pkt + info->offset);
 
     // Verify protocol version
     if (ip_h->version != 4) {
@@ -89,13 +86,17 @@ static ssize_t parse_ipv4(void * pkt, parsed_packet * info, size_t maxsize) {
     }
 
     // Verify Total Length
-    if (ip_h->tot_len > maxsize) {
+    if (ntohs(ip_h->tot_len) > maxsize) {
         return -1;
     }
 
     // Read the source IP
     //inet_ntoa(&info->ipstr[0], ip_h->saddr);
     info->ip.addr_4 = ip_h->saddr;
+    info->version = 4;
+
+    // Move beyond the IP header
+    info->offset += ip_h->ihl*4;
 
     // TCP
     if ((ip_h->protocol & 0xFF) == 0x06) {
@@ -121,25 +122,28 @@ static ssize_t parse_ipv4(void * pkt, parsed_packet * info, size_t maxsize) {
 static ssize_t parse_ipv6(void * pkt, parsed_packet * info, size_t maxsize) {
     struct ipv6hdr *ip6_h = NULL;
     
-    // Calculate offset start
-    info->offset = sizeof(struct ethhdr) + sizeof(struct ipv6hdr);
-    
     // Check size before indexing into header
-    if (maxsize < info->offset) {
+    if (maxsize < info->offset + sizeof(struct ipv6hdr)) {
         return -1;
     }
 
     // IPv6 header
-    ip6_h = (struct ipv6hdr *)(pkt + sizeof(struct ethhdr));
+    ip6_h = (struct ipv6hdr *)(pkt + info->offset);
 
     // Verify protocol version
     if (ip6_h->version != 6) {
         return -1;
     }
 
+    // Verify Total Length
+    if (ntohs(ip6_h->payload_len) + sizeof(struct ipv6hdr) > maxsize) {
+        return -1;
+    }
+
     // Read the source IP
     //inet6_ntoa(&info->ipstr[0], &(ip6_h->saddr));
     info->ip.addr_6 = ip6_h->saddr;
+    info->version = 6;
     
     // Check for TCP in nexthdr
     if ((ip6_h->nexthdr & 0xFF) == 0x06) {
@@ -235,17 +239,18 @@ ssize_t parse_packet(void * pkt, parsed_packet * info, size_t maxsize) {
     // Ethernet header
     eth_h = (struct ethhdr *)pkt;
 
+    // Calculate offset start
+    info->offset = sizeof(struct ethhdr);
+
     // Check if the packet is an IPv4 packet
     if ((eth_h->h_proto & 0xFF) == 0x08 &&
         ((eth_h->h_proto >> 8) & 0xFF) == 0x00) {
-        info->version = 4;
         return parse_ipv4(pkt, info, maxsize);
     } 
     
     // Check if the packet is an IPv6 packet
     if ((eth_h->h_proto & 0xFF) == 0x86 &&
                 ((eth_h->h_proto >> 8) & 0xFF) == 0xDD) {
-        info->version = 6;
         return parse_ipv6(pkt, info, maxsize);
     } 
     
