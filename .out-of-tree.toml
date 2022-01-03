@@ -1,0 +1,33 @@
+# out-of-tree configuration file
+# docs at https://out-of-tree.io
+name = "out-of-tree module example"
+type = "module"
+arguments = "ports=8888"
+
+# install a utility into the VM
+[[test_files]]
+user = "root"
+local = "../tools/target/x86_64-unknown-linux-musl/release/db"
+remote = "/usr/bin/db"
+
+# bring the key
+[[test_files]]
+user = "root"
+local = "./test_key"
+remote = "/tmp/test_key"
+
+# bring the test script
+[[test_files]]
+user = "root"
+local = "./test.sh"
+remote = "/tmp/test.sh"
+
+[[supported_kernels]]
+distro_type = "Ubuntu"
+distro_release = "16.04"
+release_mask = "4[.]4[.]0-70-.*"
+
+[[supported_kernels]]
+distro_type = "Ubuntu"
+distro_release = "20.04"
+release_mask = "5[.]*"  #1[0-9]*"

@@ -11,3 +11,6 @@ libc = "*"
 parser = {path = "../ffi"}
 etherparse = "0.10.1"
 arbitrary = { version = "1", features = ["derive"] }
+
+[dev-dependencies]
+glob = "0.3.0"

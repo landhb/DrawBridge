@@ -30,6 +30,11 @@ fn compare_results(res: ssize_t, info: &packet_info, input: &[u8]) {
             
             match value.ip {
                 Some(InternetSlice::Ipv4(hdr, _)) => {
+                    
+                    if hdr.total_len() as usize > input.len() {
+                        assert_eq!(res, -1);
+                        return;
+                    }
                     assert_eq!(info.version, 4);
                     unsafe {assert_eq!(info.ip.addr_4, u32::from_ne_bytes(hdr.source()));}
                     match hdr.protocol() {
@@ -39,6 +44,11 @@ fn compare_results(res: ssize_t, info: &packet_info, input: &[u8]) {
                     }
                 },
                 Some(InternetSlice::Ipv6(hdr, _)) => {
+                    
+                    if (hdr.to_header().header_len() + hdr.payload_length() as usize) > input.len() {
+                        assert_eq!(res, -1);
+                        return;
+                    }
                     assert_eq!(info.version, 6);
                     unsafe {assert_eq!(info.ip.addr_6.s6_addr, hdr.source());}
                     match hdr.next_header() {
@@ -75,16 +85,30 @@ fn start() {
 fn reproduce() {
     use std::fs::File;
     use std::io::Read;
+    use glob::glob_with;
+    use glob::MatchOptions;
+
     let mut data = [0u8; 4096];
-    let mut crashfile = File::open("out/default/crashes/id:000000,sig:06,src:000000,time:553099,op:havoc,rep:32").unwrap();
-    let rsize = crashfile.read(&mut data).unwrap();
-    println!("Using packet data {:02X?}", &data[..rsize]);
-    println!("Packet length: {:?}", rsize);
-    let mut info = packet_info::new();
-    let res = unsafe {
-        parse_packet(data[..rsize].as_ptr() as _, &mut info as *mut _, data.len())
+
+    let options = MatchOptions {
+        case_sensitive: false,
+        require_literal_separator: false,
+        require_literal_leading_dot: false,
     };
-    println!("{:?}", info);
-    compare_results(res, &info, &data[..rsize]);
-    assert_eq!(res, -1);
+
+    for entry in glob_with("out/default/crashes/id*", options).unwrap() {
+        if let Ok(path) = entry {
+            println!("Using crash file: {:?}", path);
+            let mut crashfile = File::open(path).unwrap();
+            let rsize = crashfile.read(&mut data).unwrap();
+            println!("Using packet data {:02X?}", &data[..rsize]);
+            println!("Packet length: {:?}", rsize);
+            let mut info = packet_info::new();
+            let res = unsafe {
+                parse_packet(data[..rsize].as_ptr() as _, &mut info as *mut _, data.len())
+            };
+            println!("{:?}", info);
+            compare_results(res, &info, &data[..rsize]);
+        }
+    }    
 }
