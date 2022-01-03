@@ -242,6 +242,14 @@ ssize_t parse_packet(void * pkt, parsed_packet * info, size_t maxsize) {
     // Calculate offset start
     info->offset = sizeof(struct ethhdr);
 
+    // If the packet is VLAN tagged, move an
+    // additional 4 bytes to reach the encapsulated
+    // protocol.
+    if ((eth_h->h_proto & 0xFF) == 0x81 &&
+        ((eth_h->h_proto >> 8) & 0xFF) == 0x00) {
+        info->offset += 4;
+    }
+
     // Check if the packet is an IPv4 packet
     if ((eth_h->h_proto & 0xFF) == 0x08 &&
         ((eth_h->h_proto >> 8) & 0xFF) == 0x00) {
