@@ -1,13 +1,17 @@
 [package]
-name = "parser-fuzz-target"
+name = "usertests"
 version = "0.1.0"
 edition = "2021"
+
+[lib]
+path = "src/lib.rs"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-afl = "*"
 libc = "*"
-parser = {path = "../ffi"}
+parser = {path = "../fuzz/ffi"}
+
+# Test fuzz inputs for correctness
+[dev-dependencies]
 etherparse = "0.10.1"
-arbitrary = { version = "1", features = ["derive"] }

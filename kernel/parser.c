@@ -78,6 +78,21 @@ static ssize_t parse_ipv4(void * pkt, parsed_packet * info, size_t maxsize) {
     // IPv4 Header
     ip_h = (struct iphdr *)(pkt + sizeof(struct ethhdr));
 
+    // Verify protocol version
+    if (ip_h->version != 4) {
+        return -1;
+    }
+
+    // Verify Header size
+    if (ip_h->ihl*4 < 20 || ip_h->ihl*4 > 60) {
+        return -1;
+    }
+
+    // Verify Total Length
+    if (ip_h->tot_len > maxsize) {
+        return -1;
+    }
+
     // Read the source IP
     //inet_ntoa(&info->ipstr[0], ip_h->saddr);
     info->ip.addr_4 = ip_h->saddr;
@@ -116,6 +131,11 @@ static ssize_t parse_ipv6(void * pkt, parsed_packet * info, size_t maxsize) {
 
     // IPv6 header
     ip6_h = (struct ipv6hdr *)(pkt + sizeof(struct ethhdr));
+
+    // Verify protocol version
+    if (ip6_h->version != 6) {
+        return -1;
+    }
 
     // Read the source IP
     //inet6_ntoa(&info->ipstr[0], &(ip6_h->saddr));
