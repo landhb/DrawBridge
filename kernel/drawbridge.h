@@ -26,13 +26,12 @@
 // Time
 #include <linux/time64.h>
 
+// Include the parser headers
+#include "parser.h"
+
 // Timout Configuration - default 5 min = 300000msec
 #define STATE_TIMEOUT 300000
 
-// Defaults
-#define MAX_PACKET_SIZE 65535
-#define MAX_SIG_SIZE 4096
-#define MAX_DIGEST_SIZE 256
 
 #ifdef DEBUG
 #define DEBUG_PRINT(fmt, args...) printk(KERN_DEBUG fmt, ##args)
@@ -41,16 +40,6 @@
 #endif
 
 #define LOG_PRINT(fmt, args...) printk(KERN_NOTICE fmt, ##args)
-
-/*
- * Public key cryptography signature data
- */
-typedef struct pkey_signature {
-    u8 *s; /* Signature */
-    u32 s_size; /* Number of bytes in signature */
-    u8 *digest;
-    u32 digest_size; /* Number of bytes in digest */
-} pkey_signature;
 
 /*
  * Connection state for Trigger module
@@ -77,17 +66,6 @@ typedef struct conntrack_state {
     struct rcu_head rcu;
 
 } conntrack_state;
-
-typedef struct _parsed_packet_t {
-    uint8_t version;
-    __be16 port;
-    size_t offset;
-    uint8_t ipstr[33];
-    union {
-        struct in6_addr addr_6;
-        __be32 addr_4;
-    } ip;
-} parsed_packet;
 
 // Must be packed so that the compiler doesn't byte align the structure
 struct packet {
@@ -130,9 +108,9 @@ void inet6_ntoa(char *str_ip, struct in6_addr *src_6);
 void inet_ntoa(char *str_ip, __be32 int_ip);
 void hexdump(unsigned char *buf, unsigned int len);
 
-
-// Parser
-ssize_t parse_packet(void * pkt, parsed_packet * info, size_t maxsize);
+/**
+ * Validate the given signature
+ */
 ssize_t validate_packet(akcipher_request *req, void * pkt, parsed_packet * info, size_t maxsize);
 
 #endif /* _LINUX_DRAWBRIDGE_H */

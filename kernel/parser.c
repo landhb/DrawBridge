@@ -1,4 +1,4 @@
-#include "drawbridge.h"
+#include "parser.h"
 
 /**
  *  @brief Parse the TCP Packet
@@ -46,6 +46,7 @@ static ssize_t parse_tcp(void * pkt, parsed_packet * info, size_t maxsize) {
  *  @return 0 on success, -1 on error
  */
 static ssize_t parse_udp(void * pkt, parsed_packet * info, size_t maxsize) {
+    (void)pkt;
 
     // Check bounds with udp header
     if (info->offset + sizeof(struct udphdr) > maxsize) {
@@ -78,7 +79,7 @@ static ssize_t parse_ipv4(void * pkt, parsed_packet * info, size_t maxsize) {
     ip_h = (struct iphdr *)(pkt + sizeof(struct ethhdr));
 
     // Read the source IP
-    inet_ntoa(&info->ipstr[0], ip_h->saddr);
+    //inet_ntoa(&info->ipstr[0], ip_h->saddr);
     info->ip.addr_4 = ip_h->saddr;
 
     // TCP
@@ -117,7 +118,7 @@ static ssize_t parse_ipv6(void * pkt, parsed_packet * info, size_t maxsize) {
     ip6_h = (struct ipv6hdr *)(pkt + sizeof(struct ethhdr));
 
     // Read the source IP
-    inet6_ntoa(&info->ipstr[0], &(ip6_h->saddr));
+    //inet6_ntoa(&info->ipstr[0], &(ip6_h->saddr));
     info->ip.addr_6 = ip6_h->saddr;
     
     // Check for TCP in nexthdr
@@ -132,6 +133,68 @@ static ssize_t parse_ipv6(void * pkt, parsed_packet * info, size_t maxsize) {
 
     // Unsupported next protocol
     return -1;
+}
+
+void free_signature(pkey_signature *sig)
+{
+    if (sig->s) {
+        kfree(sig->s);
+    }
+    if (sig->digest) {
+        kfree(sig->digest);
+    }
+    kfree(sig);
+}
+
+// Pointer arithmatic to parse out the signature and digest
+pkey_signature *parse_signature(void *pkt, uint32_t offset)
+{
+    // Allocate the result struct
+    pkey_signature *sig = (pkey_signature *)kzalloc(sizeof(pkey_signature), GFP_KERNEL);
+
+    if (sig == NULL) {
+        return NULL;
+    }
+
+    // Get the signature size
+    sig->s_size = *(uint32_t *)(pkt + offset);
+
+    // Sanity check the sig size
+    if (sig->s_size > MAX_SIG_SIZE ||
+        (offset + sig->s_size + sizeof(uint32_t) > MAX_PACKET_SIZE)) {
+        kfree(sig);
+        return NULL;
+    }
+
+    // Copy the signature from the packet
+    sig->s = (uint8_t *)kzalloc(sig->s_size, GFP_KERNEL);
+
+    if (sig->s == NULL) {
+        return NULL;
+    }
+
+    // copy the signature
+    offset += sizeof(uint32_t);
+    memcpy(sig->s, pkt + offset, sig->s_size);
+
+    // Get the digest size
+    offset += sig->s_size;
+    sig->digest_size = *(uint32_t *)(pkt + offset);
+
+    // Sanity check the digest size
+    if (sig->digest_size > MAX_DIGEST_SIZE ||
+        (offset + sig->digest_size + sizeof(uint32_t) > MAX_PACKET_SIZE)) {
+        kfree(sig->s);
+        kfree(sig);
+        return NULL;
+    }
+
+    // Copy the digest from the packet
+    sig->digest = (uint8_t *)kzalloc(sig->digest_size, GFP_KERNEL);
+    offset += sizeof(uint32_t);
+    memcpy(sig->digest, pkt + offset, sig->digest_size);
+
+    return sig;
 }
 
 /**

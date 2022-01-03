@@ -4,3 +4,5 @@
 *.tmp*
 kernel/key.h
 tools/target
+target
+fuzz/*/out

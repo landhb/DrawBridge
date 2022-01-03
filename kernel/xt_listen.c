@@ -17,6 +17,7 @@
 #include <linux/version.h>
 #include "drawbridge.h"
 #include "key.h"
+#include "parser.h"
 
 // defined in xt_state.c
 extern struct timer_list *reaper;
@@ -192,9 +193,15 @@ int listen(void *data)
                 continue;
             }
 
-            // Validate the packet and obtain the offset to the Drawbridge data
+            // Parse the packet and obtain the offset to the Drawbridge data
             if((parse_packet(pkt, &pktinfo, recv_len)) < 0) {
                 DEBUG_PRINT(KERN_INFO "-----> Parsing failed\n");
+                continue;
+            }
+
+            // Parse the signature from the Drawbridge data
+            if(!(pktinfo.sig = parse_signature(pkt, pktinfo.offset + sizeof(struct packet)))) {
+                DEBUG_PRINT(KERN_INFO "-----> Signature parsing failed\n");
                 continue;
             }
 
