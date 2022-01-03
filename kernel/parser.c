@@ -229,7 +229,9 @@ pkey_signature *parse_signature(void *pkt, uint32_t offset)
  *  @return 0 on success, -1 on error
  */
 ssize_t parse_packet(void * pkt, parsed_packet * info, size_t maxsize) {
+    uint16_t ethertype = 0;
     struct ethhdr *eth_h = NULL;
+    struct pvlan_ethhdr * vlan_h = NULL;
 
     // Check size before indexing into header
     if (maxsize < sizeof(struct ethhdr)) {
@@ -242,23 +244,25 @@ ssize_t parse_packet(void * pkt, parsed_packet * info, size_t maxsize) {
     // Calculate offset start
     info->offset = sizeof(struct ethhdr);
 
+    // First level EtherType
+    ethertype = ntohs(eth_h->h_proto);
+
     // If the packet is VLAN tagged, move an
     // additional 4 bytes to reach the encapsulated
     // protocol.
-    if ((eth_h->h_proto & 0xFF) == 0x81 &&
-        ((eth_h->h_proto >> 8) & 0xFF) == 0x00) {
-        info->offset += 4;
+    if (ethertype == ETH_P_8021Q) {
+        info->offset = sizeof(struct pvlan_ethhdr);
+        vlan_h = (struct pvlan_ethhdr *)pkt;
+        ethertype = htons(vlan_h->h_vlan_encapsulated_proto);
     }
 
     // Check if the packet is an IPv4 packet
-    if ((eth_h->h_proto & 0xFF) == 0x08 &&
-        ((eth_h->h_proto >> 8) & 0xFF) == 0x00) {
+    if (ethertype == ETH_P_IP) {
         return parse_ipv4(pkt, info, maxsize);
     } 
     
     // Check if the packet is an IPv6 packet
-    if ((eth_h->h_proto & 0xFF) == 0x86 &&
-                ((eth_h->h_proto >> 8) & 0xFF) == 0xDD) {
+    if (ethertype == ETH_P_IPV6) {
         return parse_ipv6(pkt, info, maxsize);
     } 
     

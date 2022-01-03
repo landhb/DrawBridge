@@ -27,6 +27,8 @@
 #include <linux/tcp.h>
 #include <linux/udp.h>
 
+#include "vlan.h"
+
 // Default Constants
 #define MAX_PACKET_SIZE 65535
 #define MAX_SIG_SIZE 4096
