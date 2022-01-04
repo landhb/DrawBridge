@@ -1,6 +1,48 @@
 //use etherparse::PacketBuilder;
 use parser::{parse_packet, packet_info};
 
+fn vlan_tagged_ipv4_proper() {
+
+
+    let junk_packet: &[u8] = &[
+        0xC4, 0x7F, 0xC4, 0x23, 0x7F, 0x9F, // Source Mac
+        0x87, 0xE3, 0x10, 0x25, 0x19, 0x00, // Destination Mac
+        0x81, 0x00,                         // 802.1Q VLAN
+        0x81, 0x00, 0x08, 0x00,             // VLAN Header, Encapsulated IPv4
+
+        0x45,                               // IPv4, Header Length 20
+        0x00,                               // Priority & Type
+        0x00, 0x22,                         // Total Length = 34
+        0x40, 0xA9, 0x40, 0x00, 0x40,
+        0x11, 0xF9, 0xC9, 0x7F, 0x00,
+        0x00, 0x01, 0x7F, 0x00, 0x00,
+        0x01,
+
+        // UDP Header
+        0xB2, 0xE1, // Source Port
+        0x00, 0x35, // Destination Port
+        0x00, 0x10, // Total Length 8 + payload
+        0x66, 0x5F, 
+
+        // Payload
+        0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF,
+    ];
+
+    let mut info = packet_info::new();
+    let res = unsafe {
+        parse_packet(
+            junk_packet.as_ptr() as _,
+            &mut info as *mut _,
+            junk_packet.len(),
+        )
+    };
+    println!("{:?}", info);
+    assert_eq!(info.version, 4); // Successfully parsed IPv4
+    assert_eq!(info.offset, 14 + 4 + 20 + 8); // Ethernet + VLAN + IPv4 + UDP
+    assert_eq!(res, 0); // Still negative due to garbage inner protocol
+}
+
+
 #[test]
 fn vlan_tagged_ipv4() {
 
