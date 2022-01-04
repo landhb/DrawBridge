@@ -2,6 +2,39 @@
 use parser::{parse_packet, packet_info};
 
 #[test]
+fn vlan_tagged_ipv4() {
+
+    let junk_packet: &[u8] = &[       
+        0xC4, 0x7F, 0xC4, 0x23, 0x7F, 0x9F,     // Source Mac
+        0x87, 0xE3, 0x10, 0x25, 0x19, 0x00,     // Destination Mac
+        0x81, 0x00,                             // 802.1Q VLAN
+        0x81, 0x00, 0x08, 0x00,                 // VLAN Header, Encapsulated IPv4
+        
+        0x49,                                   // IPv4, Header Length 36
+        0x00,                                   // Priority & Type
+        0x00, 0x30,                             // Total Length
+        0x14, 0x00, 0x00, 0x81, 0x00, 0x08,
+        0x00, 0x83, 0x00, 0x14, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x81, 0x00,
+        0x08, 0x00, 0x49, 0x00, 0x83, 0x00,
+        0x14, 0x00, 0x00, 0x81, 0x00, 0x08,
+        0x00, 0x83, 0x00, 0x14, 0x00, 0x00,
+        0xE8, 0x03, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x81, 0x00,
+        0xFF, 0x01, 0x00, 0x00, 0x00, 0x07
+    ];
+
+    let mut info = packet_info::new();
+    let res = unsafe {
+        parse_packet(junk_packet.as_ptr() as _, &mut info as *mut _, junk_packet.len())
+    };
+    println!("{:?}", info);
+    assert_eq!(info.version, 4); // Successfully parsed IPv4
+    assert_eq!(res, -1); // Still negative due to garbage inner protocol
+}
+
+#[test]
 fn mismatched_ether_ip_versions() {
 
     let junk_packet: &[u8] = &[
@@ -25,7 +58,7 @@ fn mismatched_ether_ip_versions() {
         parse_packet(junk_packet.as_ptr() as _, &mut info as *mut _, junk_packet.len())
     };
     println!("{:?}", info);
-    assert_eq!(info.version, 4);
+    assert_eq!(info.version, 0);
     assert_eq!(res, -1);
 }
 
@@ -53,6 +86,6 @@ fn garbage_ipv4_total_size() {
         parse_packet(junk_packet.as_ptr() as _, &mut info as *mut _, junk_packet.len())
     };
     println!("{:?}", info);
-    assert_eq!(info.version, 4);
+    assert_eq!(info.version, 0);
     assert_eq!(res, -1);
 }
