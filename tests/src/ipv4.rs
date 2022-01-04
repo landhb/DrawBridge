@@ -1,9 +1,8 @@
 //use etherparse::PacketBuilder;
-use parser::{parse_packet, packet_info};
+use parser::{packet_info, parse_packet};
 
 fn vlan_tagged_ipv4_proper() {
-
-
+    #[rustfmt::skip]
     let junk_packet: &[u8] = &[
         0xC4, 0x7F, 0xC4, 0x23, 0x7F, 0x9F, // Source Mac
         0x87, 0xE3, 0x10, 0x25, 0x19, 0x00, // Destination Mac
@@ -42,10 +41,9 @@ fn vlan_tagged_ipv4_proper() {
     assert_eq!(res, 0); // Still negative due to garbage inner protocol
 }
 
-
 #[test]
 fn vlan_tagged_ipv4() {
-
+    #[rustfmt::skip]
     let junk_packet: &[u8] = &[       
         0xC4, 0x7F, 0xC4, 0x23, 0x7F, 0x9F,     // Source Mac
         0x87, 0xE3, 0x10, 0x25, 0x19, 0x00,     // Destination Mac
@@ -69,7 +67,11 @@ fn vlan_tagged_ipv4() {
 
     let mut info = packet_info::new();
     let res = unsafe {
-        parse_packet(junk_packet.as_ptr() as _, &mut info as *mut _, junk_packet.len())
+        parse_packet(
+            junk_packet.as_ptr() as _,
+            &mut info as *mut _,
+            junk_packet.len(),
+        )
     };
     println!("{:?}", info);
     assert_eq!(info.version, 4); // Successfully parsed IPv4
@@ -78,7 +80,7 @@ fn vlan_tagged_ipv4() {
 
 #[test]
 fn mismatched_ether_ip_versions() {
-
+    #[rustfmt::skip]
     let junk_packet: &[u8] = &[
         0x08, 0x08, 0x47, 0xF8, 0x08, 0x2B,     // Source Mac
         0x08, 0x00, 0x01, 0xF8, 0x08, 0x2B,     // Destination Mac 
@@ -97,7 +99,11 @@ fn mismatched_ether_ip_versions() {
 
     let mut info = packet_info::new();
     let res = unsafe {
-        parse_packet(junk_packet.as_ptr() as _, &mut info as *mut _, junk_packet.len())
+        parse_packet(
+            junk_packet.as_ptr() as _,
+            &mut info as *mut _,
+            junk_packet.len(),
+        )
     };
     println!("{:?}", info);
     assert_eq!(info.version, 0);
@@ -106,7 +112,7 @@ fn mismatched_ether_ip_versions() {
 
 #[test]
 fn garbage_ipv4_total_size() {
-
+    #[rustfmt::skip]
     let junk_packet: &[u8] = &[
         0x08, 0x08, 0x47, 0xF8, 0x08, 0x2B,     // Source Mac
         0x08, 0x00, 0x01, 0xF8, 0x08, 0x2B,     // Destination Mac 
@@ -125,7 +131,11 @@ fn garbage_ipv4_total_size() {
 
     let mut info = packet_info::new();
     let res = unsafe {
-        parse_packet(junk_packet.as_ptr() as _, &mut info as *mut _, junk_packet.len())
+        parse_packet(
+            junk_packet.as_ptr() as _,
+            &mut info as *mut _,
+            junk_packet.len(),
+        )
     };
     println!("{:?}", info);
     assert_eq!(info.version, 0);

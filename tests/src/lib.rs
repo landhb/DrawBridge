@@ -1,12 +1,12 @@
 #[cfg(test)]
-use parser::{parse_packet, packet_info};
+use parser::{packet_info, parse_packet};
 
 #[cfg(test)]
 mod ipv4;
 
 #[test]
 fn unsupported_protocol() {
-
+    #[rustfmt::skip]
     let junk_packet: &[u8] = &[
         0x08, 0x08, 0x47, 0xF8, 0x08, 0x2B,     // Source Mac
         0x08, 0x00, 0x01, 0xF8, 0x08, 0x2B,     // Destination Mac 
@@ -25,7 +25,11 @@ fn unsupported_protocol() {
 
     let mut info = packet_info::new();
     let res = unsafe {
-        parse_packet(junk_packet.as_ptr() as _, &mut info as *mut _, junk_packet.len())
+        parse_packet(
+            junk_packet.as_ptr() as _,
+            &mut info as *mut _,
+            junk_packet.len(),
+        )
     };
     println!("{:?}", info);
     assert_eq!(info.version, 0);
