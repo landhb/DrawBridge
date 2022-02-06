@@ -28,11 +28,11 @@ static ssize_t parse_tcp(void * pkt, parsed_packet * info, size_t maxsize) {
     }
 
     // Re-check the bounds with full header size
-    if (info->offset + proto_h_size > maxsize) {
+    if (info->offset + proto_h_size >= maxsize) {
         return -1;
     }
 
-    info->offset += proto_h_size; // + sizeof(struct packet);
+    info->offset += proto_h_size;
     return 0;
 }
 
@@ -53,7 +53,7 @@ static ssize_t parse_udp(void * pkt, parsed_packet * info, size_t maxsize) {
         return -1;
     }
 
-    info->offset += sizeof(struct udphdr); // + sizeof(struct packet);
+    info->offset += sizeof(struct udphdr);
     return 0;
 }
 
@@ -85,8 +85,13 @@ static ssize_t parse_ipv4(void * pkt, parsed_packet * info, size_t maxsize) {
         return -1;
     }
 
-    // Verify Total Length
+    // Verify Total Length not too large
     if (ntohs(ip_h->tot_len) > maxsize) {
+        return -1;
+    }
+
+    // Verify Total Length not too small
+    if (ntohs(ip_h->tot_len) < ip_h->ihl*4) {
         return -1;
     }
 
@@ -135,7 +140,7 @@ static ssize_t parse_ipv6(void * pkt, parsed_packet * info, size_t maxsize) {
         return -1;
     }
 
-    // Verify Total Length
+    // Verify Total Length is not too large
     if (ntohs(ip6_h->payload_len) + sizeof(struct ipv6hdr) > maxsize) {
         return -1;
     }
@@ -144,6 +149,9 @@ static ssize_t parse_ipv6(void * pkt, parsed_packet * info, size_t maxsize) {
     //inet6_ntoa(&info->ipstr[0], &(ip6_h->saddr));
     info->ip.addr_6 = ip6_h->saddr;
     info->version = 6;
+
+    // Advance the offset to the encapsulated payload
+    info->offset += sizeof(struct ipv6hdr);
     
     // Check for TCP in nexthdr
     if ((ip6_h->nexthdr & 0xFF) == 0x06) {
@@ -222,6 +230,27 @@ pkey_signature *parse_signature(void *pkt, uint32_t offset)
 }
 
 /**
+ *  @brief Obtain the encapsulated protocol from a VLAN tag
+ *
+ *  @return Protocol number on success, -1 on error
+ */
+uint16_t vlan_get_encapsulated(void * pkt, parsed_packet * info, size_t maxsize) {
+    struct vlan_hdr * vlan_h = NULL;
+
+    // Check size before indexing into vlan header
+    if (info->offset + sizeof(struct vlan_hdr) >= maxsize) {
+        return -1;
+    }
+
+    // Obtain the header and advance the packet offset
+    vlan_h = (struct vlan_hdr *)(pkt + info->offset);
+    info->offset += sizeof(struct vlan_hdr);
+
+    // Return the encapsulated protocol number
+    return htons(vlan_h->h_vlan_encapsulated_proto);
+}
+
+/**
  *  @brief Parses the received packet.
  *
  *  Extracts the Source IP and determines the offset of the inner DB packet
@@ -231,7 +260,6 @@ pkey_signature *parse_signature(void *pkt, uint32_t offset)
 ssize_t parse_packet(void * pkt, parsed_packet * info, size_t maxsize) {
     uint16_t ethertype = 0;
     struct ethhdr *eth_h = NULL;
-    struct pvlan_ethhdr * vlan_h = NULL;
 
     // Check size before indexing into header
     if (maxsize < sizeof(struct ethhdr)) {
@@ -247,13 +275,14 @@ ssize_t parse_packet(void * pkt, parsed_packet * info, size_t maxsize) {
     // First level EtherType
     ethertype = ntohs(eth_h->h_proto);
 
-    // If the packet is VLAN tagged, move an
-    // additional 4 bytes to reach the encapsulated
-    // protocol.
+    // First layer VLAN tag
     if (ethertype == ETH_P_8021Q) {
-        info->offset = sizeof(struct pvlan_ethhdr);
-        vlan_h = (struct pvlan_ethhdr *)pkt;
-        ethertype = htons(vlan_h->h_vlan_encapsulated_proto);
+        ethertype = vlan_get_encapsulated(pkt, info, maxsize);
+    }
+
+    // Doubled tagged VLAN
+    if (ethertype == ETH_P_8021Q) {
+        ethertype = vlan_get_encapsulated(pkt, info, maxsize);
     }
 
     // Check if the packet is an IPv4 packet
