@@ -100,7 +100,7 @@ static ssize_t parse_ipv4(void * pkt, parsed_packet * info, size_t maxsize) {
     info->ip.addr_4 = ip_h->saddr;
     info->version = 4;
 
-    // Move beyond the IP header
+    // Advance the offset to the encapsulated payload
     info->offset += ip_h->ihl*4;
 
     // TCP
