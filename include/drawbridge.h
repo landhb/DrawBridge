@@ -75,6 +75,7 @@ struct packet {
 
 } __attribute__((packed));
 
+
 // Typdefs for cleaner code
 typedef struct akcipher_request akcipher_request;
 typedef struct crypto_akcipher crypto_akcipher;
@@ -104,13 +105,11 @@ void *gen_digest(void *buf, unsigned int len);
 
 
 // Utils
-void inet6_ntoa(char *str_ip, struct in6_addr *src_6);
-void inet_ntoa(char *str_ip, __be32 int_ip);
 void hexdump(unsigned char *buf, unsigned int len);
 
 /**
  * Validate the given signature
  */
-ssize_t validate_packet(akcipher_request *req, void * pkt, parsed_packet * info, size_t maxsize);
+ssize_t validate_packet(parsed_packet * info, akcipher_request *req, void * pkt, size_t maxsize);
 
 #endif /* _LINUX_DRAWBRIDGE_H */

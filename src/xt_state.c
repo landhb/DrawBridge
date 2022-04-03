@@ -67,9 +67,9 @@ static inline void log_connection(struct conntrack_state *state, __be32 src,
 
     // Convert to human readable to log
     if (state->type == 4) {
-        inet_ntoa(buf, src);
+        internal_inet_ntoa(buf, sizeof(buf), src);
     } else if (state->type == 6) {
-        inet6_ntoa(buf, src_6);
+        internal_inet6_ntoa(buf, sizeof(buf), src_6);
     }
 
     DEBUG_PRINT("[+] DrawBridge accepted connection - source: %s\n", buf);

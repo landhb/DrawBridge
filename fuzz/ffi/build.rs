@@ -2,11 +2,13 @@ use cc;
 
 fn main() {
 
+    println!("cargo:rerun-if-changed=../../src/utils.c");
     println!("cargo:rerun-if-changed=../../src/parser.c");
     println!("cargo:rerun-if-changed=src/memory.c");
     
     cc::Build::new()
         .file("../../src/parser.c")
+        .file("../../src/utils.c")
         .file("./src/memory.c")
         .include("../../include")
         .define("FUZZING", Some("1"))

@@ -194,20 +194,20 @@ int listen(void *data)
             }
 
             // Parse the packet and obtain the offset to the Drawbridge data
-            if((parse_packet(pkt, &pktinfo, recv_len)) < 0) {
+            if(parse_packet(&pktinfo, pkt, recv_len) < 0) {
                 DEBUG_PRINT(KERN_INFO "-----> Parsing failed\n");
                 continue;
             }
 
             // Parse the signature from the Drawbridge data
-            if(!(pktinfo.sig = parse_signature(pkt, pktinfo.offset + sizeof(struct packet)))) {
+            if(parse_signature(&pktinfo, pkt, recv_len) < 0) {
                 DEBUG_PRINT(KERN_INFO "-----> Signature parsing failed\n");
                 continue;
             }
 
             // Assume there's at least enough bytes in the message for the 
             // information + signature
-            if(validate_packet(req, pkt, &pktinfo, recv_len) < 0) {
+            if(validate_packet(&pktinfo, req, pkt, recv_len) < 0) {
                 DEBUG_PRINT(KERN_INFO "-----> Validation failed\n");
                 continue;
             }

@@ -9,7 +9,7 @@
  *  @h_vlan_TCI: priority and VLAN ID
  *  @h_vlan_encapsulated_proto: packet type ID or len
  */
-struct vlan_hdr {
+struct internal_vlan_hdr {
     __be16      h_vlan_TCI;
     __be16      h_vlan_encapsulated_proto;
 }  __attribute__((packed));

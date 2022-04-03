@@ -6,10 +6,10 @@
 *
 * @date 04/11/2018
 */
-#include <linux/module.h>
-#include <linux/kernel.h>
-#include <net/sock.h>
-#include "drawbridge.h"
+//#include <linux/module.h>
+//#include <linux/kernel.h>
+//#include <net/sock.h>
+#include "parser.h"
 
 /**
  *  @brief IPv4 Network to address display format
@@ -17,13 +17,13 @@
  *  @param int_ip The address in big endian binary form
  *  @return void
  */
-void inet_ntoa(char *str_ip, __be32 int_ip)
+void internal_inet_ntoa(char *str_ip, size_t len, __be32 int_ip)
 {
-    if (!str_ip)
+    if (!str_ip || len <= 16)
         return;
 
     memset(str_ip, 0, 16);
-    sprintf(str_ip, "%d.%d.%d.%d", (int_ip)&0xFF, (int_ip >> 8) & 0xFF,
+    snprintf(str_ip, len, "%d.%d.%d.%d", (int_ip)&0xFF, (int_ip >> 8) & 0xFF,
             (int_ip >> 16) & 0xFF, (int_ip >> 24) & 0xFF);
 
     return;
@@ -35,14 +35,15 @@ void inet_ntoa(char *str_ip, __be32 int_ip)
  *  @param src_6 The address in big endian binary form
  *  @return void
  */
-void inet6_ntoa(char *str_ip, struct in6_addr *src_6)
+void internal_inet6_ntoa(char *str_ip, size_t len, struct in6_addr *src_6)
 {
-    if (!str_ip)
+    if (!str_ip || len <= 32)
         return;
 
     memset(str_ip, 0, 32);
-    sprintf(
+    snprintf(
         str_ip,
+        len,
         "%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x",
         (int)src_6->s6_addr[0], (int)src_6->s6_addr[1], (int)src_6->s6_addr[2],
         (int)src_6->s6_addr[3], (int)src_6->s6_addr[4], (int)src_6->s6_addr[5],
@@ -61,11 +62,12 @@ void inet6_ntoa(char *str_ip, struct in6_addr *src_6)
  *  @param len Number of bytes to display
  *  @return void
  */
+#ifdef DEBUG
 inline void hexdump(unsigned char *buf, unsigned int len)
 {
-#ifdef DEBUG
     while (len--)
-        DEBUG_PRINT("%02x", *buf++);
-    DEBUG_PRINT("\n");
-#endif
+        printk(KERN_DEBUG "%02x", *buf++);
+    printk(KERN_DEBUG "\n");
 }
+#endif
+

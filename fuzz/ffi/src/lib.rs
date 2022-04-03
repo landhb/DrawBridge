@@ -5,6 +5,9 @@ use libc::{
     c_void
 };
 
+const SIG_SIZE: usize = 512;
+const DIGEST_SIZE: usize = 32;
+
 #[repr(C)]
 pub union IpAddress {
     pub addr_6: libc::in6_addr, // struct in6_addr addr_6;
@@ -14,9 +17,9 @@ pub union IpAddress {
 #[derive(Debug)]
 #[repr(C)]
 pub struct pkey_signature {
-    pub s: *const u8,    /* Signature */
+    pub s: [u8; SIG_SIZE],    /* Signature */
     pub s_size: u32,     /* Number of bytes in signature */
-    pub digest: *const u8,
+    pub digest: [u8; DIGEST_SIZE],
     pub digest_size: u32, /* Number of bytes in digest */
 } 
 
@@ -30,7 +33,7 @@ pub struct packet_info {
     pub offset: usize,
     pub ipstr: [u8;33],
     pub ip: IpAddress,
-    pub sig: *const pkey_signature,
+    pub sig: pkey_signature,
 }
 
 extern "C" {
@@ -38,12 +41,12 @@ extern "C" {
     /**
      * Primary Parsing Interface that must be fuzzed
      */
-    pub fn parse_packet(pkt: *const c_void, info: *mut packet_info, maxsize: size_t) -> ssize_t;
+    pub fn parse_packet(info: *mut packet_info, pkt: *const c_void, maxsize: size_t) -> ssize_t;
 
     /**
      * Parse signature data from a packet, allocates
      */
-    pub fn parse_signature(pkt: *const c_void, offset: u32) -> *const pkey_signature;
+    pub fn parse_signature(info: *mut packet_info, pkt: *const c_void, offset: size_t) -> ssize_t;
 
     /**
      * Cleanup the parsed signature
@@ -74,7 +77,12 @@ impl packet_info {
                     s6_addr: [0u8; 16],
                 }
             },
-            sig: core::ptr::null()
+            sig: pkey_signature {
+                s: [0u8; SIG_SIZE],
+                s_size: 0,
+                digest: [0u8; DIGEST_SIZE],
+                digest_size: 0,
+            }, //core::ptr::null()
         }
     }
 }

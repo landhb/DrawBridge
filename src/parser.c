@@ -46,10 +46,16 @@ static ssize_t parse_tcp(void * pkt, parsed_packet * info, size_t maxsize) {
  *  @return 0 on success, -1 on error
  */
 static ssize_t parse_udp(void * pkt, parsed_packet * info, size_t maxsize) {
-    (void)pkt;
+    struct udphdr * udp_hdr = NULL;
 
     // Check bounds with udp header
     if (info->offset + sizeof(struct udphdr) > maxsize) {
+        return -1;
+    }
+
+    // Verify total length
+    udp_hdr = (struct udphdr *)(pkt + info->offset);
+    if (udp_hdr->len + info->offset >= maxsize) {
         return -1;
     }
 
@@ -86,7 +92,7 @@ static ssize_t parse_ipv4(void * pkt, parsed_packet * info, size_t maxsize) {
     }
 
     // Verify Total Length not too large
-    if (ntohs(ip_h->tot_len) > maxsize) {
+    if (ntohs(ip_h->tot_len) + info->offset > maxsize) {
         return -1;
     }
 
@@ -96,7 +102,7 @@ static ssize_t parse_ipv4(void * pkt, parsed_packet * info, size_t maxsize) {
     }
 
     // Read the source IP
-    //inet_ntoa(&info->ipstr[0], ip_h->saddr);
+    internal_inet_ntoa(&info->ipstr[0], sizeof(info->ipstr), ip_h->saddr);
     info->ip.addr_4 = ip_h->saddr;
     info->version = 4;
 
@@ -141,12 +147,12 @@ static ssize_t parse_ipv6(void * pkt, parsed_packet * info, size_t maxsize) {
     }
 
     // Verify Total Length is not too large
-    if (ntohs(ip6_h->payload_len) + sizeof(struct ipv6hdr) > maxsize) {
+    if (ntohs(ip6_h->payload_len) + sizeof(struct ipv6hdr) + info->offset > maxsize) {
         return -1;
     }
 
     // Read the source IP
-    //inet6_ntoa(&info->ipstr[0], &(ip6_h->saddr));
+    internal_inet6_ntoa(&info->ipstr[0], sizeof(info->ipstr), &(ip6_h->saddr));
     info->ip.addr_6 = ip6_h->saddr;
     info->version = 6;
 
@@ -167,66 +173,37 @@ static ssize_t parse_ipv6(void * pkt, parsed_packet * info, size_t maxsize) {
     return -1;
 }
 
-void free_signature(pkey_signature *sig)
-{
-    if (sig->s) {
-        kfree(sig->s);
-    }
-    if (sig->digest) {
-        kfree(sig->digest);
-    }
-    kfree(sig);
-}
-
 // Pointer arithmatic to parse out the signature and digest
-pkey_signature *parse_signature(void *pkt, uint32_t offset)
+ssize_t parse_signature(parsed_packet * info, void *pkt, size_t maxsize)
 {
-    // Allocate the result struct
-    pkey_signature *sig = (pkey_signature *)kzalloc(sizeof(pkey_signature), GFP_KERNEL);
-
-    if (sig == NULL) {
-        return NULL;
-    }
-
     // Get the signature size
-    sig->s_size = *(uint32_t *)(pkt + offset);
+    info->sig.s_size = *(uint32_t *)(pkt + info->offset);
 
     // Sanity check the sig size
-    if (sig->s_size > MAX_SIG_SIZE ||
-        (offset + sig->s_size + sizeof(uint32_t) > MAX_PACKET_SIZE)) {
-        kfree(sig);
-        return NULL;
+    if (info->sig.s_size != SIG_SIZE ||
+        (info->offset + SIG_SIZE + sizeof(uint32_t) > maxsize)) {
+        return -1;
     }
 
-    // Copy the signature from the packet
-    sig->s = (uint8_t *)kzalloc(sig->s_size, GFP_KERNEL);
-
-    if (sig->s == NULL) {
-        return NULL;
-    }
-
-    // copy the signature
-    offset += sizeof(uint32_t);
-    memcpy(sig->s, pkt + offset, sig->s_size);
+    // copy the signature from the packet
+    info->offset += sizeof(uint32_t);
+    memcpy(&info->sig.s[0], pkt + info->offset, SIG_SIZE);
 
     // Get the digest size
-    offset += sig->s_size;
-    sig->digest_size = *(uint32_t *)(pkt + offset);
+    info->offset += SIG_SIZE; //sig->s_size;
+    info->sig.digest_size = *(uint32_t *)(pkt + info->offset);
 
     // Sanity check the digest size
-    if (sig->digest_size > MAX_DIGEST_SIZE ||
-        (offset + sig->digest_size + sizeof(uint32_t) > MAX_PACKET_SIZE)) {
-        kfree(sig->s);
-        kfree(sig);
-        return NULL;
+    if (info->sig.digest_size != DIGEST_SIZE ||
+        (info->offset + DIGEST_SIZE + sizeof(uint32_t) > maxsize)) {
+        return -1;
     }
 
     // Copy the digest from the packet
-    sig->digest = (uint8_t *)kzalloc(sig->digest_size, GFP_KERNEL);
-    offset += sizeof(uint32_t);
-    memcpy(sig->digest, pkt + offset, sig->digest_size);
-
-    return sig;
+    //sig->digest = (uint8_t *)kzalloc(sig->digest_size, GFP_KERNEL);
+    info->offset += sizeof(uint32_t);
+    memcpy(&info->sig.digest[0], pkt + info->offset, DIGEST_SIZE);
+    return 0;
 }
 
 /**
@@ -235,16 +212,16 @@ pkey_signature *parse_signature(void *pkt, uint32_t offset)
  *  @return Protocol number on success, -1 on error
  */
 uint16_t vlan_get_encapsulated(void * pkt, parsed_packet * info, size_t maxsize) {
-    struct vlan_hdr * vlan_h = NULL;
+    struct internal_vlan_hdr * vlan_h = NULL;
 
     // Check size before indexing into vlan header
-    if (info->offset + sizeof(struct vlan_hdr) >= maxsize) {
+    if (info->offset + sizeof(struct internal_vlan_hdr) >= maxsize) {
         return -1;
     }
 
     // Obtain the header and advance the packet offset
-    vlan_h = (struct vlan_hdr *)(pkt + info->offset);
-    info->offset += sizeof(struct vlan_hdr);
+    vlan_h = (struct internal_vlan_hdr *)(pkt + info->offset);
+    info->offset += sizeof(struct internal_vlan_hdr);
 
     // Return the encapsulated protocol number
     return htons(vlan_h->h_vlan_encapsulated_proto);
@@ -257,7 +234,7 @@ uint16_t vlan_get_encapsulated(void * pkt, parsed_packet * info, size_t maxsize)
  *
  *  @return 0 on success, -1 on error
  */
-ssize_t parse_packet(void * pkt, parsed_packet * info, size_t maxsize) {
+ssize_t parse_packet(parsed_packet * info, void * pkt, size_t maxsize) {
     uint16_t ethertype = 0;
     struct ethhdr *eth_h = NULL;
 

@@ -1,6 +1,6 @@
 #include "drawbridge.h"
 
-ssize_t validate_packet(akcipher_request *req, void * pkt, parsed_packet * info, size_t maxsize) {
+ssize_t validate_packet(parsed_packet * info, akcipher_request *req, void * pkt, size_t maxsize) {
     struct timespec64 tm;
     //pkey_signature *sig = NULL;
     void *hash = NULL;
@@ -12,7 +12,7 @@ ssize_t validate_packet(akcipher_request *req, void * pkt, parsed_packet * info,
     // Parse the packet for a signature, occurs after the timestamp + port
     //sig = parse_signature(pkt, info->offset + sizeof(struct packet));
 
-    if (!info || !info->sig) {
+    if (!info) {
         DEBUG_PRINT(KERN_INFO "[-] Signature not found in packet\n");
         return -1;
     }
@@ -26,7 +26,7 @@ ssize_t validate_packet(akcipher_request *req, void * pkt, parsed_packet * info,
     }
 
     // Check that the hash matches
-    if (memcmp(info->sig->digest, hash, info->sig->digest_size) != 0) {
+    if (memcmp(info->sig.digest, hash, info->sig.digest_size) != 0) {
         DEBUG_PRINT(KERN_INFO "-----> Hash not the same\n");
         //free_signature(sig);
         kfree(hash);
@@ -34,7 +34,7 @@ ssize_t validate_packet(akcipher_request *req, void * pkt, parsed_packet * info,
     }
 
     // Verify the signature
-    if (verify_sig_rsa(req, info->sig) != 0) {
+    if (verify_sig_rsa(req, &info->sig) != 0) {
         //free_signature(sig);
         kfree(hash);
         return -1;
