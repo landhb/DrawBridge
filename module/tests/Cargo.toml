@@ -10,7 +10,7 @@ path = "src/lib.rs"
 
 [dependencies]
 libc = "*"
-parser = {path = "../fuzz/ffi"}
+parser = {path = "../ffi"}
 
 # Test fuzz inputs for correctness
 [dev-dependencies]

@@ -1,4 +1,81 @@
+/** 
+* @file parser.c
+* @brief Drawbridge - Raw Packet Parser 
+*
+* Is used after the BPF filter to extract necessary data and later
+* validate if a packet properly authenticates.
+*
+* @author Bradley Landherr
+*
+* @date 04/11/2018, modified 04/04/2022
+*/
 #include "parser.h"
+
+/**
+ *  @brief Parse the Signature, Digest, and Drawbridge Protocol data
+ *
+ *  Assumes pkt + info->offset points to the beginning of the Layer 3 payload
+ *  Increments the offset by the size of the data so that info->offset
+ *  points to the data following all data.
+ * 
+ *  maxsize must contain the size of the pkt allocation so no out-of-bounds
+ *  reads occur.
+ * 
+ *  @return 0 on success, -1 on error
+ */
+ssize_t parse_payload(parsed_packet * info, void *pkt, size_t maxsize) {
+
+    // Check if there is room for the metadata
+    if (info->offset + sizeof(struct dbpacket) > maxsize) {
+        return -1;
+    }
+
+    // Parse the 64bit timestamp
+    info->metadata.timestamp = (__s64)be64_to_cpup((__be64 *)(pkt + info->offset));
+    info->offset += sizeof(__be64);
+
+    // Parse the 16bit port to unlock
+    info->metadata.port = be16_to_cpup((__be16 *)(pkt + info->offset));
+    info->offset += sizeof(__be16);
+
+    // Check if there is room for the size + signature
+    if (info->offset + SIG_SIZE + sizeof(__be32) > maxsize) {
+        return -1;
+    }
+
+    // Get the signature size
+    info->sig.s_size = be32_to_cpup((__be32 *)(pkt + info->offset));
+    info->offset += sizeof(__be32);
+
+    // Sanity check the sig size
+    if (info->sig.s_size != SIG_SIZE) {
+        return -1;
+    }
+
+    // copy the signature from the packet
+    memcpy(&info->sig.s[0], pkt + info->offset, SIG_SIZE);
+    info->offset += SIG_SIZE;
+
+    // Check if there is room for the size + digest
+    if (info->offset + DIGEST_SIZE + sizeof(__be32) > maxsize) {
+        return -1;
+    }
+
+    // Get the digest size
+    info->sig.digest_size = be32_to_cpup((__be32 *)(pkt + info->offset));
+    info->offset += sizeof(__be32);
+
+    // Sanity check the digest size
+    if (info->sig.digest_size != DIGEST_SIZE) {
+        return -1;
+    }
+
+    // Copy the digest from the packet
+    memcpy(&info->sig.digest[0], pkt + info->offset, DIGEST_SIZE);
+    info->offset += DIGEST_SIZE;
+    return 0;
+}
+
 
 /**
  *  @brief Parse the TCP Packet
@@ -9,7 +86,7 @@
  *
  *  @return 0 on success, -1 on error
  */
-static ssize_t parse_tcp(void * pkt, parsed_packet * info, size_t maxsize) {
+static ssize_t parse_tcp(void * pkt, parsed_packet * info, size_t ip_payload_len, size_t maxsize) {
     size_t proto_h_size = 0;
     struct tcphdr * tcp_hdr = NULL;
 
@@ -32,8 +109,14 @@ static ssize_t parse_tcp(void * pkt, parsed_packet * info, size_t maxsize) {
         return -1;
     }
 
+    // Check that there is enough room in the payload
+    if (ip_payload_len - proto_h_size < sizeof(struct pkey_signature) + sizeof(struct dbpacket)) {
+        return -1;
+    }
+
+    // Advance offset to payload
     info->offset += proto_h_size;
-    return 0;
+    return parse_payload(info, pkt, maxsize);
 }
 
 /**
@@ -59,8 +142,14 @@ static ssize_t parse_udp(void * pkt, parsed_packet * info, size_t maxsize) {
         return -1;
     }
 
+    // Check that there is enough room in the payload
+    if (udp_hdr->len - sizeof(struct udphdr) < sizeof(struct pkey_signature) + sizeof(struct dbpacket)) {
+        return -1;
+    }
+
+    // Advance offset to payload
     info->offset += sizeof(struct udphdr);
-    return 0;
+    return parse_payload(info, pkt, maxsize);
 }
 
 /**
@@ -111,7 +200,7 @@ static ssize_t parse_ipv4(void * pkt, parsed_packet * info, size_t maxsize) {
 
     // TCP
     if ((ip_h->protocol & 0xFF) == 0x06) {
-        return parse_tcp(pkt, info, maxsize);
+        return parse_tcp(pkt, info, ntohs(ip_h->tot_len) - ip_h->ihl*4, maxsize);
     }
     
     // UDP
@@ -161,7 +250,7 @@ static ssize_t parse_ipv6(void * pkt, parsed_packet * info, size_t maxsize) {
     
     // Check for TCP in nexthdr
     if ((ip6_h->nexthdr & 0xFF) == 0x06) {
-        return parse_tcp(pkt, info, maxsize);
+        return parse_tcp(pkt, info, ntohs(ip6_h->payload_len), maxsize);
     } 
     
     // Check for UDP in nexthdr
@@ -171,39 +260,6 @@ static ssize_t parse_ipv6(void * pkt, parsed_packet * info, size_t maxsize) {
 
     // Unsupported next protocol
     return -1;
-}
-
-// Pointer arithmatic to parse out the signature and digest
-ssize_t parse_signature(parsed_packet * info, void *pkt, size_t maxsize)
-{
-    // Get the signature size
-    info->sig.s_size = *(uint32_t *)(pkt + info->offset);
-
-    // Sanity check the sig size
-    if (info->sig.s_size != SIG_SIZE ||
-        (info->offset + SIG_SIZE + sizeof(uint32_t) > maxsize)) {
-        return -1;
-    }
-
-    // copy the signature from the packet
-    info->offset += sizeof(uint32_t);
-    memcpy(&info->sig.s[0], pkt + info->offset, SIG_SIZE);
-
-    // Get the digest size
-    info->offset += SIG_SIZE; //sig->s_size;
-    info->sig.digest_size = *(uint32_t *)(pkt + info->offset);
-
-    // Sanity check the digest size
-    if (info->sig.digest_size != DIGEST_SIZE ||
-        (info->offset + DIGEST_SIZE + sizeof(uint32_t) > maxsize)) {
-        return -1;
-    }
-
-    // Copy the digest from the packet
-    //sig->digest = (uint8_t *)kzalloc(sig->digest_size, GFP_KERNEL);
-    info->offset += sizeof(uint32_t);
-    memcpy(&info->sig.digest[0], pkt + info->offset, DIGEST_SIZE);
-    return 0;
 }
 
 /**

@@ -67,14 +67,6 @@ typedef struct conntrack_state {
 
 } conntrack_state;
 
-// Must be packed so that the compiler doesn't byte align the structure
-struct packet {
-    // Protocol data
-    struct timespec64 timestamp;
-    __be16 port;
-
-} __attribute__((packed));
-
 
 // Typdefs for cleaner code
 typedef struct akcipher_request akcipher_request;

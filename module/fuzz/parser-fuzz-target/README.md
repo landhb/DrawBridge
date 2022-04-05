@@ -17,3 +17,9 @@ Then run the fuzzer:
 ```sh
 cargo afl fuzz -i in -o out target/debug/parser-fuzz-target
 ```
+
+Any crash files can be fed back in with:
+
+```sh
+cargo test 
+```

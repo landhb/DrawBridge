@@ -8,11 +8,9 @@ EXTRA_CFLAGS := -O2 -I$(PWD)/include
 KERNEL := /lib/modules/$(shell uname -r)/build
 KDIR := $(KERNEL)
 PWD := $(shell pwd)
-KBUILD_OUTPUT=$(PWD)/build
 
 debug:
 ifneq ("$(wildcard ./include/key.h)","")
-	-mkdir $(PWD)/build/
 	KCPPFLAGS="-DDEBUG" $(MAKE) -C $(KDIR) M=$(PWD) modules
 	rm -fr *.o .*.cmd Module.symvers modules.order drawbridge.mod.c
 else
@@ -22,7 +20,6 @@ endif
 
 release:
 ifneq ("$(wildcard ./include/key.h)","")
-	-mkdir $(PWD)/build/
 	$(MAKE) -C $(KDIR) M=$(PWD) modules
 	rm -fr *.o .*.cmd Module.symvers modules.order drawbridge.mod.c
 	#cp test.sh $(TARGET).ko_test

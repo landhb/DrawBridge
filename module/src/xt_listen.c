@@ -188,7 +188,7 @@ int listen(void *data)
             0) {
 
             // Invalid length
-            if (recv_len < sizeof(struct packet) ||
+            if (recv_len < sizeof(struct dbpacket) ||
                 recv_len > MAX_PACKET_SIZE) {
                 continue;
             }
@@ -196,12 +196,6 @@ int listen(void *data)
             // Parse the packet and obtain the offset to the Drawbridge data
             if(parse_packet(&pktinfo, pkt, recv_len) < 0) {
                 DEBUG_PRINT(KERN_INFO "-----> Parsing failed\n");
-                continue;
-            }
-
-            // Parse the signature from the Drawbridge data
-            if(parse_signature(&pktinfo, pkt, recv_len) < 0) {
-                DEBUG_PRINT(KERN_INFO "-----> Signature parsing failed\n");
                 continue;
             }
 

@@ -8,7 +8,7 @@ edition = "2021"
 [dependencies]
 afl = "*"
 libc = "*"
-parser = {path = "../ffi"}
+parser = {path = "../../ffi"}
 etherparse = "0.10.1"
 arbitrary = { version = "1", features = ["derive"] }
 

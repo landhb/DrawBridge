@@ -26,8 +26,8 @@ fn unsupported_protocol() {
     let mut info = packet_info::new();
     let res = unsafe {
         parse_packet(
-            junk_packet.as_ptr() as _,
             &mut info as *mut _,
+            junk_packet.as_ptr() as _,
             junk_packet.len(),
         )
     };

@@ -30,8 +30,8 @@ fn vlan_tagged_ipv4_proper() {
     let mut info = packet_info::new();
     let res = unsafe {
         parse_packet(
-            junk_packet.as_ptr() as _,
             &mut info as *mut _,
+            junk_packet.as_ptr() as _,
             junk_packet.len(),
         )
     };
@@ -68,8 +68,8 @@ fn vlan_tagged_ipv4() {
     let mut info = packet_info::new();
     let res = unsafe {
         parse_packet(
-            junk_packet.as_ptr() as _,
             &mut info as *mut _,
+            junk_packet.as_ptr() as _,
             junk_packet.len(),
         )
     };
@@ -100,8 +100,8 @@ fn mismatched_ether_ip_versions() {
     let mut info = packet_info::new();
     let res = unsafe {
         parse_packet(
-            junk_packet.as_ptr() as _,
             &mut info as *mut _,
+            junk_packet.as_ptr() as _,
             junk_packet.len(),
         )
     };
@@ -132,8 +132,8 @@ fn garbage_ipv4_total_size() {
     let mut info = packet_info::new();
     let res = unsafe {
         parse_packet(
-            junk_packet.as_ptr() as _,
             &mut info as *mut _,
+            junk_packet.as_ptr() as _,
             junk_packet.len(),
         )
     };
