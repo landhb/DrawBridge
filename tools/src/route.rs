@@ -1,4 +1,5 @@
-use failure::{bail, Error};
+use crate::errors::DrawBridgeError::*;
+use std::error::Error;
 use std::fs::File;
 use std::io::Read;
 use std::net::IpAddr;
@@ -6,7 +7,7 @@ use std::net::IpAddr;
 /*
 * Grab an interface's src IP
 */
-pub fn get_interface_ip(iface: &String) -> Result<IpAddr, Error> {
+pub fn get_interface_ip(iface: &String) -> Result<IpAddr, Box<dyn Error>> {
     let interfaces = pnet::datalink::interfaces();
 
     for i in interfaces {
@@ -14,13 +15,14 @@ pub fn get_interface_ip(iface: &String) -> Result<IpAddr, Error> {
             return Ok(i.ips[0].ip());
         }
     }
-    bail!("[-] Could not find interface IP address")
+    println!("[-] Could not find interface IP address");
+    return Err(InvalidInterface.into());
 }
 
 /*
 * Get a Linux host's default gateway
 */
-pub fn get_default_iface() -> Result<String, Error> {
+pub fn get_default_iface() -> Result<String, Box<dyn Error>> {
     let mut file = File::open("/proc/net/route")?;
     let mut contents = String::new();
     file.read_to_string(&mut contents)?;
