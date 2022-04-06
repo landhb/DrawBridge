@@ -41,7 +41,6 @@ struct dbpacket {
     __be16 port;
 } __attribute__((packed));
 
-
 /**
  * Public key cryptography signature data
  */

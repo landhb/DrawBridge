@@ -2,7 +2,7 @@
 * @file parser.c
 * @brief Drawbridge - Raw Packet Parser 
 *
-* Is used after the BPF filter to extract necessary data and later
+* Used after the BPF filter to extract necessary data and later
 * validate if a packet properly authenticates.
 *
 * @author Bradley Landherr

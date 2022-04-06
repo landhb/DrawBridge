@@ -2,8 +2,9 @@
 extern crate afl;
 extern crate libc;
 
+use std::mem;
 use libc::ssize_t;
-use parser::{packet_info, parse_packet, parse_signature};
+use parser::{packet_info, parse_packet, pkey_signature};
 
 use etherparse::{ethernet::EtherType, InternetSlice, SlicedPacket};
 
@@ -13,21 +14,7 @@ fn main() {
         let res = unsafe { parse_packet(&mut info as *mut _, data.as_ptr() as _, data.len()) };
 
         // Offset should never exceed received length
-        assert!(info.offset < data.len());
-
-        // Double check the parsed protocol information
-        compare_results(res, &info, &data);
-    });
-    fuzz!(|data: &[u8]| {
-        let mut info = packet_info::new();
-        let mut res = unsafe { parse_packet(&mut info as *mut _, data.as_ptr() as _, data.len()) };
-
-        if res == 0 {
-            res = unsafe { parse_signature(&mut info as *mut _, data.as_ptr() as _, data.len()) };
-        }
-
-        // Offset should never exceed received length
-        assert!(info.offset < data.len());
+        assert!(info.offset <= data.len());
 
         // Double check the parsed protocol information
         compare_results(res, &info, &data);
@@ -41,6 +28,50 @@ fn is_supported(ether_type: u16) -> bool {
         Some(EtherType::VlanTaggedFrame) => true,
         _ => false,
     }
+}
+
+/// Mimics logic in parser_payload()
+fn parse_data(mut offset: usize,  input: &[u8]) -> (isize, usize) {
+
+    if offset + mem::size_of::<packet_info>() > input.len() {
+        return (-1, offset);
+    }
+
+    // Timestamp
+    let timestamp = i64::from_be_bytes(input[offset..offset+8].try_into().unwrap());
+    offset += mem::size_of::<i16>();
+
+    // Port
+    let port = u16::from_be_bytes(input[offset..offset+2].try_into().unwrap());
+    offset += mem::size_of::<u16>();
+
+    if offset + mem::size_of::<pkey_signature>() > input.len() {
+        return (-1, offset);
+    }
+
+    // Slen
+    let slen = u32::from_be_bytes(input[offset..offset+4].try_into().unwrap());
+    offset += mem::size_of::<u32>();
+
+    if slen as usize != parser::SIG_SIZE {
+        return (-1, offset);
+    }
+
+    // Signature
+    offset += parser::SIG_SIZE;
+
+    // Dlen
+    let dlen = u32::from_be_bytes(input[offset..offset+4].try_into().unwrap());
+    offset += mem::size_of::<u32>();
+
+    if dlen as usize != parser::DIGEST_SIZE {
+        return (-1, offset);
+    }
+
+    // Digest
+    offset += parser::DIGEST_SIZE;
+
+    (0, offset)
 }
 
 fn compare_results(res: ssize_t, info: &packet_info, input: &[u8]) {
@@ -215,9 +246,16 @@ fn compare_results(res: ssize_t, info: &packet_info, input: &[u8]) {
                 return;
             }
 
+            // TODO: Compare Drawbridge data here
+            let (payload_res, total_offset) = parse_data(total_offset, input);
+
             // Compare correct parsing and offset
-            assert_eq!(res, 0);
-            assert_eq!(total_offset, info.offset);
+            assert_eq!(res, payload_res);
+
+            // We only care about the offset when the packet is accepted
+            if res == 0 {
+                assert_eq!(total_offset, info.offset);
+            }
         }
     }
 }
@@ -253,7 +291,7 @@ fn reproduce() {
         require_literal_leading_dot: false,
     };
 
-    for entry in glob_with("out/default/crashes/id:00000*", options).unwrap() {
+    for entry in glob_with("out/default/crashes/id:*", options).unwrap() {
         if let Ok(path) = entry {
             println!("Using crash file: {:?}", path);
             let mut crashfile = File::open(path).unwrap();
@@ -263,7 +301,7 @@ fn reproduce() {
             let mut info = packet_info::new();
             let res =
                 unsafe { parse_packet(&mut info as *mut _, data[..rsize].as_ptr() as _, rsize) };
-            assert!(info.offset < data.len());
+            assert!(info.offset <= rsize);
             println!("result: {:?} info: {:?}", res, info);
             compare_results(res, &info, &data[..rsize]);
         }

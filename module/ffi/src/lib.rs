@@ -5,22 +5,22 @@ use libc::{
     c_void
 };
 
-const SIG_SIZE: usize = 512;
-const DIGEST_SIZE: usize = 32;
+pub const SIG_SIZE: usize = 512;
+pub const DIGEST_SIZE: usize = 32;
 
 #[repr(C)]
 pub union IpAddress {
-    pub addr_6: libc::in6_addr, // struct in6_addr addr_6;
+    pub addr_6: libc::in6_addr,
     pub addr_4: u32,
 }
 
 #[derive(Debug)]
 #[repr(C)]
 pub struct pkey_signature {
-    pub s: [u8; SIG_SIZE],    /* Signature */
-    pub s_size: u32,     /* Number of bytes in signature */
+    pub s: [u8; SIG_SIZE],
+    pub s_size: u32,
     pub digest: [u8; DIGEST_SIZE],
-    pub digest_size: u32, /* Number of bytes in digest */
+    pub digest_size: u32,
 } 
 
 /**
