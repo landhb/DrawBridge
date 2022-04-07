@@ -305,7 +305,7 @@ fn compare_results(res: ssize_t, info: &packet_info, input: &[u8]) {
 
             // Offset must be less than or equal to input,
             // since there must be data after the input
-            if layer4_payload_offset >= input.len() {
+            if layer4_payload_offset + layer4_payload_len >= input.len() {
                 assert_eq!(res, -1);
                 return;
             }
