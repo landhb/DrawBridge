@@ -9,6 +9,12 @@ pub const SIG_SIZE: usize = 512;
 pub const DIGEST_SIZE: usize = 32;
 
 #[repr(C)]
+pub struct dbpacket {
+    pub timestamp: i64,
+    pub port: u16,
+}
+
+#[repr(C)]
 pub union IpAddress {
     pub addr_6: libc::in6_addr,
     pub addr_4: u32,
@@ -34,6 +40,7 @@ pub struct packet_info {
     pub ipstr: [u8;33],
     pub ip: IpAddress,
     pub sig: pkey_signature,
+    pub metadata: dbpacket,
 }
 
 extern "C" {
@@ -82,7 +89,11 @@ impl packet_info {
                 s_size: 0,
                 digest: [0u8; DIGEST_SIZE],
                 digest_size: 0,
-            }, //core::ptr::null()
+            },
+            metadata: dbpacket {
+                timestamp: 0,
+                port: 0,
+            },
         }
     }
 }
