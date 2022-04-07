@@ -23,7 +23,7 @@
  * 
  *  @return 0 on success, -1 on error
  */
-ssize_t parse_payload(parsed_packet * info, void *pkt, size_t maxsize) {
+ssize_t parse_payload(parsed_packet * info, uintptr_t pkt, size_t maxsize) {
 
     // Check if there is room for the metadata
     if (info->offset + sizeof(struct dbpacket) > maxsize) {
@@ -53,7 +53,7 @@ ssize_t parse_payload(parsed_packet * info, void *pkt, size_t maxsize) {
     }
 
     // copy the signature from the packet
-    memcpy(&info->sig.s[0], pkt + info->offset, SIG_SIZE);
+    memcpy(&info->sig.s[0], (void *)(pkt + info->offset), SIG_SIZE);
     info->offset += SIG_SIZE;
 
     // Check if there is room for the size + digest
@@ -71,7 +71,7 @@ ssize_t parse_payload(parsed_packet * info, void *pkt, size_t maxsize) {
     }
 
     // Copy the digest from the packet
-    memcpy(&info->sig.digest[0], pkt + info->offset, DIGEST_SIZE);
+    memcpy(&info->sig.digest[0], (void *)(pkt + info->offset), DIGEST_SIZE);
     info->offset += DIGEST_SIZE;
     return 0;
 }
@@ -86,7 +86,7 @@ ssize_t parse_payload(parsed_packet * info, void *pkt, size_t maxsize) {
  *
  *  @return 0 on success, -1 on error
  */
-static ssize_t parse_tcp(void * pkt, parsed_packet * info, size_t ip_payload_len, size_t maxsize) {
+static ssize_t parse_tcp(uintptr_t pkt, parsed_packet * info, size_t ip_payload_len, size_t maxsize) {
     size_t proto_h_size = 0;
     struct tcphdr * tcp_hdr = NULL;
 
@@ -128,7 +128,7 @@ static ssize_t parse_tcp(void * pkt, parsed_packet * info, size_t ip_payload_len
  *
  *  @return 0 on success, -1 on error
  */
-static ssize_t parse_udp(void * pkt, parsed_packet * info, size_t maxsize) {
+static ssize_t parse_udp(uintptr_t pkt, parsed_packet * info, size_t maxsize) {
     struct udphdr * udp_hdr = NULL;
 
     // Check bounds with udp header
@@ -159,7 +159,7 @@ static ssize_t parse_udp(void * pkt, parsed_packet * info, size_t maxsize) {
  *
  *  @return 0 on success, -1 on error
  */
-static ssize_t parse_ipv4(void * pkt, parsed_packet * info, size_t maxsize) {
+static ssize_t parse_ipv4(uintptr_t pkt, parsed_packet * info, size_t maxsize) {
     struct iphdr *ip_h = NULL;
 
     // Check size before indexing into header
@@ -219,7 +219,7 @@ static ssize_t parse_ipv4(void * pkt, parsed_packet * info, size_t maxsize) {
  *
  *  @return 0 on success, -1 on error
  */
-static ssize_t parse_ipv6(void * pkt, parsed_packet * info, size_t maxsize) {
+static ssize_t parse_ipv6(uintptr_t pkt, parsed_packet * info, size_t maxsize) {
     struct ipv6hdr *ip6_h = NULL;
     
     // Check size before indexing into header
@@ -267,7 +267,7 @@ static ssize_t parse_ipv6(void * pkt, parsed_packet * info, size_t maxsize) {
  *
  *  @return Protocol number on success, -1 on error
  */
-uint16_t vlan_get_encapsulated(void * pkt, parsed_packet * info, size_t maxsize) {
+uint16_t vlan_get_encapsulated(uintptr_t pkt, parsed_packet * info, size_t maxsize) {
     struct internal_vlan_hdr * vlan_h = NULL;
 
     // Check size before indexing into vlan header
@@ -290,7 +290,7 @@ uint16_t vlan_get_encapsulated(void * pkt, parsed_packet * info, size_t maxsize)
  *
  *  @return 0 on success, -1 on error
  */
-ssize_t parse_packet(parsed_packet * info, void * pkt, size_t maxsize) {
+ssize_t parse_packet(parsed_packet * info, uintptr_t pkt, size_t maxsize) {
     uint16_t ethertype = 0;
     struct ethhdr *eth_h = NULL;
 

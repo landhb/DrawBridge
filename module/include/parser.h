@@ -82,7 +82,7 @@ typedef struct _parsed_packet_t {
 /**
  * Primary Parsing Interface that must be fuzzed
  */
-ssize_t parse_packet(parsed_packet * info, void * pkt, size_t maxsize);
+ssize_t parse_packet(parsed_packet * info, uintptr_t pkt, size_t maxsize);
 
 // Utils
 void internal_inet6_ntoa(char *str_ip, size_t len, struct in6_addr *src_6);

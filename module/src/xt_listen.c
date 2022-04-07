@@ -194,7 +194,7 @@ int listen(void *data)
             }
 
             // Parse the packet and obtain the offset to the Drawbridge data
-            if(parse_packet(&pktinfo, pkt, recv_len) < 0) {
+            if(parse_packet(&pktinfo, (uintptr_t)pkt, recv_len) < 0) {
                 DEBUG_PRINT(KERN_INFO "-----> Parsing failed\n");
                 continue;
             }
