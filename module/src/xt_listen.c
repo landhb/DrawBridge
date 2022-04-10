@@ -45,7 +45,7 @@ struct sock_fprog bpf = {
     .filter = code,
 };
 
-static int ksocket_receive(struct socket *sock, struct sockaddr_in *addr,
+static int ksocket_receive(struct socket *sock,
                            unsigned char *buf, int len)
 {
     struct msghdr msg;
@@ -56,17 +56,23 @@ static int ksocket_receive(struct socket *sock, struct sockaddr_in *addr,
         return 0;
     }
 
+    // Zero msghdr
+    memset(&msg, 0, sizeof(struct msghdr));
+
     iov.iov_base = buf;
     iov.iov_len = len;
 
     msg.msg_flags = MSG_DONTWAIT;
-    msg.msg_name = addr;
-    msg.msg_namelen = sizeof(struct sockaddr_in);
+    msg.msg_name = NULL;
+    msg.msg_namelen = 0;
     msg.msg_control = NULL;
     msg.msg_controllen = 0;
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 19, 0)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 20, 0)
     msg.msg_iocb = NULL;
-    iov_iter_init(&msg.msg_iter, WRITE, (struct iovec *)&iov, 1, len);
+    iov_iter_kvec(&msg.msg_iter, WRITE, &iov, 1, len);
+#elif LINUX_VERSION_CODE >= KERNEL_VERSION(3, 19, 0)
+    msg.msg_iocb = NULL;
+    iov_iter_kvec(&msg.msg_iter, WRITE | ITER_KVEC, &iov, 1, len);
 #else
     msg.msg_iov = &iov;
     msg.msg_iovlen = len;
@@ -78,6 +84,19 @@ static int ksocket_receive(struct socket *sock, struct sockaddr_in *addr,
     size = kernel_recvmsg(sock, &msg, &iov, 1, len, msg.msg_flags);
 
     return size;
+}
+
+/**
+ * @brief Wrap thread exit due to modifications in 5.17
+ *
+ * @param value Exit code
+ */
+void __noreturn thread_exit(int value) {
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 17, 0)
+    kthread_complete_and_exit(&thread_done, value);
+#else
+    complete_and_exit(&thread_done, value);
+#endif
 }
 
 /**
@@ -93,14 +112,13 @@ static int ksocket_receive(struct socket *sock, struct sockaddr_in *addr,
  */
 int listen(void *data)
 {
-    int ret, recv_len, error; // offset
+    int ret = 0, recv_len, error;
 
     // Packet headers
     parsed_packet pktinfo = {0};
 
     // Socket info
     struct socket *sock;
-    struct sockaddr_in source;
 
     // Receive buffer
     unsigned char *pkt = kmalloc(MAX_PACKET_SIZE, GFP_KERNEL);
@@ -116,7 +134,7 @@ int listen(void *data)
     if (!req) {
         kfree(pkt);
         complete(&thread_setup);
-        complete_and_exit(&thread_done, -1);
+        thread_exit(-1);
     }
 
     //sock = socket(PF_PACKET, SOCK_RAW, htons(ETH_P_ALL));
@@ -127,12 +145,12 @@ int listen(void *data)
         kfree(pkt);
         free_keys(tfm, req);
         complete(&thread_setup);
-        complete_and_exit(&thread_done, -1);
+        thread_exit(-1);
     }
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 9, 0)
     ret = sock_setsockopt(sock, SOL_SOCKET, SO_ATTACH_FILTER,
-                          KERNEL_SOCKPTR((void*)&bpf), sizeof(bpf));
+                          KERNEL_SOCKPTR(&bpf), sizeof(struct sock_fprog));
 #else
     ret = sock_setsockopt(sock, SOL_SOCKET, SO_ATTACH_FILTER, (void *)&bpf,
                           sizeof(bpf));
@@ -140,7 +158,6 @@ int listen(void *data)
 
     if (ret < 0) {
         DEBUG_PRINT(KERN_INFO "[-] Could not attach bpf filter to socket %d\n", ret);
-        complete(&thread_setup);
         goto cleanup;
     }
 
@@ -148,7 +165,7 @@ int listen(void *data)
 
     if (!reaper) {
         DEBUG_PRINT(KERN_INFO "[-] Failed to initialize connection reaper\n");
-        complete(&thread_setup);
+        ret = -1;
         goto cleanup;
     }
 
@@ -184,7 +201,7 @@ int listen(void *data)
         memset(&pktinfo, 0, sizeof(parsed_packet));
 
         // Attempt to receive the incoming packet
-        if ((recv_len = ksocket_receive(sock, &source, pkt, MAX_PACKET_SIZE)) >
+        if ((recv_len = ksocket_receive(sock, pkt, MAX_PACKET_SIZE)) >
             0) {
 
             // Invalid length
@@ -236,5 +253,9 @@ cleanup:
     if (reaper) {
         cleanup_reaper(reaper);
     }
-    complete_and_exit(&thread_done, 0);
+
+    // Allow the main thread to progress
+    // and exit
+    complete(&thread_setup);
+    thread_exit(ret);
 }
