@@ -2,15 +2,7 @@
 
 ssize_t validate_packet(parsed_packet * info, akcipher_request *req, void * pkt, size_t maxsize) {
     struct timespec64 tm;
-    //pkey_signature *sig = NULL;
     void *hash = NULL;
-    //struct packet *metadata = NULL;
-
-    // Process packet
-    //metadata = (struct packet *)(pkt + info->offset);
-
-    // Parse the packet for a signature, occurs after the timestamp + port
-    //sig = parse_signature(pkt, info->offset + sizeof(struct packet));
 
     if (!info) {
         DEBUG_PRINT(KERN_INFO "[-] Signature not found in packet\n");
@@ -33,9 +25,14 @@ ssize_t validate_packet(parsed_packet * info, akcipher_request *req, void * pkt,
 
     // Verify the signature
     if (verify_sig_rsa(req, &info->sig) != 0) {
+        DEBUG_PRINT(KERN_INFO "-----> Signature verification failed\n");
         kfree(hash);
         return -1;
     }
+
+    // Convert metadata to host endianess for any further processing
+    info->metadata.timestamp = be64_to_cpu(info->metadata.timestamp);
+    info->metadata.port = be16_to_cpu(info->metadata.port);
 
     // Check timestamp (Currently allows 60 sec skew)
     ktime_get_real_ts64(&tm);

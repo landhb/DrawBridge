@@ -55,19 +55,3 @@ void internal_inet6_ntoa(char *str_ip, size_t len, struct in6_addr *src_6)
 
     return;
 }
-
-/**
- *  @brief Hexdump a buffer if the DEBUG flag is set
- *  @param buf Source buffer
- *  @param len Number of bytes to display
- *  @return void
- */
-#ifdef DEBUG
-inline void hexdump(unsigned char *buf, unsigned int len)
-{
-    while (len--)
-        printk(KERN_DEBUG "%02x", *buf++);
-    printk(KERN_DEBUG "\n");
-}
-#endif
-

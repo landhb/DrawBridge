@@ -85,6 +85,7 @@ typedef struct _parsed_packet_t {
 ssize_t parse_packet(parsed_packet * info, uintptr_t pkt, size_t maxsize);
 
 // Utils
+void hexdump(unsigned char *buf, unsigned int len);
 void internal_inet6_ntoa(char *str_ip, size_t len, struct in6_addr *src_6);
 void internal_inet_ntoa(char *str_ip, size_t len, __be32 int_ip);
 

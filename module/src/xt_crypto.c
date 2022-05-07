@@ -52,7 +52,7 @@ akcipher_request *init_keys(crypto_akcipher **tfm, void *data, int len)
     *tfm = crypto_alloc_akcipher("rsa", 0, 0);
 
     if (IS_ERR(*tfm)) {
-        DEBUG_PRINT(KERN_INFO "[!] Could not allocate akcipher handle\n");
+        DEBUG_PRINT(KERN_INFO "[!] Could not allocate akcipher handle %d\n", PTR_ERR(*tfm));
         return NULL;
     }
 

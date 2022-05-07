@@ -30,12 +30,12 @@ ssize_t parse_payload(parsed_packet * info, uintptr_t pkt, size_t maxsize) {
         return -1;
     }
 
-    // Parse the 64bit timestamp
-    info->metadata.timestamp = (__s64)be64_to_cpup((__be64 *)(pkt + info->offset));
-    info->offset += sizeof(__be64);
+    // Parse the 64bit timestamp, keep it big endian for now
+    info->metadata.timestamp = *(__s64 *)(pkt + info->offset);
+    info->offset += sizeof(__s64);
 
-    // Parse the 16bit port to unlock
-    info->metadata.port = be16_to_cpup((__be16 *)(pkt + info->offset));
+    // Parse the 16bit port to unlock, keep it big endian for now
+    info->metadata.port = *(__be16 *)(pkt + info->offset);
     info->offset += sizeof(__be16);
 
     // Check if there is room for the size + signature
@@ -138,12 +138,12 @@ static ssize_t parse_udp(uintptr_t pkt, parsed_packet * info, size_t maxsize) {
 
     // Verify total length
     udp_hdr = (struct udphdr *)(pkt + info->offset);
-    if (udp_hdr->len + info->offset >= maxsize) {
+    if (ntohs(udp_hdr->len) + info->offset > maxsize) {
         return -1;
     }
 
     // Check that there is enough room in the payload
-    if (udp_hdr->len - sizeof(struct udphdr) < sizeof(struct pkey_signature) + sizeof(struct dbpacket)) {
+    if (ntohs(udp_hdr->len) - sizeof(struct udphdr) < sizeof(struct pkey_signature) + sizeof(struct dbpacket)) {
         return -1;
     }
 
@@ -293,6 +293,8 @@ uint16_t vlan_get_encapsulated(uintptr_t pkt, parsed_packet * info, size_t maxsi
 ssize_t parse_packet(parsed_packet * info, uintptr_t pkt, size_t maxsize) {
     uint16_t ethertype = 0;
     struct ethhdr *eth_h = NULL;
+
+    //print_hex_dump(KERN_INFO, "pkt: ", DUMP_PREFIX_ADDRESS, 24, 1, pkt, maxsize, false);
 
     // Check size before indexing into header
     if (maxsize < sizeof(struct ethhdr)) {

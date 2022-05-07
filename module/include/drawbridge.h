@@ -95,10 +95,6 @@ void free_keys(crypto_akcipher *tfm, akcipher_request *req);
 int verify_sig_rsa(akcipher_request *req, pkey_signature *sig);
 void *gen_digest(void *buf, unsigned int len);
 
-
-// Utils
-void hexdump(unsigned char *buf, unsigned int len);
-
 /**
  * Validate the given signature
  */

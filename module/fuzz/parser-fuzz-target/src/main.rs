@@ -4,7 +4,6 @@ extern crate libc;
 
 use libc::ssize_t;
 use parser::{dbpacket, packet_info, parse_packet, pkey_signature};
-use std::error::Error;
 use std::mem;
 
 use etherparse::vlan_tagging::VlanSlice;
@@ -24,11 +23,6 @@ fn main() {
         // Double check the parsed protocol information
         compare_results(res, &info, &data);
     });
-}
-
-struct ParserResult {
-    res: isize,
-    offset: usize,
 }
 
 /// Mimics logic in parser_payload()
@@ -74,15 +68,6 @@ fn parse_data(mut offset: usize, input: &[u8]) -> (isize, usize) {
     (0, offset)
 }
 
-fn is_supported(ether_type: u16) -> bool {
-    match EtherType::from_u16(ether_type) {
-        Some(EtherType::Ipv4) => true,
-        Some(EtherType::Ipv6) => true,
-        Some(EtherType::VlanTaggedFrame) => true,
-        _ => false,
-    }
-}
-
 /// Ethernet/VLAN Validator
 ///
 /// Returns the offset of the next encpasulated protocol
@@ -99,6 +84,15 @@ fn layer_2<'a>(
             return Err(-1);
         }
     };
+
+    fn is_supported(ether_type: u16) -> bool {
+        match EtherType::from_u16(ether_type) {
+            Some(EtherType::Ipv4) => true,
+            Some(EtherType::Ipv6) => true,
+            Some(EtherType::VlanTaggedFrame) => true,
+            _ => false,
+        }
+    }
 
     if !is_supported(ethhdr.ether_type) {
         assert_eq!(res, -1);
@@ -178,7 +172,6 @@ fn layer_3_ipv6(
     layer2_offset: usize,
     maxsize: usize,
 ) -> Result<(usize, usize), isize> {
-
     // Invalid packet sizes for data received
     if ((hdr.to_header().header_len() + hdr.payload_length() as usize) + layer2_offset) > maxsize {
         return Err(-1);
@@ -216,7 +209,6 @@ fn compare_results(res: ssize_t, info: &packet_info, input: &[u8]) {
             println!("vlan: {:?}", value.vlan);
             println!("ip: {:?}", value.ip);
             println!("transport: {:?}", value.transport);
-
 
             let layer2_payload_offset = match layer_2(res, value.link, value.vlan) {
                 Ok(offset) => offset,
