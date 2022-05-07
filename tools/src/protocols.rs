@@ -111,22 +111,20 @@ pub fn build_tcp_packet<'a>(
     tcp.set_payload(data);
 
     // compute the checksum
-    match (src_ip, dst_ip) {
+    let checksum = match (src_ip, dst_ip) {
         (IpAddr::V4(src_ip4), IpAddr::V4(dst_ip4)) => {
-            let checksum =
-                pnet::packet::tcp::ipv4_checksum(&tcp.to_immutable(), &src_ip4, &dst_ip4);
-            tcp.set_checksum(checksum);
+            pnet::packet::tcp::ipv4_checksum(&tcp.to_immutable(), &src_ip4, &dst_ip4)
         }
         (IpAddr::V6(src_ip6), IpAddr::V6(dst_ip6)) => {
-            let checksum =
-                pnet::packet::tcp::ipv6_checksum(&tcp.to_immutable(), &src_ip6, &dst_ip6);
-            tcp.set_checksum(checksum);
+            pnet::packet::tcp::ipv6_checksum(&tcp.to_immutable(), &src_ip6, &dst_ip6)
         }
         _ => {
             println!("[-] Unknown IP Address type");
             return Err(InvalidIP.into());
         }
-    }
+    };
+
+    tcp.set_checksum(checksum);
 
     return Ok(tcp);
 }

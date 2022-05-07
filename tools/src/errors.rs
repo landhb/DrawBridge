@@ -3,13 +3,6 @@ use core::fmt::Display;
 use core::fmt::Formatter;
 use core::fmt::Result;
 use std::error::Error;
-/*
-#[derive(Debug, Clone)]
-pub enum CryptoError {
-    IO(std::io::Error),
-    BadPrivateKey,
-    OOM,
-}*/
 
 #[allow(dead_code)]
 #[derive(Debug)]
@@ -23,7 +16,7 @@ pub enum DrawBridgeError {
     InvalidBits,
     NetworkingError,
     UnsupportedProtocol,
-    IO(std::io::Error),
+    Io(std::io::Error),
     OutOfMemory,
     BadPrivateKey,
 }

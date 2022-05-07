@@ -4,16 +4,13 @@ use ring::{digest, rand, signature};
 use std::error::Error;
 use std::io::{Read, Write};
 
-// crypto callback prototype, can be used to implement multiple types in the future
-//type GenericSignMethod = fn(data: &mut [u8], private_key_path: &std::path::Path) -> Result<Vec<u8>, CryptoError>;
-
 /**
  * Private method to read in a file
  */
 fn read_file(path: &std::path::Path) -> Result<Vec<u8>, Box<dyn Error>> {
-    let mut file = std::fs::File::open(path).map_err(|e| IO(e))?;
+    let mut file = std::fs::File::open(path).map_err(|e| Io(e))?;
     let mut contents: Vec<u8> = Vec::new();
-    file.read_to_end(&mut contents).map_err(|e| IO(e))?;
+    file.read_to_end(&mut contents).map_err(|e| Io(e))?;
     Ok(contents)
 }
 
@@ -21,8 +18,8 @@ fn read_file(path: &std::path::Path) -> Result<Vec<u8>, Box<dyn Error>> {
  * Private method to write to a file
  */
 fn write_file(contents: Vec<u8>, path: &std::path::Path) -> Result<(), Box<dyn Error>> {
-    let mut file = std::fs::File::create(path).map_err(|e| IO(e))?;
-    file.write_all(&contents).map_err(|e| IO(e))?;
+    let mut file = std::fs::File::create(path).map_err(|e| Io(e))?;
+    file.write_all(&contents).map_err(|e| Io(e))?;
     Ok(())
 }
 
@@ -87,13 +84,7 @@ pub fn gen_rsa(
     public_path: &std::path::Path,
 ) -> Result<(), Box<dyn Error>> {
     let key_path = std::path::Path::new("key.h");
-
-    let rsa = match Rsa::generate(bits) {
-        Ok(key) => key,
-        Err(_e) => {
-            return Err(CryptoError.into());
-        }
-    };
+    let rsa = Rsa::generate(bits).or(Err(CryptoError))?;
 
     let private = match rsa.private_key_to_der() {
         Ok(res) => res,
@@ -116,36 +107,15 @@ pub fn gen_rsa(
     header.push_str(format!("\n#define KEY_LEN {}\n", public[24..].len()).as_str());
 
     // Write private key to file
-    match write_file(private, private_path) {
-        Ok(_res) => (),
-        Err(e) => {
-            println!("[-] Could not write private key to file. {:?}", e);
-            return Err(CryptoError.into());
-        }
-    }
-
+    write_file(private, private_path)?;
     println!("\t[+] created {}", private_path.display());
 
     // Write public key to file
-    match write_file(public, public_path) {
-        Ok(_res) => (),
-        Err(e) => {
-            println!("[-] Could not write public key to file. {:?}", e);
-            return Err(CryptoError.into());
-        }
-    }
-
+    write_file(public, public_path)?;
     println!("\t[+] created {}", public_path.display());
 
     // Write public key to file
-    match write_file(header.as_bytes().to_vec(), key_path) {
-        Ok(_res) => (),
-        Err(e) => {
-            println!("[-] Could not write public key to file. {:?}", e);
-            return Err(CryptoError.into());
-        }
-    }
-
+    write_file(header.as_bytes().to_vec(), key_path)?;
     println!("\t[+] created ./key.h");
 
     Ok(())
