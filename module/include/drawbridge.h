@@ -29,10 +29,6 @@
 // Include the parser headers
 #include "parser.h"
 
-// Timout Configuration - default 5 min = 300000msec
-#define STATE_TIMEOUT 300000
-
-
 #ifdef DEBUG
 #define DEBUG_PRINT(fmt, args...) printk(KERN_DEBUG fmt, ##args)
 #else

@@ -314,7 +314,6 @@ void reap_expired_connections(unsigned long timeout)
     spin_unlock(&listmutex);
 
     // Set the timeout value
-    DEBUG_PRINT(KERN_INFO "[*] Resetting timeout to %lu.\n", STATE_TIMEOUT);
     mod_timer(reaper, jiffies + msecs_to_jiffies(STATE_TIMEOUT));
     DEBUG_PRINT(KERN_INFO "[*] Timer reset.\n");
     return;

@@ -1,7 +1,10 @@
 #ifndef VLAN_H
 #define VLAN_H 1
 
+#ifdef FUZZING
 #include <stddef.h>
+#endif
+
 #include <linux/if_ether.h>
 
 /**
