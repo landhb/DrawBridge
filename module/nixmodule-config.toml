@@ -10,7 +10,7 @@ cache = "~/.cache/nixmodule"
 [module]
 name = "drawbridge"
 insmod_args = "ports=8888"
-build_defines = ["STATE_TIMEOUT=5", "DEBUG=1"]
+build_defines = ["STATE_TIMEOUT=15000", "DEBUG=1"]
 
 [module.test_script]
 local = "./tests/test.sh"

@@ -18,7 +18,7 @@ popd
 if [[ -z "${DEBUG}" ]]; then
     $NIXMODULE
 else
-    $NIXMODULE
+    $NIXMODULE --debug
 fi
 
 # Remove the test keys

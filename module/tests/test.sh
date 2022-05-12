@@ -44,7 +44,7 @@ if [ ! check_port ]; then
 fi
 
 # Wait for reaper thread timeout
-sleep 60
+sleep 30
 
 # Test that nc is still running
 if ps -p $nc_pid > /dev/null
