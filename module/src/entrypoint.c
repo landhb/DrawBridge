@@ -12,7 +12,7 @@
 #include <linux/kernel.h>
 #include <linux/sched.h>
 #include <linux/kthread.h>
-#include <linux/errno.h> // https://github.com/torvalds/linux/blob/master/include/uapi/asm-generic/errno-base.h for relevent error codes
+#include <linux/errno.h>
 #include <linux/byteorder/generic.h>
 #include <linux/rculist.h>
 #include <linux/timer.h>

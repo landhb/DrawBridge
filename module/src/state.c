@@ -278,7 +278,7 @@ struct timer_list *init_reaper(unsigned long timeout)
 #endif
 
     // Set the timeout value
-    mod_timer(my_timer, jiffies + msecs_to_jiffies(timeout));
+    mod_timer(my_timer, jiffies + msecs_to_jiffies(STATE_TIMEOUT));
 
     return my_timer;
 }
@@ -298,10 +298,12 @@ void reap_expired_connections(unsigned long timeout)
 {
     conntrack_state *state, *tmp;
 
+    DEBUG_PRINT(KERN_INFO "[*] Timer expired, checking connections...\n");
+
     spin_lock(&listmutex);
 
     list_for_each_entry_safe (state, tmp, &(knock_state->list), list) {
-        if (jiffies - state->time_updated >= msecs_to_jiffies(timeout)) {
+        if (jiffies - state->time_updated >= msecs_to_jiffies(STATE_TIMEOUT)) {
             list_del_rcu(&(state->list));
             synchronize_rcu();
             kfree(state);
@@ -312,7 +314,8 @@ void reap_expired_connections(unsigned long timeout)
     spin_unlock(&listmutex);
 
     // Set the timeout value
-    mod_timer(reaper, jiffies + msecs_to_jiffies(timeout));
-
+    DEBUG_PRINT(KERN_INFO "[*] Resetting timeout to %lu.\n", STATE_TIMEOUT);
+    mod_timer(reaper, jiffies + msecs_to_jiffies(STATE_TIMEOUT));
+    DEBUG_PRINT(KERN_INFO "[*] Timer reset.\n");
     return;
 }
