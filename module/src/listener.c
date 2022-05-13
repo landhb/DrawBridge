@@ -118,39 +118,42 @@ int listen(void *data)
     parsed_packet pktinfo = {0};
 
     // Socket info
-    struct socket *sock;
+    struct socket *sock = NULL;
 
-    // Receive buffer
-    unsigned char *pkt = kmalloc(MAX_PACKET_SIZE, GFP_KERNEL);
+    // Init pointers
+    unsigned char *pkt = NULL;
+    akcipher_request *req = NULL;
+    struct crypto_akcipher *tfm = NULL;
+    reaper = NULL;
+
+    // Init Crypto Verification
+    req = init_keys(&tfm, public_key, KEY_LEN);
+
+    // Allocate receive buffer
+    pkt = kmalloc(MAX_PACKET_SIZE, GFP_KERNEL);
 
     // Initialize wait queue
     DECLARE_WAITQUEUE(recv_wait, current);
 
-    // Init Crypto Verification
-    struct crypto_akcipher *tfm;
-    akcipher_request *req = init_keys(&tfm, public_key, KEY_LEN);
-    reaper = NULL;
 
-    if (!req) {
-        kfree(pkt);
-        complete(&thread_setup);
-        thread_exit(-1);
+    // Sanity check setup
+    if (!req || !pkt || !tfm) {
+        ret = -1;
+        goto cleanup;
     }
 
     //sock = socket(PF_PACKET, SOCK_RAW, htons(ETH_P_ALL));
     error = sock_create(PF_PACKET, SOCK_RAW, htons(ETH_P_ALL), &sock);
 
-    if (error < 0) {
+    if (error < 0 || !sock) {
         DEBUG_PRINT(KERN_INFO "[-] Could not initialize raw socket\n");
-        kfree(pkt);
-        free_keys(tfm, req);
-        complete(&thread_setup);
-        thread_exit(-1);
+        ret = -1;
+        goto cleanup;
     }
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 9, 0)
     ret = sock_setsockopt(sock, SOL_SOCKET, SO_ATTACH_FILTER,
-                          KERNEL_SOCKPTR(&bpf), sizeof(struct sock_fprog));
+                          KERNEL_SOCKPTR((void *)&bpf), sizeof(bpf));
 #else
     ret = sock_setsockopt(sock, SOL_SOCKET, SO_ATTACH_FILTER, (void *)&bpf,
                           sizeof(bpf));
@@ -170,7 +173,7 @@ int listen(void *data)
     }
 
     // Initialization has successfully completed, allow
-    // the main thread and module insertin to proceed
+    // the main thread and module insert to proceed
     complete(&thread_setup);
 
     while (1) {
@@ -216,8 +219,8 @@ int listen(void *data)
                 continue;
             }
 
-            // Assume there's at least enough bytes in the message for the 
-            // information + signature
+            // Assume at this point there's at least enough bytes in the message
+            // for the information + signature
             if(validate_packet(&pktinfo, req, pkt, recv_len) < 0) {
                 DEBUG_PRINT(KERN_INFO "-----> Validation failed\n");
                 continue;
@@ -247,9 +250,17 @@ int listen(void *data)
     }
 
 cleanup:
-    sock_release(sock);
+    // Checked internally for NULL
     free_keys(tfm, req);
-    kfree(pkt);
+
+    if (sock) {
+        sock_release(sock);
+    }
+
+    if (pkt) {
+        kfree(pkt);
+    }
+
     if (reaper) {
         cleanup_reaper(reaper);
     }
