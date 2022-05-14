@@ -75,8 +75,7 @@ void inet_ntoa(char *str_ip, __be32 int_ip);
 // State API
 conntrack_state *init_state(void);
 int state_lookup(conntrack_state *head, parsed_packet *pktinfo);
-void state_add(conntrack_state *head, int type, __be32 src,
-               struct in6_addr *src_6, __be16 port);
+void state_add(conntrack_state *head, parsed_packet *info);
 void cleanup_states(conntrack_state *head);
 
 // Connection Reaper API

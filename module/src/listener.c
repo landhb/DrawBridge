@@ -124,6 +124,9 @@ int listen(void *data)
     unsigned char *pkt = NULL;
     akcipher_request *req = NULL;
     struct crypto_akcipher *tfm = NULL;
+
+    // Initialize wait queue and reaper
+    DECLARE_WAITQUEUE(recv_wait, current);
     reaper = NULL;
 
     // Init Crypto Verification
@@ -132,17 +135,12 @@ int listen(void *data)
     // Allocate receive buffer
     pkt = kmalloc(MAX_PACKET_SIZE, GFP_KERNEL);
 
-    // Initialize wait queue
-    DECLARE_WAITQUEUE(recv_wait, current);
-
-
     // Sanity check setup
     if (!req || !pkt || !tfm) {
         ret = -1;
         goto cleanup;
     }
 
-    //sock = socket(PF_PACKET, SOCK_RAW, htons(ETH_P_ALL));
     error = sock_create(PF_PACKET, SOCK_RAW, htons(ETH_P_ALL), &sock);
 
     if (error < 0 || !sock) {
@@ -204,8 +202,7 @@ int listen(void *data)
         memset(&pktinfo, 0, sizeof(parsed_packet));
 
         // Attempt to receive the incoming packet
-        if ((recv_len = ksocket_receive(sock, pkt, MAX_PACKET_SIZE)) >
-            0) {
+        if ((recv_len = ksocket_receive(sock, pkt, MAX_PACKET_SIZE)) > 0) {
 
             // Invalid length
             if (recv_len < sizeof(struct dbpacket) ||
@@ -226,25 +223,12 @@ int listen(void *data)
                 continue;
             }
 
-            // Add the IP to the connection linked list
-            if (pktinfo.version == 4) {
-                if (!state_lookup(knock_state, 4, pktinfo.ip.addr_4, NULL,
-                                    htons(pktinfo.port))) {
-                    LOG_PRINT(KERN_INFO
-                                "[+] drawbridge: Authentication from:%s\n",
-                                pktinfo.ipstr);
-                    state_add(knock_state, 4, pktinfo.ip.addr_4, NULL,
-                                htons(pktinfo.port));
-                }
-            } else if (pktinfo.version == 6) {
-                if (!state_lookup(knock_state, 6, 0, &(pktinfo.ip.addr_6),
-                                    htons(pktinfo.port))) {
-                    LOG_PRINT(KERN_INFO
-                                "[+] drawbridge: Authentication from:%s\n",
-                                pktinfo.ipstr);
-                    state_add(knock_state, 6, 0, &(pktinfo.ip.addr_6),
-                                htons(pktinfo.port));
-                }
+            // Add the IP to the connection linked list if not already added
+            if (!state_lookup(knock_state, &pktinfo)) {
+                LOG_PRINT(KERN_INFO
+                            "[+] drawbridge: Authentication from:%s\n",
+                            pktinfo.ipstr);
+                state_add(knock_state, &pktinfo);
             }
         }
     }

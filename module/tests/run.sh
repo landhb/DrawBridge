@@ -23,3 +23,6 @@ fi
 
 # Remove the test keys
 rm /tmp/test_key* include/key.h
+
+# Cleanup
+make clean

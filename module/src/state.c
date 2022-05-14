@@ -215,20 +215,19 @@ int state_lookup(conntrack_state *head, parsed_packet *pktinfo)
 *  @param src_6 IPv6 address that authenticated, if connection is IPv6
 *  @param port Port that connections will be allowed to
 */
-void state_add(conntrack_state *head, int type, __be32 src,
-               struct in6_addr *src_6, __be16 port)
+void state_add(conntrack_state *head, parsed_packet *info)
 {
     // Create new node
     conntrack_state *state = init_state();
 
     // set params
-    state->type = type;
-    if (type == 4) {
-        state->src.addr_4 = src;
-    } else if (type == 6) {
-        memcpy(&(state->src.addr_6), src_6, sizeof(struct in6_addr));
+    state->type = info->version;
+    if (state->type == 4) {
+        state->src.addr_4 = info->ip.addr_4;
+    } else if (state->type == 6) {
+        state->src.addr_6 = info->ip.addr_6;
     }
-    state->port = port;
+    state->port = info->port;
     state->time_added = jiffies;
     state->time_updated = jiffies;
 
