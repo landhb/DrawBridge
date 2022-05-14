@@ -15,6 +15,13 @@ jobs:
           profile: minimal
           toolchain: stable
           override: true
+    - name: Cache Nixmodule Artifacts
+      uses: actions/cache@v3
+      with:
+        path: |
+          ~/.cache/nixmodule
+          ~/.cargo/bin/
+        key: ${{ runner.os }}-${{ hashFiles('**/lockfiles') }}
     - name: Install deps
       run: sudo apt install qemu-system
     - name: Install nixmodule

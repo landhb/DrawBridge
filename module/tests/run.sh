@@ -7,12 +7,12 @@ set -e
 
 # build usermode tools
 pushd ../tools
-cross build --target x86_64-unknown-linux-musl --release
+cargo build
 popd
 
 # generate keys
 pushd include
-../../tools/target/x86_64-unknown-linux-musl/release/db keygen --out /tmp/test_key
+../../tools/target/debug/db keygen --out /tmp/test_key
 popd
 
 # Run the test
