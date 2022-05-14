@@ -47,14 +47,35 @@ static inline int ipv6_addr_cmp(const struct in6_addr *a1,
 }
 
 /**
+ *  @brief Utility function to compare state with parsed_packet
+ */
+static inline int compare_state_info(struct conntrack_state *state, parsed_packet *info) {
+    if (state->type != info->version) {
+        return -1;
+    }
+
+    if (state->port != info->port) {
+        return -1;
+    }
+
+    switch(state->type) {
+        case 4:
+            return state->src.addr_4 == info->ip.addr_4;
+        case 6:
+            return ipv6_addr_cmp(&state->src.addr_6, &info->ip.addr_6);
+        default:
+            return -1;
+    }
+}
+
+/**
 *  @brief Utility function to log a new connections to dmesg
 *  @param state The SPA conntrack_state associated with this allowed connection
 *  @param src IPv4 address to log, if connection is IPv4
 *  @param src_6 IPv6 address to log, if connection is IPv6
 *  @return Zero on a match, otherwise a non-zero integer
 */
-static inline void log_connection(struct conntrack_state *state, __be32 src,
-                                  struct in6_addr *src_6)
+static inline void log_connection(struct conntrack_state *state)
 {
     uint8_t buf[512] = {0};
 
@@ -67,9 +88,9 @@ static inline void log_connection(struct conntrack_state *state, __be32 src,
 
     // Convert to human readable to log
     if (state->type == 4) {
-        internal_inet_ntoa(buf, sizeof(buf), src);
+        internal_inet_ntoa(buf, sizeof(buf), state->src.addr_4);
     } else if (state->type == 6) {
-        internal_inet6_ntoa(buf, sizeof(buf), src_6);
+        internal_inet6_ntoa(buf, sizeof(buf), &state->src.addr_6);
     }
 
     DEBUG_PRINT("[+] DrawBridge accepted connection - source: %s\n", buf);
@@ -162,29 +183,17 @@ static inline void update_state(conntrack_state *old_state)
 *  @param src_6 IPv6 address to log, if connection is IPv6
 *  @param port Port attempting to be connected to
 */
-int state_lookup(conntrack_state *head, int type, __be32 src,
-                 struct in6_addr *src_6, __be16 port)
+int state_lookup(conntrack_state *head, parsed_packet *pktinfo)
 {
     conntrack_state *state;
 
     rcu_read_lock();
 
     list_for_each_entry_rcu (state, &(head->list), list) {
-        if (state->type == 4 && state->src.addr_4 == src &&
-            state->port == port) {
+        if (compare_state_info(state, pktinfo)) {
             update_state(state);
 #ifdef DEBUG
-            log_connection(state, src, src_6);
-#endif
-            rcu_read_unlock();
-            call_rcu(&state->rcu, reclaim_state_entry);
-            return 1;
-        } else if (state->type == 6 &&
-                   ipv6_addr_cmp(&(state->src.addr_6), src_6) == 0 &&
-                   state->port == port) {
-            update_state(state);
-#ifdef DEBUG
-            log_connection(state, src, src_6);
+            log_connection(state);
 #endif
             rcu_read_unlock();
             call_rcu(&state->rcu, reclaim_state_entry);

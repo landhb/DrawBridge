@@ -84,22 +84,14 @@ static struct nf_hook_ops pkt_hook_ops_v6 __read_mostly = {
  *
  *  @return NF_ACCEPT/NF_DROP
  */
-static unsigned int conn_state_check(int type, __be32 src,
-                                     struct in6_addr *src_6, __be16 dest_port)
+static unsigned int conn_state_check(parsed_packet *info)
 {
     unsigned int i;
-
     for (i = 0; i < ports_c && i < MAX_PORTS; i++) {
-        // Check if packet is destined for a port on our watchlist
-        if (dest_port == htons(ports[i])) {
-            if (type == 4 &&
-                state_lookup(knock_state, 4, src, NULL, dest_port)) {
-                return NF_ACCEPT;
-            } else if (type == 6 &&
-                       state_lookup(knock_state, 6, 0, src_6, dest_port)) {
+        if (info->port == ports[i]) {
+            if (state_lookup(knock_state, info)) {
                 return NF_ACCEPT;
             }
-
             return NF_DROP;
         }
     }
@@ -117,6 +109,7 @@ static unsigned int conn_state_check(int type, __be32 src,
  */
 static unsigned int pkt_hook_v6(struct sk_buff *skb)
 {
+    parsed_packet info = { 0 };
     struct tcphdr *tcp_header;
     struct udphdr *udp_header;
     struct ipv6hdr *ipv6_header = (struct ipv6hdr *)skb_network_header(skb);
@@ -139,15 +132,21 @@ static unsigned int pkt_hook_v6(struct sk_buff *skb)
         return NF_ACCEPT;
     }
 
+    // Obtain the source IP
+    info.version = 6;
+    info.ip.addr_6 = ipv6_header->saddr;
+
     // UDP
     if (ipv6_header->nexthdr == 17) {
         udp_header = (struct udphdr *)skb_transport_header(skb);
-        return conn_state_check(6, 0, &(ipv6_header->saddr), udp_header->dest);
+        info.port = ntohs(udp_header->dest);
+        return conn_state_check(&info);
     }
 
     // TCP
     tcp_header = (struct tcphdr *)skb_transport_header(skb);
-    return conn_state_check(6, 0, &(ipv6_header->saddr), tcp_header->dest);
+    info.port = ntohs(tcp_header->dest);
+    return conn_state_check(&info);
 }
 
 /**
@@ -161,6 +160,7 @@ static unsigned int pkt_hook_v6(struct sk_buff *skb)
  */
 static unsigned int pkt_hook_v4(struct sk_buff *skb)
 {
+    parsed_packet info = { 0 };
     struct tcphdr *tcp_header;
     struct udphdr *udp_header;
     struct iphdr *ip_header = (struct iphdr *)skb_network_header(skb);
@@ -183,15 +183,21 @@ static unsigned int pkt_hook_v4(struct sk_buff *skb)
         return NF_ACCEPT;
     }
 
+    // Obtain the source IP
+    info.version = 4;
+    info.ip.addr_4 = ip_header->saddr;
+
     // UDP
     if (ip_header->protocol == 17) {
         udp_header = (struct udphdr *)skb_transport_header(skb);
-        return conn_state_check(4, ip_header->saddr, NULL, udp_header->dest);
+        info.port = ntohs(udp_header->dest);
+        return conn_state_check(&info);
     }
 
     // TCP
     tcp_header = (struct tcphdr *)skb_transport_header(skb);
-    return conn_state_check(4, ip_header->saddr, NULL, tcp_header->dest);
+    info.port = ntohs(tcp_header->dest);
+    return conn_state_check(&info);
 }
 
 /**
