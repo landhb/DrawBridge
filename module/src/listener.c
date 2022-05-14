@@ -1,5 +1,5 @@
 /** 
-* @file xt_listen.c
+* @file listener.c
 * @brief Raw socket listener to support Single Packet Authentication
 *
 * @author Bradley Landherr

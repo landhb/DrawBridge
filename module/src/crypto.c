@@ -1,5 +1,5 @@
 /** 
-* @file xt_crypto.c
+* @file crypto.c
 * @brief Implements asymmetric crypto wrapper API
 * for Single Packet Authentication
 *

@@ -1,3 +1,11 @@
+/** 
+* @file validator.c
+* @brief Validates that an SPA packet has been properly signed
+*
+* @author Bradley Landherr
+*
+* @date 04/11/2018
+*/
 #include "drawbridge.h"
 
 ssize_t validate_packet(parsed_packet * info, akcipher_request *req, void * pkt, size_t maxsize) {

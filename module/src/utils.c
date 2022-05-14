@@ -6,9 +6,6 @@
 *
 * @date 04/11/2018
 */
-//#include <linux/module.h>
-//#include <linux/kernel.h>
-//#include <net/sock.h>
 #include "parser.h"
 
 /**

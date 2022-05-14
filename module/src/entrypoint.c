@@ -1,5 +1,5 @@
 /** 
-* @file xt_hook.c
+* @file entrypoint.c
 * @brief Entrypoint for Drawbridge - NetFilter Kernel Module to Support 
 * BPF Based Single Packet Authentication
 *
