@@ -1,8 +1,9 @@
 #!/bin/bash
 set -e
 
-# Optional override
+# Optional overrides
 : ${NIXMODULE:=`which nixmodule`}
+: ${NIXMODULEARGS:=""}
 
 # build usermode tools
 pushd ../tools
@@ -16,9 +17,9 @@ popd
 
 # Run the test
 if [[ -z "${DEBUG}" ]]; then
-    $NIXMODULE
+    $NIXMODULE $NIXMODULEARGS
 else
-    $NIXMODULE --debug
+    $NIXMODULE --debug $NIXMODULEARGS
 fi
 
 # Remove the test keys

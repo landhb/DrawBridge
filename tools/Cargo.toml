@@ -1,6 +1,6 @@
 [package]
 name = "dbtools"
-version = "1.0.0"
+version = "1.0.1"
 authors = ["landhb <landhb@github>"]
 edition = "2018"
 description = """
@@ -13,8 +13,6 @@ homepage = "https://github.com/landhb/Drawbridge"
 repository = "https://github.com/landhb/Drawbridge"
 readme = "README.md"
 license = "GPL-3.0-or-later"
-
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 # Multi-command utility to send auth packets
 # generate keys, etc.

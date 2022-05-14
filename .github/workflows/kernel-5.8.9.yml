@@ -1,0 +1,24 @@
+name: Linux Kernel 5.8.9
+
+on: [push]
+
+jobs:
+
+  build:
+
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v1
+    - uses: actions-rs/toolchain@v1
+      with:
+          profile: minimal
+          toolchain: stable
+          override: true
+    - name: Install deps
+      run: sudo apt install qemu-system
+    - name: Install nixmodule
+      run: cargo install nixmodule
+    - name: Perform the test
+      run: cd module && NIXMODULEARGS="-k 5.8" ./tests/run.sh
+    
