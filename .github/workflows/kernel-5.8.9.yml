@@ -24,7 +24,7 @@ jobs:
           ~/.cargo/bin/
         key: ${{ runner.os }}-nixmodule
     - name: Install deps
-      run: sudo apt install qemu-system
+      run: sudo apt install qemu-system musl-tools
     - name: Install nixmodule
       run: if ! command -v nixmodule; then cargo install nixmodule; fi
     - name: Perform the test
