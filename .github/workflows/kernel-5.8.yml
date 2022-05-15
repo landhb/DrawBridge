@@ -69,7 +69,7 @@ jobs:
         label: 'Build'
         status: ${{ steps.run.outputs.build }}
         color: ${{ steps.run.outputs.buildc }}
-        path: ${{ steps.extract_branch.outputs.branch }}/build-${{ name }}-badge.svg
+        path: ${{ steps.extract_branch.outputs.branch }}/build-${{ github.workflow }}-badge.svg
 
     # Checkout the badges branch
     - uses: actions/checkout@v1
