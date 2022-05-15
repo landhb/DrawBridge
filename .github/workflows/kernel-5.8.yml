@@ -67,6 +67,11 @@ jobs:
         if [ $insmod == 0 ]; then echo "##[set-output name=insmod;]'Failed'" && echo "##[set-output name=insmodc;]'red'"; fi; \
         if [ $test == 0 ]; then echo "##[set-output name=test;]'Failed'" && echo "##[set-output name=testc;]'red'"; fi;
 
+    # Checkout the badges branch
+    - uses: actions/checkout@v1
+      with:
+        ref: badges
+
     # Create the directory where badges will be saved, if needed
     - name: Create destination directory
       env:
@@ -81,13 +86,6 @@ jobs:
         status: ${{ steps.run.outputs.build }}
         color: ${{ steps.run.outputs.buildc }}
         path: ${{ steps.extract_branch.outputs.branch }}/build-${{ github.workflow }}-badge.svg
-
-    # Checkout the badges branch
-    - uses: actions/checkout@v1
-      with:
-        ref: badges
-
-
 
     # Upload the badge as an artifact
     - name: Upload badge as artifact
