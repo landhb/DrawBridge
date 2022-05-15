@@ -21,11 +21,11 @@ jobs:
         path: |
           ~/.cache/nixmodule
           ~/.cargo/bin/
-        key: ${{ runner.os }}-${{ hashFiles('**/lockfiles') }}
+        key: ${{ runner.os }}-nixmodule
     - name: Install deps
       run: sudo apt install qemu-system
     - name: Install nixmodule
       run: cargo install nixmodule
     - name: Perform the test
-      run: cd module && NIXMODULEARGS="-k 5.8" ./tests/run.sh
+      run: cd module && NIXMODULEARGS="-k 5.8 -c ci-config.toml" ./tests/run.sh
     
