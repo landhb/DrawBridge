@@ -60,12 +60,12 @@ jobs:
         if [ $code == 5 ]; then build=1 && insmod=0; fi; \
         if [ $code == 6 ]; then build=1 && insmod=1 && test=0; fi; \
         echo "Set build=$build insmod=$insmod test=$insmod"; \
-        if [ $build == 1 ]; then echo "##[set-output name=build;]'Passing'" && echo "##[set-output name=buildc;]'green'"; fi; \
-        if [ $insmod == 1 ]; then echo "##[set-output name=insmod;]'Passing'" && echo "##[set-output name=insmodc;]'green'"; fi; \
-        if [ $test == 1 ]; then echo "##[set-output name=test;]'Passing'" && echo "##[set-output name=testc;]'green'"; fi;
-        if [ $build == 0 ]; then echo "##[set-output name=build;]'Failed'" && echo "##[set-output name=buildc;]'red'"; fi; \
-        if [ $insmod == 0 ]; then echo "##[set-output name=insmod;]'Failed'" && echo "##[set-output name=insmodc;]'red'"; fi; \
-        if [ $test == 0 ]; then echo "##[set-output name=test;]'Failed'" && echo "##[set-output name=testc;]'red'"; fi;
+        if [ $build == 1 ]; then echo "##[set-output name=build;]Passing" && echo "##[set-output name=buildc;]green"; fi; \
+        if [ $insmod == 1 ]; then echo "##[set-output name=insmod;]Passing" && echo "##[set-output name=insmodc;]green"; fi; \
+        if [ $test == 1 ]; then echo "##[set-output name=test;]Passing" && echo "##[set-output name=testc;]green"; fi;
+        if [ $build == 0 ]; then echo "##[set-output name=build;]Failed" && echo "##[set-output name=buildc;]red"; fi; \
+        if [ $insmod == 0 ]; then echo "##[set-output name=insmod;]Failed" && echo "##[set-output name=insmodc;]red"; fi; \
+        if [ $test == 0 ]; then echo "##[set-output name=test;]Failed" && echo "##[set-output name=testc;]red"; fi;
 
     # Checkout the badges branch
     - uses: actions/checkout@v1
@@ -78,7 +78,7 @@ jobs:
         BADGE_PATH: ${{ steps.extract_branch.outputs.branch }}
       run: mkdir -p "${BADGE_PATH%/*}"
 
-    # Generate the badge
+    # Generate the build badge
     - name: Build badge
       uses: emibcn/badge-action@v1.2.1
       with:
@@ -87,15 +87,35 @@ jobs:
         color: ${{ steps.run.outputs.buildc }}
         path: ${{ steps.extract_branch.outputs.branch }}/build-${{ github.workflow }}-badge.svg
 
+    # Generate the insmod badge
+    - name: Insmod badge
+      uses: emibcn/badge-action@v1.2.1
+      with:
+        label: 'Insmod'
+        status: ${{ steps.run.outputs.insmod }}
+        color: ${{ steps.run.outputs.insmodc }}
+        path: ${{ steps.extract_branch.outputs.branch }}/insmod-${{ github.workflow }}-badge.svg
+
+    # Generate the test badge
+    - name: Test badge
+      uses: emibcn/badge-action@v1.2.1
+      with:
+        label: 'Test'
+        status: ${{ steps.run.outputs.test }}
+        color: ${{ steps.run.outputs.testc }}
+        path: ${{ steps.extract_branch.outputs.branch }}/test-${{ github.workflow }}-badge.svg
+
     # Commit the badge
     - name: Commit badge
       continue-on-error: true
       env:
-        BADGE: ${{ steps.extract_branch.outputs.branch }}/build-${{ github.workflow }}-badge.svg
+        BUILD_BADGE: ${{ steps.extract_branch.outputs.branch }}/build-${{ github.workflow }}-badge.svg
+        INSMOD_BADGE: ${{ steps.extract_branch.outputs.branch }}/insmod-${{ github.workflow }}-badge.svg
+        TEST_BADGE: ${{ steps.extract_branch.outputs.branch }}/test-${{ github.workflow }}-badge.svg
       run: |
         git config --local user.email "action@github.com"
         git config --local user.name "GitHub Action"
-        git add "${BADGE}"
+        git add "${BUILD_BADGE} ${INSMOD_BADGE} $(TEST_BADGE}"
         git commit -m "Add/Update badge"
     - name: Push badge commit
       uses: ad-m/github-push-action@master
