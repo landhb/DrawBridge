@@ -89,7 +89,6 @@ headers = "linux-headers/linux-5.8.9-headers.tar.gz"
 kernel = "linux-kernels/bzImage-linux-5.8.9"
 runner = "qemu-system-x86_64"
 kvm = false
-kvm = false
 timeout = 120
 
 [kernels.disk]
