@@ -87,10 +87,19 @@ jobs:
         color: ${{ steps.run.outputs.buildc }}
         path: ${{ steps.extract_branch.outputs.branch }}/build-${{ github.workflow }}-badge.svg
 
-    # Upload the badge as an artifact
-    - name: Upload badge as artifact
-      uses: actions/upload-artifact@v2
+    # Commit the badge
+    - name: Commit badge
+      continue-on-error: true
+      env:
+        BADGE: ${{ steps.extract_branch.outputs.branch }}/build-${{ github.workflow }}-badge.svg
+      run: |
+        git config --local user.email "action@github.com"
+        git config --local user.name "GitHub Action"
+        git add "${BADGE}"
+        git commit -m "Add/Update badge"
+    - name: Push badge commit
+      uses: ad-m/github-push-action@master
+      if: ${{ success() }}
       with:
-        name: build-${{ github.workflow }}-badge.svg
-        path: ${{ steps.extract_branch.outputs.branch }}/build-${{ github.workflow }}-badge.svg
-        if-no-files-found: error
+        github_token: ${{ secrets.GITHUB_TOKEN }}
+        branch: badges
