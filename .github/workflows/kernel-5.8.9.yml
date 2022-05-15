@@ -27,7 +27,7 @@ jobs:
       run: sudo apt install qemu-system musl-tools
     - name: Install or upgrade nixmodule
       run: |
-        if ! command -v nixmodule; then cargo install nixmodule; fi \
+        if ! command -v nixmodule; then cargo install nixmodule; fi; \
         if [ $(printf '%s\n' $(nixmodule -V | cut -d " " -f 2) "0.4.0" | sort -V | head -n1) != "0.4.0" ]; then cargo install -f nixmodule; fi
     - name: Perform the test
       run: cd module && NIXMODULEARGS="-k 5.8 -c ci-config.toml" ./tests/run.sh
