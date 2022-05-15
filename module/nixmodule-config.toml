@@ -14,7 +14,7 @@ build_defines = ["STATE_TIMEOUT=15000", "DEBUG=1"]
 
 [module.test_script]
 local = "./tests/test.sh"
-remote = "/tmp/test.sh"
+remote = "/root/test.sh"
 
 [[module.test_files]]
 local = "../tools/target/x86_64-unknown-linux-musl/release/db"
@@ -22,7 +22,7 @@ remote = "/usr/bin/db"
 
 [[module.test_files]]
 local = "/tmp/test_key"
-remote = "/tmp/test_key"
+remote = "/root/test_key"
 
 #######################################################
 # 5.17.2 Test

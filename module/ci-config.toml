@@ -14,7 +14,7 @@ build_defines = ["STATE_TIMEOUT=15000", "DEBUG=1"]
 
 [module.test_script]
 local = "./tests/test.sh"
-remote = "/tmp/test.sh"
+remote = "/root/test.sh"
 
 [[module.test_files]]
 local = "../tools/target/x86_64-unknown-linux-musl/release/db"
@@ -22,7 +22,7 @@ remote = "/usr/bin/db"
 
 [[module.test_files]]
 local = "/tmp/test_key"
-remote = "/tmp/test_key"
+remote = "/root/test_key"
 
 #######################################################
 # 5.17.2 Test
@@ -37,11 +37,11 @@ kvm = false
 timeout = 120
 
 [kernels.disk]
-name = "stretch"
 url_base = "https://files.sboc.dev"
-path = "images/syzkaller-stretch/stretch.img"
-sshkey = "images/syzkaller-stretch/stretch.id_rsa"
-boot = "/dev/sda"
+path = "images/cornerstone/cornerstone.img"
+sshkey = "images/cornerstone/cornerstone.id_ecdsa"
+initrd = "images/cornerstone/cornerstone-initramfs.cpio"
+boot = "/dev/ram0"
 
 #######################################################
 # 5.15.33 Test
@@ -57,9 +57,10 @@ timeout = 120
 
 [kernels.disk]
 url_base = "https://files.sboc.dev"
-path = "images/syzkaller-stretch/stretch.img"
-sshkey = "images/syzkaller-stretch/stretch.id_rsa"
-boot = "/dev/sda"
+path = "images/cornerstone/cornerstone.img"
+sshkey = "images/cornerstone/cornerstone.id_ecdsa"
+initrd = "images/cornerstone/cornerstone-initramfs.cpio"
+boot = "/dev/ram0"
 
 #######################################################
 # 5.10.110 Test
@@ -75,9 +76,10 @@ timeout = 120
 
 [kernels.disk]
 url_base = "https://files.sboc.dev"
-path = "images/syzkaller-stretch/stretch.img"
-sshkey = "images/syzkaller-stretch/stretch.id_rsa"
-boot = "/dev/sda"
+path = "images/cornerstone/cornerstone.img"
+sshkey = "images/cornerstone/cornerstone.id_ecdsa"
+initrd = "images/cornerstone/cornerstone-initramfs.cpio"
+boot = "/dev/ram0"
 
 #######################################################
 # 5.8.9 Test
@@ -93,10 +95,10 @@ timeout = 120
 
 [kernels.disk]
 url_base = "https://files.sboc.dev"
-path = "images/syzkaller-stretch/stretch.img"
-sshkey = "images/syzkaller-stretch/stretch.id_rsa"
-boot = "/dev/sda"
-
+path = "images/cornerstone/cornerstone.img"
+sshkey = "images/cornerstone/cornerstone.id_ecdsa"
+initrd = "images/cornerstone/cornerstone-initramfs.cpio"
+boot = "/dev/ram0"
 
 #######################################################
 # 5.4.188
@@ -112,9 +114,10 @@ timeout = 120
 
 [kernels.disk]
 url_base = "https://files.sboc.dev"
-path = "images/syzkaller-stretch/stretch.img"
-sshkey = "images/syzkaller-stretch/stretch.id_rsa"
-boot = "/dev/sda"
+path = "images/cornerstone/cornerstone.img"
+sshkey = "images/cornerstone/cornerstone.id_ecdsa"
+initrd = "images/cornerstone/cornerstone-initramfs.cpio"
+boot = "/dev/ram0"
 
 
 #######################################################
@@ -131,9 +134,10 @@ timeout = 120
 
 [kernels.disk]
 url_base = "https://files.sboc.dev"
-path = "images/syzkaller-stretch/stretch.img"
-sshkey = "images/syzkaller-stretch/stretch.id_rsa"
-boot = "/dev/sda"
+path = "images/cornerstone/cornerstone.img"
+sshkey = "images/cornerstone/cornerstone.id_ecdsa"
+initrd = "images/cornerstone/cornerstone-initramfs.cpio"
+boot = "/dev/ram0"
 
 #######################################################
 # 4.14.275
@@ -149,9 +153,10 @@ timeout = 120
 
 [kernels.disk]
 url_base = "https://files.sboc.dev"
-path = "images/syzkaller-stretch/stretch.img"
-sshkey = "images/syzkaller-stretch/stretch.id_rsa"
-boot = "/dev/sda"
+path = "images/cornerstone/cornerstone.img"
+sshkey = "images/cornerstone/cornerstone.id_ecdsa"
+initrd = "images/cornerstone/cornerstone-initramfs.cpio"
+boot = "/dev/ram0"
 
 #######################################################
 # 4.9.309
@@ -167,9 +172,10 @@ timeout = 120
 
 [kernels.disk]
 url_base = "https://files.sboc.dev"
-path = "images/syzkaller-stretch/stretch.img"
-sshkey = "images/syzkaller-stretch/stretch.id_rsa"
-boot = "/dev/sda"
+path = "images/cornerstone/cornerstone.img"
+sshkey = "images/cornerstone/cornerstone.id_ecdsa"
+initrd = "images/cornerstone/cornerstone-initramfs.cpio"
+boot = "/dev/ram0"
 
 #######################################################
 # 4.4.302
@@ -185,6 +191,7 @@ timeout = 120
 
 [kernels.disk]
 url_base = "https://files.sboc.dev"
-path = "images/syzkaller-stretch/stretch.img"
-sshkey = "images/syzkaller-stretch/stretch.id_rsa"
-boot = "/dev/sda"
+path = "images/cornerstone/cornerstone.img"
+sshkey = "images/cornerstone/cornerstone.id_ecdsa"
+initrd = "images/cornerstone/cornerstone-initramfs.cpio"
+boot = "/dev/ram0"

@@ -32,7 +32,7 @@ if check_port; then
 fi
 
 # run auth packet
-db auth -i /tmp/test_key --server 127.0.0.1 --dport 53 -p udp --unlock 8888
+db auth -i /root/test_key --server 127.0.0.1 --dport 53 -p udp --unlock 8888
 
 # Verify the auth worked
 dmesg | grep "drawbridge: Authentication" || logdmesg "[!!!] Auth Failed!"
@@ -47,7 +47,7 @@ fi
 sleep 30
 
 # Test that nc is still running
-if ps -p $nc_pid > /dev/null
+if kill -0 $nc_pid > /dev/null
 then
     echo "$nc_pid is running"
 else
