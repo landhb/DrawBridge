@@ -26,7 +26,7 @@ jobs:
     - name: Install deps
       run: sudo apt install qemu-system
     - name: Install nixmodule
-      run: cargo install nixmodule
+      run: if ! command -v nixmodule; then cargo install nixmodule; fi
     - name: Perform the test
       run: cd module && NIXMODULEARGS="-k 5.8 -c ci-config.toml" ./tests/run.sh
     
