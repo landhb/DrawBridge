@@ -130,7 +130,7 @@ headers = "linux-headers/linux-4.19.237-headers.tar.gz"
 kernel = "linux-kernels/bzImage-linux-4.19.237"
 runner = "qemu-system-x86_64"
 kvm = false
-timeout = 120
+timeout = 360
 
 [kernels.disk]
 url_base = "https://files.sboc.dev"
@@ -149,7 +149,7 @@ headers = "linux-headers/linux-4.14.275-headers.tar.gz"
 kernel = "linux-kernels/bzImage-linux-4.14.275"
 runner = "qemu-system-x86_64"
 kvm = false
-timeout = 120
+timeout = 360
 
 [kernels.disk]
 url_base = "https://files.sboc.dev"
@@ -168,7 +168,7 @@ headers = "linux-headers/linux-4.9.309-headers.tar.gz"
 kernel = "linux-kernels/bzImage-linux-4.9.309"
 runner = "qemu-system-x86_64"
 kvm = false
-timeout = 120
+timeout = 360
 
 [kernels.disk]
 url_base = "https://files.sboc.dev"
@@ -187,7 +187,7 @@ headers = "linux-headers/linux-4.4.302-headers.tar.gz"
 kernel = "linux-kernels/bzImage-linux-4.4.302"
 runner = "qemu-system-x86_64"
 kvm = false
-timeout = 120
+timeout = 360
 
 [kernels.disk]
 url_base = "https://files.sboc.dev"

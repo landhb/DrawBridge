@@ -25,13 +25,18 @@ jobs:
       with:
         path: |
           ~/.cache/nixmodule
-          ~/.cargo/bin/
+          ~/.cargo/
         key: ${{ runner.os }}-nixmodule
+
+    # Requires qemu-system and musl linker
     - name: Install deps
       run: sudo apt install qemu-system musl-tools
+
+    # Currently requires nixmodule >= 0.4.0 to use initrd
     - name: Install or upgrade nixmodule
       run: |
         if ! command -v nixmodule; then cargo install nixmodule; fi; \
+        nixmodule -V; \
         if [ $(printf '%s\n' $(nixmodule -V | cut -d " " -f 2) "0.4.0" | sort -V | head -n1) != "0.4.0" ]; then cargo install -f nixmodule; fi
 
     # Get current banch name to use it as dest directory
@@ -62,6 +67,12 @@ jobs:
         if [ $insmod == 0 ]; then echo "##[set-output name=insmod;]'Failed'" && echo "##[set-output name=insmodc;]'red'"; fi; \
         if [ $test == 0 ]; then echo "##[set-output name=test;]'Failed'" && echo "##[set-output name=testc;]'red'"; fi;
 
+    # Create the directory where badges will be saved, if needed
+    - name: Create destination directory
+      env:
+        BADGE_PATH: ${{ steps.extract_branch.outputs.branch }}
+      run: mkdir -p "${BADGE_PATH%/*}"
+
     # Generate the badge
     - name: Build badge
       uses: emibcn/badge-action@v1.2.1
@@ -76,11 +87,7 @@ jobs:
       with:
         ref: badges
 
-    # Create the directory where badges will be saved, if needed
-    - name: Create destination directory
-      env:
-        BADGE_PATH: ${{ steps.extract_branch.outputs.branch }}
-      run: mkdir -p "${BADGE_PATH%/*}"
+
 
     # Upload the badge as an artifact
     - name: Upload badge as artifact

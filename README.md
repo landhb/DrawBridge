@@ -12,7 +12,7 @@ Note: DrawBridge now supports both IPv4 and IPv6 traffic
 
 Please read the corresponding [article](https://www.landhb.me/posts/bODdK/port-knocking-with-netfilter-kernel-modules/) for a more in-depth look at the design. 
 
-# Basic usage
+## Basic usage
 
 ```bash
 sudo db auth --server [REMOTE_SERVER] --dport 53 -p udp --unlock [PORT_TO_UNLOCK]
@@ -30,6 +30,20 @@ It's also convenient to create a bash alias to run `db` automatically when you w
 ```bash
 alias "connect"="db auth -s [REMOTE] -d 53 -p udp --unlock [PORT] && ssh -p [PORT] user@[REMOTE]"
 ```
+
+## CI/CD & Supported Kernel Versions
+
+| Kernel Version | Tests   |
+| :---:    |  :---:     |
+| 5.17.2   |  ![5.17](https://github.com/landhb/Drawbridge/workflows/5.17/badge.svg)  |
+| 5.15.33  |  ![5.15](https://github.com/landhb/Drawbridge/workflows/5.15/badge.svg)  |
+| 5.10.110 |  ![5.10](https://github.com/landhb/Drawbridge/workflows/5.10/badge.svg)  |
+| 5.8.9    |  ![5.8](https://github.com/landhb/Drawbridge/workflows/5.8/badge.svg)  |
+| 5.4.188  |  ![5.4](https://github.com/landhb/Drawbridge/workflows/5.4/badge.svg)  |
+| 4.19.237 |  ![4.19](https://github.com/landhb/Drawbridge/workflows/4.19/badge.svg)  |
+| 4.14.275 |  ![4.14](https://github.com/landhb/Drawbridge/workflows/4.14/badge.svg)  |
+| 4.9.309  |  ![4.9](https://github.com/landhb/Drawbridge/workflows/4.9/badge.svg)  |
+| 4.4.302  |  ![4.4](https://github.com/landhb/Drawbridge/workflows/4.4/badge.svg)  |
 
 ## Build and Install the Drawbridge Utilities
 
