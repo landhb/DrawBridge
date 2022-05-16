@@ -33,17 +33,18 @@ alias "connect"="db auth -s [REMOTE] -d 53 -p udp --unlock [PORT] && ssh -p [POR
 
 ## CI/CD & Supported Kernel Versions
 
-| Kernel Version | Tests   |
-| :---:    |  :---:     |
-| 5.17.2   |  ![5.17](https://github.com/landhb/Drawbridge/workflows/5.17/badge.svg)  |
-| 5.15.33  |  ![5.15](https://github.com/landhb/Drawbridge/workflows/5.15/badge.svg)  |
-| 5.10.110 |  ![5.10](https://github.com/landhb/Drawbridge/workflows/5.10/badge.svg)  |
-| 5.8.9    |  ![5.8](https://github.com/landhb/Drawbridge/workflows/5.8/badge.svg)  |
-| 5.4.188  |  ![5.4](https://github.com/landhb/Drawbridge/workflows/5.4/badge.svg)  |
-| 4.19.237 |  ![4.19](https://github.com/landhb/Drawbridge/workflows/4.19/badge.svg)  |
-| 4.14.275 |  ![4.14](https://github.com/landhb/Drawbridge/workflows/4.14/badge.svg)  |
-| 4.9.309  |  ![4.9](https://github.com/landhb/Drawbridge/workflows/4.9/badge.svg)  |
-| 4.4.302  |  ![4.4](https://github.com/landhb/Drawbridge/workflows/4.4/badge.svg)  |
+| Kernel Version | Build   | Insmod/Supported   | Tests   |
+| :---:    |  :---:     |  :---:     |  :---:     |
+| 5.17.2   |  ![Build](https://raw.githubusercontent.com/landhb/DrawBridge/badges/master/build-5.17-badge.svg)  | ![Insmod](https://raw.githubusercontent.com/landhb/DrawBridge/badges/master/insmod-5.17-badge.svg)  | ![Test](https://raw.githubusercontent.com/landhb/DrawBridge/badges/master/test-5.17-badge.svg)  |
+| 5.15.33  |  ![Build](https://raw.githubusercontent.com/landhb/DrawBridge/badges/master/build-5.15-badge.svg)  | ![Insmod](https://raw.githubusercontent.com/landhb/DrawBridge/badges/master/insmod-5.15-badge.svg)  | ![Test](https://raw.githubusercontent.com/landhb/DrawBridge/badges/master/test-5.15-badge.svg)  |
+| 5.10.110 |  ![Build](https://raw.githubusercontent.com/landhb/DrawBridge/badges/master/build-5.10-badge.svg)  | ![Insmod](https://raw.githubusercontent.com/landhb/DrawBridge/badges/master/insmod-5.10-badge.svg)  | ![Test](https://raw.githubusercontent.com/landhb/DrawBridge/badges/master/test-5.10-badge.svg)  |
+| 5.8.9    |  ![Build](https://raw.githubusercontent.com/landhb/DrawBridge/badges/testing/build-5.8-badge.svg)  | ![Insmod](https://raw.githubusercontent.com/landhb/DrawBridge/badges/testing/insmod-5.8-badge.svg)  | ![Test](https://raw.githubusercontent.com/landhb/DrawBridge/badges/testing/test-5.8-badge.svg)  |
+| 5.4.188  |  ![Build](https://raw.githubusercontent.com/landhb/DrawBridge/badges/master/build-5.4-badge.svg)  | ![Insmod](https://raw.githubusercontent.com/landhb/DrawBridge/badges/master/insmod-5.4-badge.svg)  | ![Test](https://raw.githubusercontent.com/landhb/DrawBridge/badges/master/test-5.4-badge.svg)  |
+| 4.19.237 |  ![Build](https://raw.githubusercontent.com/landhb/DrawBridge/badges/master/build-4.19-badge.svg)  | ![Insmod](https://raw.githubusercontent.com/landhb/DrawBridge/badges/master/insmod-4.19-badge.svg)  | ![Test](https://raw.githubusercontent.com/landhb/DrawBridge/badges/master/test-4.19-badge.svg)  |
+| 4.14.275 |  ![Build](https://raw.githubusercontent.com/landhb/DrawBridge/badges/master/build-4.14-badge.svg)  | ![Insmod](https://raw.githubusercontent.com/landhb/DrawBridge/badges/master/insmod-4.14-badge.svg)  | ![Test](https://raw.githubusercontent.com/landhb/DrawBridge/badges/master/test-4.14-badge.svg)  |
+| 4.9.309  |  ![Build](https://raw.githubusercontent.com/landhb/DrawBridge/badges/master/build-4.9-badge.svg)  | ![Insmod](https://raw.githubusercontent.com/landhb/DrawBridge/badges/master/insmod-4.9-badge.svg)  | ![Test](https://raw.githubusercontent.com/landhb/DrawBridge/badges/master/test-4.9-badge.svg)  |
+| 4.4.302  |  ![Build](https://raw.githubusercontent.com/landhb/DrawBridge/badges/master/build-4.4-badge.svg)  | ![Insmod](https://raw.githubusercontent.com/landhb/DrawBridge/badges/master/insmod-4.4-badge.svg)  | ![Test](https://raw.githubusercontent.com/landhb/DrawBridge/badges/master/test-4.4-badge.svg)  |
+
 
 ## Build and Install the Drawbridge Utilities
 
