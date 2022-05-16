@@ -116,7 +116,9 @@ jobs:
         git config --local user.email "action@github.com"
         git config --local user.name "GitHub Action"
         git status
-        git add "${BUILD_BADGE}" "${INSMOD_BADGE}" "$(TEST_BADGE}"
+        git add "${BUILD_BADGE}"
+        git add "${INSMOD_BADGE}"
+        git add "$(TEST_BADGE}"
         git commit -m "Add/Update badge"
     - name: Push badge commit
       uses: ad-m/github-push-action@master
