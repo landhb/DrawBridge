@@ -76,7 +76,7 @@ jobs:
     - name: Create destination directory
       env:
         BADGE_PATH: ${{ steps.extract_branch.outputs.branch }}
-      run: mkdir -p "${BADGE_PATH%/*}"
+      run: mkdir -p "${BADGE_PATH%/*}";
 
     # Generate the build badge
     - name: Build badge
@@ -116,9 +116,11 @@ jobs:
         git config --local user.email "action@github.com"
         git config --local user.name "GitHub Action"
         git status
+        echo "${BUILD_BADGE}"
         git add "${BUILD_BADGE}"
         git add "${INSMOD_BADGE}"
         git add "$(TEST_BADGE}"
+        git status
         git commit -m "Add/Update badge"
     - name: Push badge commit
       uses: ad-m/github-push-action@master
