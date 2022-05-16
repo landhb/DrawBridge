@@ -115,11 +115,11 @@ jobs:
       run: |
         git config --local user.email "action@github.com"
         git config --local user.name "GitHub Action"
-        git status
+        git status 
         echo "${BUILD_BADGE}"
         git add "${BUILD_BADGE}"
         git add "${INSMOD_BADGE}"
-        git add "$(TEST_BADGE}"
+        git add "${TEST_BADGE}"
         git status
         git commit -m "Add/Update badge"
     - name: Push badge commit
