@@ -34,6 +34,9 @@ fi
 # run auth packet
 db auth -i /root/test_key --server 127.0.0.1 --dport 53 -p udp --unlock 8888
 
+# Give emulator a second (for CI/CD)
+sleep 2
+
 # Verify the auth worked
 dmesg | grep "drawbridge: Authentication" || logdmesg "[!!!] Auth Failed!"
 

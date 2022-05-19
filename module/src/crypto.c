@@ -307,9 +307,6 @@ int verify_sig_rsa(akcipher_request *req, pkey_signature *sig)
         return err;
     }
 
-    /*DEBUG_PRINT(KERN_INFO "\nComputation:\n");
-    hexdump(result, 32); */
-
     /* Do the actual verification step. */
     if (crypto_memneq(sig->digest, result, sig->digest_size) != 0) {
         DEBUG_PRINT(KERN_INFO
@@ -320,7 +317,6 @@ int verify_sig_rsa(akcipher_request *req, pkey_signature *sig)
         return -EKEYREJECTED;
     }
 
-    //DEBUG_PRINT(KERN_INFO "[+] RSA signature verification passed\n");
     kfree(inbuf);
     kfree(outbuf);
     return 0;

@@ -151,7 +151,7 @@ int listen(void *data)
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 9, 0)
     ret = sock_setsockopt(sock, SOL_SOCKET, SO_ATTACH_FILTER,
-                          KERNEL_SOCKPTR((void *)&bpf), sizeof(bpf));
+                          KERNEL_SOCKPTR(&bpf), sizeof(bpf));
 #else
     ret = sock_setsockopt(sock, SOL_SOCKET, SO_ATTACH_FILTER, (void *)&bpf,
                           sizeof(bpf));
