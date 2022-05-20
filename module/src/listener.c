@@ -46,6 +46,13 @@ struct sock_filter zerocode[] = {
     BPF_STMT(BPF_RET | BPF_K, 0)
 };
 
+/**
+ * @brief Wrap kernel_recvmsg due to modifications in 4.20+ & 3.19+
+ *
+ * @param sock Kernel socket to recv on
+ * @param buf  Buffer to recv into
+ * @param len  Length of provided buffer
+ */
 static int ksocket_receive(struct socket *sock,
                            unsigned char *buf, int len)
 {
@@ -103,7 +110,8 @@ void __noreturn thread_exit(int value) {
 /**
  * @brief Wrap SO_ATTACH_FILTER due to modifications in 5.9
  *
- * @param value Exit code
+ * @param sock Socket to apply filter on
+ * @param fprog BPF program to apply
  */
 int apply_filter(struct socket *sock, struct sock_fprog *fprog) {
     int ret = 0;
