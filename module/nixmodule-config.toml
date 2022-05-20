@@ -1,0 +1,172 @@
+#######################################################
+# Cache Config
+#######################################################
+cache = "~/.cache/nixmodule"
+
+#######################################################
+# Module Config
+#######################################################
+
+[module]
+name = "drawbridge"
+insmod_args = "ports=8888"
+build_defines = ["STATE_TIMEOUT=15000", "DEBUG=1"]
+
+[module.test_script]
+local = "./tests/test.sh"
+remote = "/root/test.sh"
+
+[[module.test_files]]
+local = "../tools/target/x86_64-unknown-linux-musl/release/db"
+remote = "/usr/bin/db"
+
+[[module.test_files]]
+local = "/tmp/test_key"
+remote = "/root/test_key"
+
+#######################################################
+# 5.17.2 Test
+#######################################################
+[[kernels]]
+version = "5.17.2"
+url_base = "https://files.sboc.dev"
+headers = "linux-headers/linux-5.17.2-headers.tar.gz" 
+kernel = "linux-kernels/bzImage-linux-5.17.2"
+runner = "qemu-system-x86_64"
+
+[kernels.disk]
+name = "stretch"
+url_base = "https://files.sboc.dev"
+path = "images/syzkaller-stretch/stretch.img"
+sshkey = "images/syzkaller-stretch/stretch.id_rsa"
+boot = "/dev/sda"
+
+#######################################################
+# 5.15.33 Test
+#######################################################
+[[kernels]]
+version = "5.15.33"
+url_base = "https://files.sboc.dev"
+headers = "linux-headers/linux-5.15.33-headers.tar.gz" 
+kernel = "linux-kernels/bzImage-linux-5.15.33"
+runner = "qemu-system-x86_64"
+
+[kernels.disk]
+url_base = "https://files.sboc.dev"
+path = "images/syzkaller-stretch/stretch.img"
+sshkey = "images/syzkaller-stretch/stretch.id_rsa"
+boot = "/dev/sda"
+
+#######################################################
+# 5.10.110 Test
+#######################################################
+[[kernels]]
+version = "5.10.110"
+url_base = "https://files.sboc.dev"
+headers = "linux-headers/linux-5.10.110-headers.tar.gz" 
+kernel = "linux-kernels/bzImage-linux-5.10.110"
+runner = "qemu-system-x86_64"
+
+[kernels.disk]
+url_base = "https://files.sboc.dev"
+path = "images/syzkaller-stretch/stretch.img"
+sshkey = "images/syzkaller-stretch/stretch.id_rsa"
+boot = "/dev/sda"
+
+#######################################################
+# 5.8.9 Test
+#######################################################
+[[kernels]]
+version = "5.8.9"
+url_base = "https://files.sboc.dev"
+headers = "linux-headers/linux-5.8.9-headers.tar.gz" 
+kernel = "linux-kernels/bzImage-linux-5.8.9"
+runner = "qemu-system-x86_64"
+
+[kernels.disk]
+url_base = "https://files.sboc.dev"
+path = "images/syzkaller-stretch/stretch.img"
+sshkey = "images/syzkaller-stretch/stretch.id_rsa"
+boot = "/dev/sda"
+
+
+#######################################################
+# 5.4.188
+#######################################################
+[[kernels]]
+version = "5.4.188"
+url_base = "https://files.sboc.dev"
+headers = "linux-headers/linux-5.4.188-headers.tar.gz" 
+kernel = "linux-kernels/bzImage-linux-5.4.188"
+runner = "qemu-system-x86_64"
+
+[kernels.disk]
+url_base = "https://files.sboc.dev"
+path = "images/syzkaller-stretch/stretch.img"
+sshkey = "images/syzkaller-stretch/stretch.id_rsa"
+boot = "/dev/sda"
+
+
+#######################################################
+# 4.19.237
+#######################################################
+[[kernels]]
+version = "4.19.237"
+url_base = "https://files.sboc.dev"
+headers = "linux-headers/linux-4.19.237-headers.tar.gz" 
+kernel = "linux-kernels/bzImage-linux-4.19.237"
+runner = "qemu-system-x86_64"
+
+[kernels.disk]
+url_base = "https://files.sboc.dev"
+path = "images/syzkaller-stretch/stretch.img"
+sshkey = "images/syzkaller-stretch/stretch.id_rsa"
+boot = "/dev/sda"
+
+#######################################################
+# 4.14.275
+#######################################################
+[[kernels]]
+version = "4.14.275"
+url_base = "https://files.sboc.dev"
+headers = "linux-headers/linux-4.14.275-headers.tar.gz" 
+kernel = "linux-kernels/bzImage-linux-4.14.275"
+runner = "qemu-system-x86_64"
+
+[kernels.disk]
+url_base = "https://files.sboc.dev"
+path = "images/syzkaller-stretch/stretch.img"
+sshkey = "images/syzkaller-stretch/stretch.id_rsa"
+boot = "/dev/sda"
+
+#######################################################
+# 4.9.309
+#######################################################
+[[kernels]]
+version = "4.9.309"
+url_base = "https://files.sboc.dev"
+headers = "linux-headers/linux-4.9.309-headers.tar.gz" 
+kernel = "linux-kernels/bzImage-linux-4.9.309"
+runner = "qemu-system-x86_64"
+
+[kernels.disk]
+url_base = "https://files.sboc.dev"
+path = "images/syzkaller-stretch/stretch.img"
+sshkey = "images/syzkaller-stretch/stretch.id_rsa"
+boot = "/dev/sda"
+
+#######################################################
+# 4.4.302
+#######################################################
+[[kernels]]
+version = "4.4.302"
+url_base = "https://files.sboc.dev"
+headers = "linux-headers/linux-4.4.302-headers.tar.gz" 
+kernel = "linux-kernels/bzImage-linux-4.4.302"
+runner = "qemu-system-x86_64"
+
+[kernels.disk]
+url_base = "https://files.sboc.dev"
+path = "images/syzkaller-stretch/stretch.img"
+sshkey = "images/syzkaller-stretch/stretch.id_rsa"
+boot = "/dev/sda"

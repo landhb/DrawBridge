@@ -1,5 +1,5 @@
 /** 
-* @file xt_hook.c
+* @file entrypoint.c
 * @brief Entrypoint for Drawbridge - NetFilter Kernel Module to Support 
 * BPF Based Single Packet Authentication
 *
@@ -12,7 +12,7 @@
 #include <linux/kernel.h>
 #include <linux/sched.h>
 #include <linux/kthread.h>
-#include <linux/errno.h> // https://github.com/torvalds/linux/blob/master/include/uapi/asm-generic/errno-base.h for relevent error codes
+#include <linux/errno.h>
 #include <linux/byteorder/generic.h>
 #include <linux/rculist.h>
 #include <linux/timer.h>
@@ -58,6 +58,9 @@ static unsigned int ports_c = 0;
 module_param_array(ports, ushort, &ports_c, 0400);
 MODULE_PARM_DESC(ports, "Port numbers to require knocks for");
 
+DECLARE_COMPLETION(thread_setup);
+DECLARE_COMPLETION(thread_done);
+
 static struct nf_hook_ops pkt_hook_ops __read_mostly = {
     .pf         = NFPROTO_IPV4,
     .priority   = NF_IP_PRI_FIRST,
@@ -81,22 +84,14 @@ static struct nf_hook_ops pkt_hook_ops_v6 __read_mostly = {
  *
  *  @return NF_ACCEPT/NF_DROP
  */
-static unsigned int conn_state_check(int type, __be32 src,
-                                     struct in6_addr *src_6, __be16 dest_port)
+static unsigned int conn_state_check(parsed_packet *info)
 {
     unsigned int i;
-
     for (i = 0; i < ports_c && i < MAX_PORTS; i++) {
-        // Check if packet is destined for a port on our watchlist
-        if (dest_port == htons(ports[i])) {
-            if (type == 4 &&
-                state_lookup(knock_state, 4, src, NULL, dest_port)) {
-                return NF_ACCEPT;
-            } else if (type == 6 &&
-                       state_lookup(knock_state, 6, 0, src_6, dest_port)) {
+        if (info->port == ports[i]) {
+            if (state_lookup(knock_state, info)) {
                 return NF_ACCEPT;
             }
-
             return NF_DROP;
         }
     }
@@ -114,6 +109,7 @@ static unsigned int conn_state_check(int type, __be32 src,
  */
 static unsigned int pkt_hook_v6(struct sk_buff *skb)
 {
+    parsed_packet info = { 0 };
     struct tcphdr *tcp_header;
     struct udphdr *udp_header;
     struct ipv6hdr *ipv6_header = (struct ipv6hdr *)skb_network_header(skb);
@@ -136,15 +132,21 @@ static unsigned int pkt_hook_v6(struct sk_buff *skb)
         return NF_ACCEPT;
     }
 
+    // Obtain the source IP
+    info.version = 6;
+    info.ip.addr_6 = ipv6_header->saddr;
+
     // UDP
     if (ipv6_header->nexthdr == 17) {
         udp_header = (struct udphdr *)skb_transport_header(skb);
-        return conn_state_check(6, 0, &(ipv6_header->saddr), udp_header->dest);
+        info.port = ntohs(udp_header->dest);
+        return conn_state_check(&info);
     }
 
     // TCP
     tcp_header = (struct tcphdr *)skb_transport_header(skb);
-    return conn_state_check(6, 0, &(ipv6_header->saddr), tcp_header->dest);
+    info.port = ntohs(tcp_header->dest);
+    return conn_state_check(&info);
 }
 
 /**
@@ -158,6 +160,7 @@ static unsigned int pkt_hook_v6(struct sk_buff *skb)
  */
 static unsigned int pkt_hook_v4(struct sk_buff *skb)
 {
+    parsed_packet info = { 0 };
     struct tcphdr *tcp_header;
     struct udphdr *udp_header;
     struct iphdr *ip_header = (struct iphdr *)skb_network_header(skb);
@@ -180,15 +183,21 @@ static unsigned int pkt_hook_v4(struct sk_buff *skb)
         return NF_ACCEPT;
     }
 
+    // Obtain the source IP
+    info.version = 4;
+    info.ip.addr_4 = ip_header->saddr;
+
     // UDP
     if (ip_header->protocol == 17) {
         udp_header = (struct udphdr *)skb_transport_header(skb);
-        return conn_state_check(4, ip_header->saddr, NULL, udp_header->dest);
+        info.port = ntohs(udp_header->dest);
+        return conn_state_check(&info);
     }
 
     // TCP
     tcp_header = (struct tcphdr *)skb_transport_header(skb);
-    return conn_state_check(4, ip_header->saddr, NULL, tcp_header->dest);
+    info.port = ntohs(tcp_header->dest);
+    return conn_state_check(&info);
 }
 
 /**
@@ -221,6 +230,16 @@ static int __init nf_conntrack_knock_init(void)
 
     // Now it is safe to start kthread - exiting from it doesn't destroy its struct.
     wake_up_process(raw_thread);
+
+    // Wait for the child thread to finish setting up
+    wait_for_completion(&thread_setup);
+
+    // Check if the thread has exited
+    if (completion_done(&thread_done)) {
+        DEBUG_PRINT(KERN_INFO "[-] drawbridge: Unable to setup child thread\n");
+        cleanup_states(knock_state);
+        return -1;
+    }
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 13, 0)
     ret = nf_register_net_hook(&init_net, &pkt_hook_ops);

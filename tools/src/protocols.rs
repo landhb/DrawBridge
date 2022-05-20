@@ -1,6 +1,7 @@
-use failure::{bail, Error};
+use crate::errors::DrawBridgeError::*;
 use pnet::packet::tcp::{MutableTcpPacket, TcpFlags, TcpOption};
 use pnet::packet::udp::MutableUdpPacket;
+use std::error::Error;
 use std::net::IpAddr;
 
 // Builds an immutable UdpPacket to drop on the wire
@@ -9,7 +10,7 @@ pub fn build_udp_packet<'a>(
     src_ip: IpAddr,
     dst_ip: IpAddr,
     dst_port: u16,
-) -> Result<MutableUdpPacket<'a>, Error> {
+) -> Result<MutableUdpPacket<'a>, Box<dyn Error>> {
     // calculate total length
     let mut length: usize = pnet::packet::ethernet::EthernetPacket::minimum_packet_size();
     length += pnet::packet::udp::MutableUdpPacket::minimum_packet_size();
@@ -29,7 +30,7 @@ pub fn build_udp_packet<'a>(
         Some(res) => res,
         None => {
             println!("[!] Could not allocate packet!");
-            bail!(-1);
+            return Err(OutOfMemory.into());
         }
     };
 
@@ -53,7 +54,8 @@ pub fn build_udp_packet<'a>(
             udp.set_checksum(checksum);
         }
         _ => {
-            bail!("[-] Unknown IP Address type")
+            println!("[-] Unknown IP Address type");
+            return Err(InvalidIP.into());
         }
     }
 
@@ -66,7 +68,7 @@ pub fn build_tcp_packet<'a>(
     src_ip: IpAddr,
     dst_ip: IpAddr,
     dst_port: u16,
-) -> Result<MutableTcpPacket<'a>, Error> {
+) -> Result<MutableTcpPacket<'a>, Box<dyn Error>> {
     // calculate total length
     let mut length: usize = pnet::packet::ethernet::EthernetPacket::minimum_packet_size();
     length += pnet::packet::tcp::MutableTcpPacket::minimum_packet_size();
@@ -86,7 +88,7 @@ pub fn build_tcp_packet<'a>(
         Some(res) => res,
         None => {
             println!("[!] Could not allocate packet!");
-            bail!(-1);
+            return Err(OutOfMemory.into());
         }
     };
 
@@ -109,21 +111,20 @@ pub fn build_tcp_packet<'a>(
     tcp.set_payload(data);
 
     // compute the checksum
-    match (src_ip, dst_ip) {
+    let checksum = match (src_ip, dst_ip) {
         (IpAddr::V4(src_ip4), IpAddr::V4(dst_ip4)) => {
-            let checksum =
-                pnet::packet::tcp::ipv4_checksum(&tcp.to_immutable(), &src_ip4, &dst_ip4);
-            tcp.set_checksum(checksum);
+            pnet::packet::tcp::ipv4_checksum(&tcp.to_immutable(), &src_ip4, &dst_ip4)
         }
         (IpAddr::V6(src_ip6), IpAddr::V6(dst_ip6)) => {
-            let checksum =
-                pnet::packet::tcp::ipv6_checksum(&tcp.to_immutable(), &src_ip6, &dst_ip6);
-            tcp.set_checksum(checksum);
+            pnet::packet::tcp::ipv6_checksum(&tcp.to_immutable(), &src_ip6, &dst_ip6)
         }
         _ => {
-            bail!("[-] Unknown IP Address type")
+            println!("[-] Unknown IP Address type");
+            return Err(InvalidIP.into());
         }
-    }
+    };
+
+    tcp.set_checksum(checksum);
 
     return Ok(tcp);
 }

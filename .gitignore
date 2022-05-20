@@ -2,5 +2,7 @@
 *.pyc
 *.ko
 *.tmp*
-kernel/key.h
+key.h
 tools/target
+target
+fuzz/*/out

@@ -1,5 +1,5 @@
 /** 
-* @file xt_state.c
+* @file state.c
 * @brief Implements connection state functions for the 
 * conntrack_state linked list
 *
@@ -47,14 +47,35 @@ static inline int ipv6_addr_cmp(const struct in6_addr *a1,
 }
 
 /**
+ *  @brief Utility function to compare state with parsed_packet
+ */
+static inline int compare_state_info(struct conntrack_state *state, parsed_packet *info) {
+    if (state->type != info->version) {
+        return -1;
+    }
+
+    if (state->port != info->port) {
+        return -1;
+    }
+
+    switch(state->type) {
+        case 4:
+            return state->src.addr_4 == info->ip.addr_4;
+        case 6:
+            return ipv6_addr_cmp(&state->src.addr_6, &info->ip.addr_6);
+        default:
+            return -1;
+    }
+}
+
+/**
 *  @brief Utility function to log a new connections to dmesg
 *  @param state The SPA conntrack_state associated with this allowed connection
 *  @param src IPv4 address to log, if connection is IPv4
 *  @param src_6 IPv6 address to log, if connection is IPv6
 *  @return Zero on a match, otherwise a non-zero integer
 */
-static inline void log_connection(struct conntrack_state *state, __be32 src,
-                                  struct in6_addr *src_6)
+static inline void log_connection(struct conntrack_state *state)
 {
     uint8_t buf[512] = {0};
 
@@ -67,9 +88,9 @@ static inline void log_connection(struct conntrack_state *state, __be32 src,
 
     // Convert to human readable to log
     if (state->type == 4) {
-        inet_ntoa(buf, src);
+        internal_inet_ntoa(buf, sizeof(buf), state->src.addr_4);
     } else if (state->type == 6) {
-        inet6_ntoa(buf, src_6);
+        internal_inet6_ntoa(buf, sizeof(buf), &state->src.addr_6);
     }
 
     DEBUG_PRINT("[+] DrawBridge accepted connection - source: %s\n", buf);
@@ -162,29 +183,17 @@ static inline void update_state(conntrack_state *old_state)
 *  @param src_6 IPv6 address to log, if connection is IPv6
 *  @param port Port attempting to be connected to
 */
-int state_lookup(conntrack_state *head, int type, __be32 src,
-                 struct in6_addr *src_6, __be16 port)
+int state_lookup(conntrack_state *head, parsed_packet *pktinfo)
 {
     conntrack_state *state;
 
     rcu_read_lock();
 
     list_for_each_entry_rcu (state, &(head->list), list) {
-        if (state->type == 4 && state->src.addr_4 == src &&
-            state->port == port) {
+        if (compare_state_info(state, pktinfo)) {
             update_state(state);
 #ifdef DEBUG
-            log_connection(state, src, src_6);
-#endif
-            rcu_read_unlock();
-            call_rcu(&state->rcu, reclaim_state_entry);
-            return 1;
-        } else if (state->type == 6 &&
-                   ipv6_addr_cmp(&(state->src.addr_6), src_6) == 0 &&
-                   state->port == port) {
-            update_state(state);
-#ifdef DEBUG
-            log_connection(state, src, src_6);
+            log_connection(state);
 #endif
             rcu_read_unlock();
             call_rcu(&state->rcu, reclaim_state_entry);
@@ -206,20 +215,19 @@ int state_lookup(conntrack_state *head, int type, __be32 src,
 *  @param src_6 IPv6 address that authenticated, if connection is IPv6
 *  @param port Port that connections will be allowed to
 */
-void state_add(conntrack_state *head, int type, __be32 src,
-               struct in6_addr *src_6, __be16 port)
+void state_add(conntrack_state *head, parsed_packet *info)
 {
     // Create new node
     conntrack_state *state = init_state();
 
     // set params
-    state->type = type;
-    if (type == 4) {
-        state->src.addr_4 = src;
-    } else if (type == 6) {
-        memcpy(&(state->src.addr_6), src_6, sizeof(struct in6_addr));
+    state->type = info->version;
+    if (state->type == 4) {
+        state->src.addr_4 = info->ip.addr_4;
+    } else if (state->type == 6) {
+        state->src.addr_6 = info->ip.addr_6;
     }
-    state->port = port;
+    state->port = info->port;
     state->time_added = jiffies;
     state->time_updated = jiffies;
 
@@ -278,8 +286,7 @@ struct timer_list *init_reaper(unsigned long timeout)
 #endif
 
     // Set the timeout value
-    mod_timer(my_timer, jiffies + msecs_to_jiffies(timeout));
-
+    mod_timer(my_timer, jiffies + msecs_to_jiffies(STATE_TIMEOUT));
     return my_timer;
 }
 
@@ -298,10 +305,12 @@ void reap_expired_connections(unsigned long timeout)
 {
     conntrack_state *state, *tmp;
 
+    DEBUG_PRINT(KERN_INFO "[*] Timer expired, checking connections...\n");
+
     spin_lock(&listmutex);
 
     list_for_each_entry_safe (state, tmp, &(knock_state->list), list) {
-        if (jiffies - state->time_updated >= msecs_to_jiffies(timeout)) {
+        if (jiffies - state->time_updated >= msecs_to_jiffies(STATE_TIMEOUT)) {
             list_del_rcu(&(state->list));
             synchronize_rcu();
             kfree(state);
@@ -312,7 +321,7 @@ void reap_expired_connections(unsigned long timeout)
     spin_unlock(&listmutex);
 
     // Set the timeout value
-    mod_timer(reaper, jiffies + msecs_to_jiffies(timeout));
-
+    mod_timer(reaper, jiffies + msecs_to_jiffies(STATE_TIMEOUT));
+    DEBUG_PRINT(KERN_INFO "[*] Timer reset.\n");
     return;
 }

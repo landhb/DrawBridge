@@ -26,13 +26,8 @@
 // Time
 #include <linux/time64.h>
 
-// Timout Configuration - default 5 min = 300000msec
-#define STATE_TIMEOUT 300000
-
-// Defaults
-#define MAX_PACKET_SIZE 65535
-#define MAX_SIG_SIZE 4096
-#define MAX_DIGEST_SIZE 256
+// Include the parser headers
+#include "parser.h"
 
 #ifdef DEBUG
 #define DEBUG_PRINT(fmt, args...) printk(KERN_DEBUG fmt, ##args)
@@ -43,21 +38,11 @@
 #define LOG_PRINT(fmt, args...) printk(KERN_NOTICE fmt, ##args)
 
 /*
- * Public key cryptography signature data
- */
-typedef struct pkey_signature {
-    u8 *s; /* Signature */
-    u32 s_size; /* Number of bytes in signature */
-    u8 *digest;
-    u32 digest_size; /* Number of bytes in digest */
-} pkey_signature;
-
-/*
  * Connection state for Trigger module
  */
 typedef struct conntrack_state {
     // IP version type
-    int type;
+    uint8_t type;
 
     // Destination port
     __be16 port;
@@ -78,13 +63,6 @@ typedef struct conntrack_state {
 
 } conntrack_state;
 
-// Must be packed so that the compiler doesn't byte align the structure
-struct packet {
-    // Protocol data
-    struct timespec64 timestamp;
-    __be16 port;
-
-} __attribute__((packed));
 
 // Typdefs for cleaner code
 typedef struct akcipher_request akcipher_request;
@@ -96,10 +74,8 @@ void inet_ntoa(char *str_ip, __be32 int_ip);
 
 // State API
 conntrack_state *init_state(void);
-int state_lookup(conntrack_state *head, int type, __be32 src,
-                 struct in6_addr *src_6, __be16 port);
-void state_add(conntrack_state *head, int type, __be32 src,
-               struct in6_addr *src_6, __be16 port);
+int state_lookup(conntrack_state *head, parsed_packet *pktinfo);
+void state_add(conntrack_state *head, parsed_packet *info);
 void cleanup_states(conntrack_state *head);
 
 // Connection Reaper API
@@ -113,10 +89,9 @@ void free_keys(crypto_akcipher *tfm, akcipher_request *req);
 int verify_sig_rsa(akcipher_request *req, pkey_signature *sig);
 void *gen_digest(void *buf, unsigned int len);
 
-
-// Utils
-void inet6_ntoa(char *str_ip, struct in6_addr *src_6);
-void inet_ntoa(char *str_ip, __be32 int_ip);
-void hexdump(unsigned char *buf, unsigned int len);
+/**
+ * Validate the given signature
+ */
+ssize_t validate_packet(parsed_packet * info, akcipher_request *req, void * pkt, size_t maxsize);
 
 #endif /* _LINUX_DRAWBRIDGE_H */

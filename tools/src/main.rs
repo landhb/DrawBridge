@@ -1,4 +1,4 @@
-extern crate failure;
+//extern crate failure;
 extern crate pnet;
 extern crate rand;
 //#[macro_use] extern crate failure;
@@ -20,11 +20,13 @@ use pnet::transport::TransportProtocol::Ipv6;
 // internal modules
 mod crypto;
 mod drawbridge;
+mod errors;
 mod protocols;
 mod route;
 
+use crate::errors::DrawBridgeError::*;
 use clap::{App, AppSettings, Arg, SubCommand};
-use failure::{bail, Error};
+use std::error::Error;
 use std::io::Write;
 
 const MAX_PACKET_SIZE: usize = 2048;
@@ -62,7 +64,7 @@ impl pnet::packet::Packet for PktWrapper<'_> {
  * Method for the auth subcommand,
  * authenticates with a remote Drawbridge Server
  */
-fn auth(args: &clap::ArgMatches) -> Result<(), Error> {
+fn auth(args: &clap::ArgMatches) -> Result<(), Box<dyn Error>> {
     // required so safe to unwrap
     let proto = args.value_of("protocol").unwrap();
     let dtmp = args.value_of("dport").unwrap();
@@ -72,8 +74,8 @@ fn auth(args: &clap::ArgMatches) -> Result<(), Error> {
     // expand the path
     let key = match shellexpand::full(tmpkey) {
         Ok(res) => res.to_string(),
-        Err(e) => {
-            bail!(e)
+        Err(_e) => {
+            return Err(InvalidPath.into());
         }
     };
 
@@ -81,7 +83,8 @@ fn auth(args: &clap::ArgMatches) -> Result<(), Error> {
     let (unlock_port, dport) = match (utmp.parse::<u16>(), dtmp.parse::<u16>()) {
         (Ok(uport), Ok(dport)) => (uport, dport),
         _ => {
-            bail!("{}", "[-] Ports must be between 1-65535");
+            println!("[-] Ports must be between 1-65535");
+            return Err(InvalidPort.into());
         }
     };
 
@@ -89,7 +92,8 @@ fn auth(args: &clap::ArgMatches) -> Result<(), Error> {
     let target = match args.value_of("server").unwrap().parse::<IpAddr>() {
         Ok(e) => e,
         _ => {
-            bail!("{}", "[-] IP address invalid, must be IPv4 or IPv6");
+            println!("[-] IP address invalid, must be IPv4 or IPv6");
+            return Err(InvalidIP.into());
         }
     };
 
@@ -97,16 +101,18 @@ fn auth(args: &clap::ArgMatches) -> Result<(), Error> {
         Some(interface) => interface.to_string(),
         None => match route::get_default_iface() {
             Ok(res) => res,
-            Err(e) => {
-                bail!(e)
+            Err(_e) => {
+                println!("[-] Could not determine default interface");
+                return Err(InvalidInterface.into());
             }
         },
     };
 
     let src_ip = match route::get_interface_ip(&iface) {
         Ok(res) => res,
-        Err(e) => {
-            bail!(e)
+        Err(_e) => {
+            println!("[-] Could not determine IP for interface {:?}", iface);
+            return Err(InvalidInterface.into());
         }
     };
 
@@ -119,23 +125,29 @@ fn auth(args: &clap::ArgMatches) -> Result<(), Error> {
         ("tcp", false) => Layer4(Ipv6(IpNextHeaderProtocols::Tcp)),
         ("udp", true) => Layer4(Ipv4(IpNextHeaderProtocols::Udp)),
         ("udp", false) => Layer4(Ipv6(IpNextHeaderProtocols::Udp)),
-        _ => bail!("[-] Protocol/IpAddr pair not supported!"),
+        _ => {
+            println!("[-] Protocol/IpAddr pair not supported!");
+            return Err(UnsupportedProtocol.into());
+        }
     };
 
     // Create a new channel, dealing with layer 4 packets
     let (mut tx, _rx) = match transport_channel(MAX_PACKET_SIZE, config) {
         Ok((tx, rx)) => (tx, rx),
-        Err(e) => bail!(
-            "An error occurred when creating the transport channel: {}",
-            e
-        ),
+        Err(e) => {
+            println!(
+                "An error occurred when creating the transport channel: {}",
+                e
+            );
+            return Err(NetworkingError.into());
+        }
     };
 
     // build the Drawbridge specific protocol data
     let data = match drawbridge::build_packet(unlock_port, key) {
         Ok(res) => res,
-        Err(e) => {
-            bail!(e)
+        Err(_e) => {
+            return Err(NetworkingError.into());
         }
     };
 
@@ -153,7 +165,10 @@ fn auth(args: &clap::ArgMatches) -> Result<(), Error> {
             target,
             dport,
         )?),
-        _ => bail!("[-] not implemented"),
+        _ => {
+            println!("[-] not implemented");
+            return Err(UnsupportedProtocol.into());
+        }
     };
 
     println!(
@@ -168,7 +183,7 @@ fn auth(args: &clap::ArgMatches) -> Result<(), Error> {
         }
         Err(e) => {
             println!("[-] Failed to send packet: {}", e);
-            bail!(-2);
+            return Err(NetworkingError.into());
         }
     }
 
@@ -179,7 +194,7 @@ fn auth(args: &clap::ArgMatches) -> Result<(), Error> {
  * Method for the keygen subcommand, generate new
  * Drawbridge keys
  */
-fn keygen(args: &clap::ArgMatches) -> Result<(), Error> {
+fn keygen(args: &clap::ArgMatches) -> Result<(), Box<dyn Error>> {
     let alg = args.value_of("algorithm").unwrap();
     let tmpbits = args.value_of("bits").unwrap();
     let tmpfile = args.value_of("outfile").unwrap();
@@ -187,8 +202,8 @@ fn keygen(args: &clap::ArgMatches) -> Result<(), Error> {
     // expand the path
     let outfile = match shellexpand::full(tmpfile) {
         Ok(res) => res.to_string(),
-        Err(e) => {
-            bail!(e)
+        Err(_e) => {
+            return Err(InvalidPath.into());
         }
     };
 
@@ -212,14 +227,15 @@ fn keygen(args: &clap::ArgMatches) -> Result<(), Error> {
             println!("[*] Creating {:?}", parent.display());
             std::fs::create_dir(parent)?;
         } else {
-            bail!("[-] Specify or create a directory for the new keys.")
+            println!("[-] Specify or create a directory for the new keys.");
+            return Err(InvalidPath.into());
         }
     }
 
     let bits = match tmpbits.parse::<u32>() {
         Ok(b) => b,
-        Err(e) => {
-            bail!(e)
+        Err(_e) => {
+            return Err(InvalidBits.into());
         }
     };
 
@@ -228,7 +244,8 @@ fn keygen(args: &clap::ArgMatches) -> Result<(), Error> {
     match alg {
         "rsa" => crypto::gen_rsa(bits, priv_path, pub_path)?,
         "ecdsa" => {
-            bail!("[-] ECDSA is not implemented yet. Stay tuned.")
+            println!("[-] ECDSA is not implemented yet. Stay tuned.");
+            return Err(UnsupportedProtocol.into());
         }
         _ => unreachable!(),
     };
@@ -237,7 +254,7 @@ fn keygen(args: &clap::ArgMatches) -> Result<(), Error> {
     Ok(())
 }
 
-fn main() -> Result<(), Error> {
+fn main() -> Result<(), Box<dyn Error>> {
     let args = App::new("db")
         .version("1.0.0")
         .author("landhb <https://blog.landhb.dev>")

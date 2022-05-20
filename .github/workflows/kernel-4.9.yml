@@ -1,0 +1,115 @@
+name: "4.9"
+
+on:
+  push:
+    branches:
+    - '*'
+    - '!badges'
+
+jobs:
+
+  build:
+
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v1
+    - uses: actions-rs/toolchain@v1
+      with:
+          profile: minimal
+          toolchain: stable
+          target: x86_64-unknown-linux-musl
+          override: true
+    - name: Cache Nixmodule Artifacts
+      uses: actions/cache@v3
+      with:
+        path: |
+          ~/.cache/nixmodule
+          ~/.cargo/
+        key: ${{ runner.os }}-nixmodule-v1
+
+    # Requires qemu-system and musl linker
+    - name: Install deps
+      run: sudo apt install qemu-system musl-tools
+
+    # Currently requires nixmodule >= 0.4.0 to use initrd
+    - name: Install or upgrade nixmodule
+      run: |
+        if ! command -v nixmodule; then cargo install nixmodule; fi; \
+        nixmodule -V; \
+        if [ $(printf '%s\n' $(nixmodule -V | cut -d " " -f 2) "0.4.0" | sort -V | head -n1) != "0.4.0" ]; then cargo install -f nixmodule; fi
+
+    # Get current banch name to use it as dest directory
+    - name: Extract branch name
+      shell: bash
+      run: echo "##[set-output name=branch;]$(echo ${GITHUB_REF#refs/heads/})"
+      id: extract_branch
+
+    # Run the test and obtain badge results via exit code
+    - name: Perform the test
+      id: run
+      run: cd module; NIXMODULEARGS="-k ${{ github.workflow }}. -c ci-config.toml" ./tests/run.sh
+
+    # Checkout the badges branch
+    - uses: actions/checkout@v1
+      with:
+        ref: badges
+
+    # Create the directory where badges will be saved, if needed
+    - name: Create destination directory
+      env:
+        BADGE_PATH: ${{ steps.extract_branch.outputs.branch }}
+      run: mkdir -p "${BADGE_PATH%/*}";
+
+    # Generate the build badge
+    - name: Build badge
+      uses: emibcn/badge-action@v1.2.1
+      with:
+        label: 'Build'
+        status: ${{ steps.run.outputs.build }}
+        color: ${{ steps.run.outputs.buildc }}
+        path: ${{ steps.extract_branch.outputs.branch }}/build-${{ github.workflow }}-badge.svg
+
+    # Generate the insmod badge
+    - name: Insmod badge
+      uses: emibcn/badge-action@v1.2.1
+      with:
+        label: 'Insmod'
+        status: ${{ steps.run.outputs.insmod }}
+        color: ${{ steps.run.outputs.insmodc }}
+        path: ${{ steps.extract_branch.outputs.branch }}/insmod-${{ github.workflow }}-badge.svg
+
+    # Generate the test badge
+    - name: Test badge
+      uses: emibcn/badge-action@v1.2.1
+      with:
+        label: 'Test'
+        status: ${{ steps.run.outputs.test }}
+        color: ${{ steps.run.outputs.testc }}
+        path: ${{ steps.extract_branch.outputs.branch }}/test-${{ github.workflow }}-badge.svg
+
+    # Commit the badge
+    - name: Commit badge
+      continue-on-error: true
+      env:
+        BUILD_BADGE: ${{ steps.extract_branch.outputs.branch }}/build-${{ github.workflow }}-badge.svg
+        INSMOD_BADGE: ${{ steps.extract_branch.outputs.branch }}/insmod-${{ github.workflow }}-badge.svg
+        TEST_BADGE: ${{ steps.extract_branch.outputs.branch }}/test-${{ github.workflow }}-badge.svg
+      run: |
+        git config --local user.email "action@github.com"
+        git config --local user.name "GitHub Action"
+        echo "${BUILD_BADGE}"
+        git add "${BUILD_BADGE}"
+        git add "${INSMOD_BADGE}"
+        git add "${TEST_BADGE}"
+        git commit -m "Add/Update badge"
+    - name: Push badge commit
+      uses: ad-m/github-push-action@master
+      if: ${{ success() }}
+      with:
+        github_token: ${{ secrets.GITHUB_TOKEN }}
+        branch: badges
+
+    # Pass/Fail based on original test exit code
+    - name: Exit
+      run: exit ${{ steps.run.outputs.realexit }}
