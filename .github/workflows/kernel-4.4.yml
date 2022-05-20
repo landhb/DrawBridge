@@ -48,24 +48,7 @@ jobs:
     # Run the test and obtain badge results via exit code
     - name: Perform the test
       id: run
-      run: |
-        echo "Default badge settings..."; \
-        echo "##[set-output name=build;]'N/A'" && echo "##[set-output name=buildc;]'grey'"; \
-        echo "##[set-output name=insmod;]'N/A'" && echo "##[set-output name=insmodc;]'grey'"; \
-        echo "##[set-output name=test;]'N/A'" && echo "##[set-output name=testc;]'grey'"; \
-        cd module; NIXMODULEARGS="-k ${{ github.workflow }}. -c ci-config.toml" ./tests/run.sh; code=$?; \
-        echo "Exited with $code"; \
-        if [ $code == 0 ]; then build=1 && insmod=1 && test=1; fi; \
-        if [ $code == 4 ]; then build=0; fi; \
-        if [ $code == 5 ]; then build=1 && insmod=0; fi; \
-        if [ $code == 6 ]; then build=1 && insmod=1 && test=0; fi; \
-        echo "Set build=$build insmod=$insmod test=$insmod"; \
-        if [ $build == 1 ]; then echo "##[set-output name=build;]Passing" && echo "##[set-output name=buildc;]green"; fi; \
-        if [ $insmod == 1 ]; then echo "##[set-output name=insmod;]Passing" && echo "##[set-output name=insmodc;]green"; fi; \
-        if [ $test == 1 ]; then echo "##[set-output name=test;]Passing" && echo "##[set-output name=testc;]green"; fi;
-        if [ $build == 0 ]; then echo "##[set-output name=build;]Failed" && echo "##[set-output name=buildc;]red"; fi; \
-        if [ $insmod == 0 ]; then echo "##[set-output name=insmod;]Failed" && echo "##[set-output name=insmodc;]red"; fi; \
-        if [ $test == 0 ]; then echo "##[set-output name=test;]Failed" && echo "##[set-output name=testc;]red"; fi;
+      run: cd module; NIXMODULEARGS="-k ${{ github.workflow }}. -c ci-config.toml" ./tests/run.sh
 
     # Checkout the badges branch
     - uses: actions/checkout@v1
