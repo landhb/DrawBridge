@@ -33,7 +33,7 @@ alias "connect"="db auth -s [REMOTE] -d 53 -p udp --unlock [PORT] && ssh -p [POR
 
 ## CI/CD & Supported Kernel Versions
 
-| Kernel Version | Build   | Insmod/Supported   | Tests   |
+| Kernel Version | Build   | Insmod  | Tests   |
 | :---:    |  :---:     |  :---:     |  :---:     |
 | 5.17.2   |  ![Build](https://raw.githubusercontent.com/landhb/DrawBridge/badges/master/build-5.17-badge.svg)  | ![Insmod](https://raw.githubusercontent.com/landhb/DrawBridge/badges/master/insmod-5.17-badge.svg)  | ![Test](https://raw.githubusercontent.com/landhb/DrawBridge/badges/master/test-5.17-badge.svg)  |
 | 5.15.33  |  ![Build](https://raw.githubusercontent.com/landhb/DrawBridge/badges/master/build-5.15-badge.svg)  | ![Insmod](https://raw.githubusercontent.com/landhb/DrawBridge/badges/master/insmod-5.15-badge.svg)  | ![Test](https://raw.githubusercontent.com/landhb/DrawBridge/badges/master/test-5.15-badge.svg)  |
@@ -69,13 +69,13 @@ db keygen
 The output of the keygen utility will be three files: `~/.drawbridge/db_rsa`, `~/.drawbridge/db_rsa.pub` and `key.h`. Keep `db_rsa` safe, it's your private key. `key.h` is the public key formated as a C-header file. It will be compiled into the kernel module.  
 
 
-To compile the kernel module simply, bring `key.h`, cd into the kernel directory and run `make`. 
+To compile the kernel module simply, bring `key.h`, cd into the kernel module directory and run `make`.
 
 ```bash
 # on the server compile the module and load it
 # pass the ports you want to monitor as an argument
-mv key.h kernel/
-cd kernel
+mv key.h module/include/
+cd module/
 make
 sudo modprobe x_tables
 sudo insmod drawbridge.ko ports=22,445 

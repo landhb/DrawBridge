@@ -46,13 +46,13 @@ db keygen
 The output of the keygen utility will be three files: `~/.drawbridge/db_rsa`, `~/.drawbridge/db_rsa.pub` and `key.h`. Keep `db_rsa` safe, it's your private key. `key.h` is the public key formated as a C-header file. It will be compiled into the kernel module.  
 
 
-To compile the kernel module simply, bring `key.h`, cd into the kernel directory and run `make`. 
+To compile the kernel module simply, bring `key.h`, cd into the kernel module directory and run `make`.
 
 ```bash
 # on the server compile the module and load it
 # pass the ports you want to monitor as an argument
-mv key.h kernel/
-cd kernel
+mv key.h module/include/
+cd module/
 make
 sudo modprobe x_tables
 sudo insmod drawbridge.ko ports=22,445 
