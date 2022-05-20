@@ -51,7 +51,6 @@ ssize_t validate_packet(parsed_packet * info, akcipher_request *req, void * pkt,
 
     // Set the port to unlock
     info->port = info->metadata.port;
-
     kfree(hash);
     return 0;
 }

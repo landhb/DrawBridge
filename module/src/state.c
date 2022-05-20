@@ -287,7 +287,6 @@ struct timer_list *init_reaper(unsigned long timeout)
 
     // Set the timeout value
     mod_timer(my_timer, jiffies + msecs_to_jiffies(STATE_TIMEOUT));
-
     return my_timer;
 }
 
