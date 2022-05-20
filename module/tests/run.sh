@@ -59,4 +59,5 @@ make clean
 
 # This script should technically always "succeed" so that the
 # badges are generated
+echo "##[set-output name=realexit;]$code"
 exit 0
