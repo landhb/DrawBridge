@@ -265,7 +265,7 @@ fn main() -> Result<(), Box<dyn Error>> {
                 .about("Generate Drawbridge Keys")
                 .arg(
                     Arg::with_name("algorithm")
-                        .short("a")
+                        .short('a')
                         .long("alg")
                         .takes_value(true)
                         .required(true)
@@ -275,7 +275,7 @@ fn main() -> Result<(), Box<dyn Error>> {
                 )
                 .arg(
                     Arg::with_name("bits")
-                        .short("b")
+                        .short('b')
                         .long("bits")
                         .takes_value(true)
                         .required(true)
@@ -284,7 +284,7 @@ fn main() -> Result<(), Box<dyn Error>> {
                 )
                 .arg(
                     Arg::with_name("outfile")
-                        .short("o")
+                        .short('o')
                         .long("out")
                         .takes_value(true)
                         .required(true)
@@ -297,7 +297,7 @@ fn main() -> Result<(), Box<dyn Error>> {
                 .about("Authenticate with a Drawbridge server")
                 .arg(
                     Arg::with_name("server")
-                        .short("s")
+                        .short('s')
                         .long("server")
                         .takes_value(true)
                         .required(true)
@@ -305,14 +305,14 @@ fn main() -> Result<(), Box<dyn Error>> {
                 )
                 .arg(
                     Arg::with_name("interface")
-                        .short("e")
+                        .short('e')
                         .long("interface")
                         .takes_value(true)
                         .help("Specify the outgoing interface to use"),
                 )
                 .arg(
                     Arg::with_name("protocol")
-                        .short("p")
+                        .short('p')
                         .long("protocol")
                         .takes_value(true)
                         .required(false)
@@ -322,7 +322,7 @@ fn main() -> Result<(), Box<dyn Error>> {
                 )
                 .arg(
                     Arg::with_name("dport")
-                        .short("d")
+                        .short('d')
                         .long("dport")
                         .takes_value(true)
                         .required(true)
@@ -330,7 +330,7 @@ fn main() -> Result<(), Box<dyn Error>> {
                 )
                 .arg(
                     Arg::with_name("uport")
-                        .short("u")
+                        .short('u')
                         .long("unlock")
                         .takes_value(true)
                         .required(true)
@@ -338,7 +338,7 @@ fn main() -> Result<(), Box<dyn Error>> {
                 )
                 .arg(
                     Arg::with_name("key")
-                        .short("i")
+                        .short('i')
                         .long("key")
                         .takes_value(true)
                         .required(true)
@@ -350,8 +350,8 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     // Match on each subcommand to handle different functionality
     match args.subcommand() {
-        ("auth", Some(auth_args)) => auth(auth_args)?,
-        ("keygen", Some(keygen_args)) => keygen(keygen_args)?,
+        Some(("auth", auth_args)) => auth(auth_args)?,
+        Some(("keygen", keygen_args)) => keygen(keygen_args)?,
         _ => {
             println!("Please provide a valid subcommand. Run db -h for more information.");
         }
