@@ -11,7 +11,7 @@ popd
 
 # generate keys
 pushd include
-../../tools/target/x86_64-unknown-linux-musl/release/db keygen --out /tmp/test_key
+../../tools/target/x86_64-unknown-linux-musl/release/db keygen -a rsa -b 4096 --out /tmp/test_key
 popd
 
 # Run the test
