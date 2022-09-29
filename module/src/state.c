@@ -243,14 +243,15 @@ void cleanup_states(conntrack_state *head)
 {
     conntrack_state *state, *tmp;
 
+    // Enter critical section
     spin_lock(&listmutex);
 
     list_for_each_entry_safe (state, tmp, &(head->list), list) {
         list_del_rcu(&(state->list));
-        synchronize_rcu();
-        kfree(state);
+        call_rcu(&state->rcu, reclaim_state_entry);
     }
 
+    // Exit critical section
     spin_unlock(&listmutex);
 }
 
@@ -307,17 +308,20 @@ void reap_expired_connections(unsigned long timeout)
 
     DEBUG_PRINT(KERN_INFO "[*] Timer expired, checking connections...\n");
 
+    // Enter critical section
     spin_lock(&listmutex);
 
     list_for_each_entry_safe (state, tmp, &(knock_state->list), list) {
         if (jiffies - state->time_updated >= msecs_to_jiffies(STATE_TIMEOUT)) {
+
+            // Perform cleanup
             list_del_rcu(&(state->list));
-            synchronize_rcu();
-            kfree(state);
+            call_rcu(&state->rcu, reclaim_state_entry);
             continue;
         }
     }
 
+    // Exit critical section
     spin_unlock(&listmutex);
 
     // Set the timeout value
