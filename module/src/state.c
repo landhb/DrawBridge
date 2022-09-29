@@ -297,6 +297,15 @@ void cleanup_reaper(struct timer_list *my_timer)
     kfree((void *)my_timer);
 }
 
+
+static void remove_state_node(struct rcu_head *rcu)
+{
+    struct conntrack_state *state =
+        container_of(rcu, struct conntrack_state, rcu);
+    list_del(&(state->list));
+    kfree(state);
+}
+
 /**
 *  Callback function for the reaper: removes expired connections
 *  @param timeout Conn
@@ -311,10 +320,7 @@ void reap_expired_connections(unsigned long timeout)
 
     list_for_each_entry_safe (state, tmp, &(knock_state->list), list) {
         if (jiffies - state->time_updated >= msecs_to_jiffies(STATE_TIMEOUT)) {
-            list_del_rcu(&(state->list));
-            synchronize_rcu();
-            kfree(state);
-            continue;
+            call_rcu(&state->rcu, remove_state_node);
         }
     }
 
