@@ -165,9 +165,17 @@ static inline void update_state(conntrack_state *old_state)
 
     // obtain lock to list for the replacement
     spin_lock(&listmutex);
-    list_replace_rcu(&old_state->list, &new_state->list);
-    spin_unlock(&listmutex);
 
+    // Replace the old entry
+    list_replace_rcu(&old_state->list, &new_state->list);
+
+    // Note that the caller is not permitted to immediately free the newly
+    // deleted entry. Instead call_rcu must be used to defer freeing until
+    // an RCU grace period has elapsed.
+    call_rcu(&old_state->rcu, reclaim_state_entry);
+
+    // Release write lock
+    spin_unlock(&listmutex);
     return;
 }
 
@@ -191,12 +199,14 @@ int state_lookup(conntrack_state *head, parsed_packet *pktinfo)
 
     list_for_each_entry_rcu (state, &(head->list), list) {
         if (compare_state_info(state, pktinfo)) {
-            update_state(state);
 #ifdef DEBUG
             log_connection(state);
 #endif
+            // Release read lock
             rcu_read_unlock();
-            call_rcu(&state->rcu, reclaim_state_entry);
+
+            // Update the entry
+            update_state(state);
             return 1;
         }
     }
@@ -247,7 +257,12 @@ void cleanup_states(conntrack_state *head)
     spin_lock(&listmutex);
 
     list_for_each_entry_safe (state, tmp, &(head->list), list) {
+        // Remove the entry
         list_del_rcu(&(state->list));
+
+        // Note that the caller is not permitted to immediately free the newly
+        // deleted entry. Instead call_rcu must be used to defer freeing until
+        // an RCU grace period has elapsed.
         call_rcu(&state->rcu, reclaim_state_entry);
     }
 
@@ -316,6 +331,10 @@ void reap_expired_connections(unsigned long timeout)
 
             // Perform cleanup
             list_del_rcu(&(state->list));
+
+            // Note that the caller is not permitted to immediately free the newly
+            // deleted entry. Instead call_rcu must be used to defer freeing until
+            // an RCU grace period has elapsed.
             call_rcu(&state->rcu, reclaim_state_entry);
             continue;
         }
