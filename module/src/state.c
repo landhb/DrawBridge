@@ -165,9 +165,17 @@ static inline void update_state(conntrack_state *old_state)
 
     // obtain lock to list for the replacement
     spin_lock(&listmutex);
-    list_replace_rcu(&old_state->list, &new_state->list);
-    spin_unlock(&listmutex);
 
+    // Replace the old entry
+    list_replace_rcu(&old_state->list, &new_state->list);
+
+    // Note that the caller is not permitted to immediately free the newly
+    // deleted entry. Instead call_rcu must be used to defer freeing until
+    // an RCU grace period has elapsed.
+    call_rcu(&old_state->rcu, reclaim_state_entry);
+
+    // Release write lock
+    spin_unlock(&listmutex);
     return;
 }
 
@@ -191,12 +199,14 @@ int state_lookup(conntrack_state *head, parsed_packet *pktinfo)
 
     list_for_each_entry_rcu (state, &(head->list), list) {
         if (compare_state_info(state, pktinfo)) {
-            update_state(state);
 #ifdef DEBUG
             log_connection(state);
 #endif
+            // Release read lock
             rcu_read_unlock();
-            call_rcu(&state->rcu, reclaim_state_entry);
+
+            // Update the entry
+            update_state(state);
             return 1;
         }
     }
@@ -243,14 +253,20 @@ void cleanup_states(conntrack_state *head)
 {
     conntrack_state *state, *tmp;
 
+    // Enter critical section
     spin_lock(&listmutex);
 
     list_for_each_entry_safe (state, tmp, &(head->list), list) {
+        // Remove the entry
         list_del_rcu(&(state->list));
-        synchronize_rcu();
-        kfree(state);
+
+        // Note that the caller is not permitted to immediately free the newly
+        // deleted entry. Instead call_rcu must be used to defer freeing until
+        // an RCU grace period has elapsed.
+        call_rcu(&state->rcu, reclaim_state_entry);
     }
 
+    // Exit critical section
     spin_unlock(&listmutex);
 }
 
@@ -307,17 +323,24 @@ void reap_expired_connections(unsigned long timeout)
 
     DEBUG_PRINT(KERN_INFO "[*] Timer expired, checking connections...\n");
 
+    // Enter critical section
     spin_lock(&listmutex);
 
     list_for_each_entry_safe (state, tmp, &(knock_state->list), list) {
         if (jiffies - state->time_updated >= msecs_to_jiffies(STATE_TIMEOUT)) {
+
+            // Perform cleanup
             list_del_rcu(&(state->list));
-            synchronize_rcu();
-            kfree(state);
+
+            // Note that the caller is not permitted to immediately free the newly
+            // deleted entry. Instead call_rcu must be used to defer freeing until
+            // an RCU grace period has elapsed.
+            call_rcu(&state->rcu, reclaim_state_entry);
             continue;
         }
     }
 
+    // Exit critical section
     spin_unlock(&listmutex);
 
     // Set the timeout value
