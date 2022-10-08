@@ -62,7 +62,7 @@ static inline int compare_state_info(struct conntrack_state *state, parsed_packe
         case 4:
             return state->src.addr_4 == info->ip.addr_4;
         case 6:
-            return ipv6_addr_cmp(&state->src.addr_6, &info->ip.addr_6);
+            return ipv6_addr_cmp(&state->src.addr_6, &info->ip.addr_6) == 0;
         default:
             return -1;
     }
