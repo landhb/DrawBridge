@@ -48,6 +48,7 @@ static inline int ipv6_addr_cmp(const struct in6_addr *a1,
 
 /**
  *  @brief Utility function to compare state with parsed_packet
+ *  @return Zero on a match, otherwise a non-zero integer
  */
 static inline int compare_state_info(struct conntrack_state *state, parsed_packet *info) {
     if (state->type != info->version) {
@@ -60,7 +61,7 @@ static inline int compare_state_info(struct conntrack_state *state, parsed_packe
 
     switch(state->type) {
         case 4:
-            return state->src.addr_4 == info->ip.addr_4;
+            return state->src.addr_4 == info->ip.addr_4 ? 0 : -1;
         case 6:
             return ipv6_addr_cmp(&state->src.addr_6, &info->ip.addr_6);
         default:
@@ -198,7 +199,7 @@ int state_lookup(conntrack_state *head, parsed_packet *pktinfo)
     rcu_read_lock();
 
     list_for_each_entry_rcu (state, &(head->list), list) {
-        if (compare_state_info(state, pktinfo)) {
+        if (compare_state_info(state, pktinfo) == 0) {
 #ifdef DEBUG
             log_connection(state);
 #endif
