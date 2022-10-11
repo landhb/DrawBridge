@@ -268,7 +268,7 @@ fn main() -> Result<(), Box<dyn Error>> {
                         .short('a')
                         .long("alg")
                         .takes_value(true)
-                        .required(true)
+                        .required(false)
                         .possible_values(&["rsa", "ecdsa"])
                         .default_value("rsa")
                         .help("Algorithm to use"),
@@ -278,7 +278,7 @@ fn main() -> Result<(), Box<dyn Error>> {
                         .short('b')
                         .long("bits")
                         .takes_value(true)
-                        .required(true)
+                        .required(false)
                         .default_value("4096")
                         .help("Key size"),
                 )
@@ -287,7 +287,7 @@ fn main() -> Result<(), Box<dyn Error>> {
                         .short('o')
                         .long("out")
                         .takes_value(true)
-                        .required(true)
+                        .required(false)
                         .default_value("~/.drawbridge/db_rsa")
                         .help("Output file name"),
                 ),
@@ -341,7 +341,7 @@ fn main() -> Result<(), Box<dyn Error>> {
                         .short('i')
                         .long("key")
                         .takes_value(true)
-                        .required(true)
+                        .required(false)
                         .default_value("~/.drawbridge/db_rsa")
                         .help("Private key for signing"),
                 ),
