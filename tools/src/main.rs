@@ -256,7 +256,7 @@ fn keygen(args: &clap::ArgMatches) -> Result<(), Box<dyn Error>> {
 
 fn main() -> Result<(), Box<dyn Error>> {
     let args = App::new("db")
-        .version("1.0.0")
+        .version(env!("CARGO_PKG_VERSION"))
         .author("landhb <https://blog.landhb.dev>")
         .about("Drawbridge Client")
         .setting(AppSettings::ArgRequiredElseHelp)
