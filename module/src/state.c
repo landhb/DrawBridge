@@ -23,7 +23,6 @@ conntrack_state *knock_state;
 /*
  * Globally access mutex to protect the list
  */
-spinlock_t listmutex;
 DEFINE_SPINLOCK(listmutex);
 
 /*
