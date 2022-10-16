@@ -12,9 +12,9 @@ PWD := $(shell pwd)
 # Set the new timeout if provided
 # Timout Configuration - default 5 min = 300000 msec
 ifdef STATE_TIMEOUT
-KCPPFLAGS := "-DSTATE_TIMEOUT=$(STATE_TIMEOUT)"
+KCPPFLAGS := -DSTATE_TIMEOUT=$(STATE_TIMEOUT)
 else
-KCPPFLAGS := "-DSTATE_TIMEOUT=300000"
+KCPPFLAGS := -DSTATE_TIMEOUT=300000
 endif
 
 debug:
