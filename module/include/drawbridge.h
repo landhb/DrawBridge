@@ -70,7 +70,6 @@ typedef struct crypto_akcipher crypto_akcipher;
 
 // listen.c prototypes
 int listen(void *data);
-void inet_ntoa(char *str_ip, __be32 int_ip);
 
 // State API
 conntrack_state *init_state(void);
