@@ -6,7 +6,6 @@
 *
 * @date 04/11/2018
 */
-#include <linux/inet.h>
 #include "parser.h"
 
 /**
