@@ -16,10 +16,10 @@
  */
 void internal_inet_ntoa(char *str_ip, size_t len, __be32 int_ip)
 {
-    if (!str_ip || len <= 16)
+    if (!str_ip || len < INET_ADDRSTRLEN)
         return;
 
-    memset(str_ip, 0, 16);
+    memset(str_ip, 0, INET_ADDRSTRLEN);
     snprintf(str_ip, len, "%d.%d.%d.%d", (int_ip)&0xFF, (int_ip >> 8) & 0xFF,
             (int_ip >> 16) & 0xFF, (int_ip >> 24) & 0xFF);
 
@@ -34,10 +34,10 @@ void internal_inet_ntoa(char *str_ip, size_t len, __be32 int_ip)
  */
 void internal_inet6_ntoa(char *str_ip, size_t len, struct in6_addr *src_6)
 {
-    if (!str_ip || len <= 32)
+    if (!str_ip || len < INET6_ADDRSTRLEN)
         return;
 
-    memset(str_ip, 0, 32);
+    memset(str_ip, 0, INET6_ADDRSTRLEN);
     snprintf(
         str_ip,
         len,

@@ -15,6 +15,7 @@
     extern void *kzalloc(size_t size, uint32_t flags);
     #include <bswaps.h>
 #else
+    #include <linux/inet.h>
     #include <linux/kernel.h>
     #include <linux/module.h>
     #include <net/sock.h>
@@ -89,4 +90,4 @@ void hexdump(unsigned char *buf, unsigned int len);
 void internal_inet6_ntoa(char *str_ip, size_t len, struct in6_addr *src_6);
 void internal_inet_ntoa(char *str_ip, size_t len, __be32 int_ip);
 
-#endif /* _PARSER_HEADER */ 
+#endif /* _PARSER_HEADER */
