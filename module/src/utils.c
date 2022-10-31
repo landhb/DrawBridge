@@ -16,14 +16,15 @@
  */
 void internal_inet_ntoa(char *str_ip, size_t len, __be32 int_ip)
 {
+    int n;
+
     if (!str_ip || len < INET_ADDRSTRLEN)
         return;
 
-    memset(str_ip, 0, INET_ADDRSTRLEN);
-    snprintf(str_ip, len, "%d.%d.%d.%d", (int_ip)&0xFF, (int_ip >> 8) & 0xFF,
+    n = snprintf(str_ip, len, "%d.%d.%d.%d", (int_ip)&0xFF, (int_ip >> 8) & 0xFF,
             (int_ip >> 16) & 0xFF, (int_ip >> 24) & 0xFF);
 
-    return;
+    str_ip[n] = '\0';
 }
 
 /**
@@ -34,11 +35,12 @@ void internal_inet_ntoa(char *str_ip, size_t len, __be32 int_ip)
  */
 void internal_inet6_ntoa(char *str_ip, size_t len, struct in6_addr *src_6)
 {
+    int n;
+
     if (!str_ip || len < INET6_ADDRSTRLEN)
         return;
 
-    memset(str_ip, 0, INET6_ADDRSTRLEN);
-    snprintf(
+    n = snprintf(
         str_ip,
         len,
         "%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x",
@@ -50,5 +52,5 @@ void internal_inet6_ntoa(char *str_ip, size_t len, struct in6_addr *src_6)
         (int)src_6->s6_addr[13], (int)src_6->s6_addr[14],
         (int)src_6->s6_addr[15]);
 
-    return;
+    str_ip[n] = '\0';
 }
