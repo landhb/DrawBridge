@@ -179,7 +179,7 @@ int listen(void *data)
     // Apply the BPF zero program
     fprog.len = ARRAY_SIZE(zerocode);
     fprog.filter = zerocode;
-    if (apply_filter(sock, &fprog) < 0) {
+    if ((ret = apply_filter(sock, &fprog)) < 0) {
         DEBUG_PRINT(KERN_INFO "[-] Could not attach bpf zero filter to socket %d\n", ret);
         goto cleanup;
     }
@@ -192,7 +192,7 @@ int listen(void *data)
     // packets.
     fprog.len = ARRAY_SIZE(code);
     fprog.filter = code;
-    if (apply_filter(sock, &fprog) < 0) {
+    if ((ret = apply_filter(sock, &fprog)) < 0) {
         DEBUG_PRINT(KERN_INFO "[-] Could not attach bpf filter to socket %d\n", ret);
         goto cleanup;
     }
