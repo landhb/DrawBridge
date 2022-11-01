@@ -102,7 +102,7 @@ static bool db_sk_filter_charge(struct sock *sk, struct sk_filter *fp)
  * @note Ported from the non-exported __sk_attach_prog in net/core/filter.c
  * @note The actual underlying issue occurs when sk_attach_filter calls
  * __get_filter, and attempts a copy_from_user() which fails when the sock_fprog
- * contains a kernel pointer.
+ * contains a kernel pointer. Even when passing a KERNEL_SOCKPTR to sock_setsockopt.
  */
 int sk_attach_prog(struct bpf_prog *prog, struct sock *sk) {
     struct sk_filter *fp = NULL, *old_fp = NULL;
