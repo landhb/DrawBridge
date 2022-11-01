@@ -10,8 +10,8 @@
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 9, 0)
 /**
- *  sk_filter_release_rcu - Release a socket filter by rcu_head
- *  @rcu: rcu_head that contains the sk_filter to free
+ *  sk_filter_release - Release a socket filter
+ *  @fp: the sk_filter to free
  */
 static void sk_filter_release(struct sk_filter *fp) {
     struct bpf_prog *prog = fp->prog;
@@ -40,8 +40,10 @@ static void sk_filter_release_rcu(struct rcu_head *rcu) {
 }
 
 /**
- * try to charge the socket memory if there is space available
- * return true on success
+ * __sk_filter_charge
+ *
+ * @brief Try to charge the socket memory if there is space available
+ * @return true on success, false otherwise
  */
 static bool __sk_filter_charge(struct sock *sk, struct sk_filter *fp)
 {
@@ -63,9 +65,11 @@ static bool __sk_filter_charge(struct sock *sk, struct sk_filter *fp)
  */
 static void db_sk_filter_uncharge(struct sock *sk, struct sk_filter *fp) {
     u32 filter_size = bpf_prog_size(fp->prog->len);
+
+    // Decrement the filter's size
     atomic_sub(filter_size, &sk->sk_omem_alloc);
 
-    // Reclaim the filter memory
+    // Reclaim the filter memory if able
     if (refcount_dec_and_test(&fp->refcnt)) {
         call_rcu(&fp->rcu, sk_filter_release_rcu);
     }
