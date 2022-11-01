@@ -63,7 +63,7 @@ jobs:
 
     # Generate the build badge
     - name: Build badge
-      uses: emibcn/badge-action@v1.2.1
+      uses: emibcn/badge-action@v1.2.4
       with:
         label: 'Build'
         status: ${{ steps.run.outputs.build }}
@@ -72,7 +72,7 @@ jobs:
 
     # Generate the insmod badge
     - name: Insmod badge
-      uses: emibcn/badge-action@v1.2.1
+      uses: emibcn/badge-action@v1.2.4
       with:
         label: 'Insmod'
         status: ${{ steps.run.outputs.insmod }}
@@ -81,7 +81,7 @@ jobs:
 
     # Generate the test badge
     - name: Test badge
-      uses: emibcn/badge-action@v1.2.1
+      uses: emibcn/badge-action@v1.2.4
       with:
         label: 'Test'
         status: ${{ steps.run.outputs.test }}
