@@ -15,6 +15,7 @@
 #include <linux/filter.h>
 #include <linux/uio.h>
 #include <linux/version.h>
+#include "filter.h"
 #include "drawbridge.h"
 #include "key.h"
 #include "parser.h"
@@ -107,6 +108,7 @@ void __noreturn thread_exit(int value) {
 #endif
 }
 
+
 /**
  * @brief Wrap SO_ATTACH_FILTER due to modifications in 5.9
  *
@@ -116,8 +118,16 @@ void __noreturn thread_exit(int value) {
 int apply_filter(struct socket *sock, struct sock_fprog *fprog) {
     int ret = 0;
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 9, 0)
-    ret = sock_setsockopt(sock, SOL_SOCKET, SO_ATTACH_FILTER,
-                        KERNEL_SOCKPTR(fprog), sizeof(struct sock_fprog));
+    struct bpf_prog * prog = NULL;
+
+    // Create the BPF program from our cBPF filter
+    if (bpf_prog_create(&prog, (struct sock_fprog_kern *)fprog) != 0) {
+        DEBUG_PRINT(KERN_INFO "[-] Could not create unattached filter.\n");
+        return -1;
+    }
+
+    // Directly attach to the socket
+    ret = sk_attach_prog(prog, sock->sk);
 #else
     ret = sock_setsockopt(sock, SOL_SOCKET, SO_ATTACH_FILTER,
                         (char __user *)fprog, sizeof(struct sock_fprog));

@@ -2,7 +2,7 @@ CONFIG_MODULE_SIG=n
 
 TARGET=drawbridge
 obj-m += $(TARGET).o
-$(TARGET)-objs := src/entrypoint.o src/listener.o src/state.o src/crypto.o src/utils.o src/parser.o src/validator.o
+$(TARGET)-objs := src/entrypoint.o src/listener.o src/state.o src/crypto.o src/utils.o src/parser.o src/validator.o src/sk_filter.o
 EXTRA_CFLAGS := -O2 -I$(PWD)/include
 
 KERNEL := /lib/modules/$(shell uname -r)/build
