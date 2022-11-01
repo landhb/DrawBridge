@@ -35,6 +35,7 @@ alias "connect"="db auth -s [REMOTE] -d 53 -p udp --unlock [PORT] && ssh -p [POR
 
 | Kernel Version | Build   | Insmod  | Tests   |
 | :---:    |  :---:     |  :---:     |  :---:     |
+| 6.0.6   |  ![Build](https://raw.githubusercontent.com/landhb/DrawBridge/badges/master/build-6.0.6-badge.svg)  | ![Insmod](https://raw.githubusercontent.com/landhb/DrawBridge/badges/master/insmod-6.0.6-badge.svg)  | ![Test](https://raw.githubusercontent.com/landhb/DrawBridge/badges/master/test-6.0.6-badge.svg)  |
 | 5.17.2   |  ![Build](https://raw.githubusercontent.com/landhb/DrawBridge/badges/master/build-5.17-badge.svg)  | ![Insmod](https://raw.githubusercontent.com/landhb/DrawBridge/badges/master/insmod-5.17-badge.svg)  | ![Test](https://raw.githubusercontent.com/landhb/DrawBridge/badges/master/test-5.17-badge.svg)  |
 | 5.15.33  |  ![Build](https://raw.githubusercontent.com/landhb/DrawBridge/badges/master/build-5.15-badge.svg)  | ![Insmod](https://raw.githubusercontent.com/landhb/DrawBridge/badges/master/insmod-5.15-badge.svg)  | ![Test](https://raw.githubusercontent.com/landhb/DrawBridge/badges/master/test-5.15-badge.svg)  |
 | 5.10.110 |  ![Build](https://raw.githubusercontent.com/landhb/DrawBridge/badges/master/build-5.10-badge.svg)  | ![Insmod](https://raw.githubusercontent.com/landhb/DrawBridge/badges/master/insmod-5.10-badge.svg)  | ![Test](https://raw.githubusercontent.com/landhb/DrawBridge/badges/master/test-5.10-badge.svg)  |

@@ -15,6 +15,7 @@
 #include <linux/filter.h>
 #include <linux/uio.h>
 #include <linux/version.h>
+#include "filter.h"
 #include "drawbridge.h"
 #include "key.h"
 #include "parser.h"
@@ -40,11 +41,19 @@ struct sock_filter code[] = {
     { 0x6, 0, 0, 0x00040000 },  { 0x6, 0, 0, 0x00000000 },
 };
 
-struct sock_fprog bpf = {
-    .len = ARRAY_SIZE(code),
-    .filter = code,
+// BPF program that immediately returns
+// https://web.archive.org/web/20220511125816/https://natanyellin.com/posts/ebpf-filtering-done-right/
+struct sock_filter zerocode[] = {
+    BPF_STMT(BPF_RET | BPF_K, 0)
 };
 
+/**
+ * @brief Wrap kernel_recvmsg due to modifications in 4.20+ & 3.19+
+ *
+ * @param sock Kernel socket to recv on
+ * @param buf  Buffer to recv into
+ * @param len  Length of provided buffer
+ */
 static int ksocket_receive(struct socket *sock,
                            unsigned char *buf, int len)
 {
@@ -99,6 +108,33 @@ void __noreturn thread_exit(int value) {
 #endif
 }
 
+
+/**
+ * @brief Wrap SO_ATTACH_FILTER due to modifications in 5.9
+ *
+ * @param sock Socket to apply filter on
+ * @param fprog BPF program to apply
+ */
+int apply_filter(struct socket *sock, struct sock_fprog *fprog) {
+    int ret = 0;
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 9, 0)
+    struct bpf_prog * prog = NULL;
+
+    // Create the BPF program from our cBPF filter
+    if (bpf_prog_create(&prog, (struct sock_fprog_kern *)fprog) != 0) {
+        DEBUG_PRINT(KERN_INFO "[-] Could not create unattached filter.\n");
+        return -1;
+    }
+
+    // Directly attach to the socket
+    ret = sk_attach_prog(prog, sock->sk);
+#else
+    ret = sock_setsockopt(sock, SOL_SOCKET, SO_ATTACH_FILTER,
+                        (char __user *)fprog, sizeof(struct sock_fprog));
+#endif
+    return ret;
+}
+
 /**
  *  @brief Listener Thread Entrypoint
  *
@@ -112,6 +148,7 @@ void __noreturn thread_exit(int value) {
  */
 int listen(void *data)
 {
+    struct sock_fprog fprog;
     int ret = 0, recv_len, error;
 
     // Packet headers
@@ -141,30 +178,37 @@ int listen(void *data)
         goto cleanup;
     }
 
+    // Create the raw socket listener
     error = sock_create(PF_PACKET, SOCK_RAW, htons(ETH_P_ALL), &sock);
-
     if (error < 0 || !sock) {
         DEBUG_PRINT(KERN_INFO "[-] Could not initialize raw socket\n");
         ret = -1;
         goto cleanup;
     }
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 9, 0)
-    ret = sock_setsockopt(sock, SOL_SOCKET, SO_ATTACH_FILTER,
-                          KERNEL_SOCKPTR(&bpf), sizeof(bpf));
-#else
-    ret = sock_setsockopt(sock, SOL_SOCKET, SO_ATTACH_FILTER, (void *)&bpf,
-                          sizeof(bpf));
-#endif
+    // Apply the BPF zero program
+    fprog.len = ARRAY_SIZE(zerocode);
+    fprog.filter = zerocode;
+    if ((ret = apply_filter(sock, &fprog)) < 0) {
+        DEBUG_PRINT(KERN_INFO "[-] Could not attach bpf zero filter to socket %d\n", ret);
+        goto cleanup;
+    }
 
-    if (ret < 0) {
+    // Clear the recv queue until nothing is left
+    while(ksocket_receive(sock, pkt, MAX_PACKET_SIZE) > 0) {}
+
+    // Apply the actual BPF program. This is an atomic swap
+    // with the zero-program that is currently blocking all new
+    // packets.
+    fprog.len = ARRAY_SIZE(code);
+    fprog.filter = code;
+    if ((ret = apply_filter(sock, &fprog)) < 0) {
         DEBUG_PRINT(KERN_INFO "[-] Could not attach bpf filter to socket %d\n", ret);
         goto cleanup;
     }
 
-    reaper = init_reaper(STATE_TIMEOUT);
-
-    if (!reaper) {
+    // Init the reaper thread
+    if ((reaper = init_reaper(STATE_TIMEOUT)) == NULL) {
         DEBUG_PRINT(KERN_INFO "[-] Failed to initialize connection reaper\n");
         ret = -1;
         goto cleanup;
@@ -173,8 +217,8 @@ int listen(void *data)
     // Initialization has successfully completed, allow
     // the main thread and module insert to proceed
     complete(&thread_setup);
-
     while (1) {
+
         // Add socket to wait queue
         add_wait_queue(&sock->sk->sk_wq->wait, &recv_wait);
 
@@ -184,9 +228,9 @@ int listen(void *data)
             set_current_state(TASK_INTERRUPTIBLE);
             schedule_timeout(2 * HZ);
 
-            // check exit condition
+            // Check the thread exit condition. It is
+            // crucial to remove the wait queue before exiting
             if (kthread_should_stop()) {
-                // Crucial to remove the wait queue before exiting
                 set_current_state(TASK_RUNNING);
                 remove_wait_queue(&sock->sk->sk_wq->wait, &recv_wait);
                 goto cleanup;
