@@ -41,15 +41,15 @@ if [ $code == 5 ]; then build=1 && insmod=0 && test=2;  fi;
 if [ $code == 6 ]; then build=1 && insmod=1 && test=0; fi;
 
 echo "Set build=$build insmod=$insmod test=$insmod"; \
-if [ $build == 2 ]; then echo "##[set-output name=build;]N/A" && echo "##[set-output name=buildc;]grey"; fi;
-if [ $insmod == 2 ]; then echo "##[set-output name=insmod;]N/A" && echo "##[set-output name=insmodc;]grey"; fi;
-if [ $test == 2 ]; then echo "##[set-output name=test;]N/A" && echo "##[set-output name=testc;]grey"; fi;
-if [ $build == 1 ]; then echo "##[set-output name=build;]Passing" && echo "##[set-output name=buildc;]green"; fi;
-if [ $insmod == 1 ]; then echo "##[set-output name=insmod;]Passing" && echo "##[set-output name=insmodc;]green"; fi;
-if [ $test == 1 ]; then echo "##[set-output name=test;]Passing" && echo "##[set-output name=testc;]green"; fi;
-if [ $build == 0 ]; then echo "##[set-output name=build;]Failed" && echo "##[set-output name=buildc;]red"; fi;
-if [ $insmod == 0 ]; then echo "##[set-output name=insmod;]Failed" && echo "##[set-output name=insmodc;]red"; fi;
-if [ $test == 0 ]; then echo "##[set-output name=test;]Failed" && echo "##[set-output name=testc;]red"; fi;
+if [ $build == 2 ]; then echo "{build}=N/A" >> $GITHUB_OUTPUT && echo "{buildc}=grey" >> $GITHUB_OUTPUT; fi;
+if [ $insmod == 2 ]; then echo "{insmod}=N/A" >> $GITHUB_OUTPUT  && echo "{insmodc}=grey" >> $GITHUB_OUTPUT; fi;
+if [ $test == 2 ]; then echo "{test}=N/A" >> $GITHUB_OUTPUT && echo "{testc}=grey" >> $GITHUB_OUTPUT; fi;
+if [ $build == 1 ]; then echo "{build}=Passing" >> $GITHUB_OUTPUT  && echo "{buildc}=green"  >> $GITHUB_OUTPUT; fi;
+if [ $insmod == 1 ]; then echo "{insmod}=Passing" >> $GITHUB_OUTPUT  && echo "{insmodc}=green"  >> $GITHUB_OUTPUT; fi;
+if [ $test == 1 ]; then echo "{test}=Passing" >> $GITHUB_OUTPUT  && echo "{testc}=green" >> $GITHUB_OUTPUT; fi;
+if [ $build == 0 ]; then echo "{build}=Failed" >> $GITHUB_OUTPUT  && echo "{buildc}=red" >> $GITHUB_OUTPUT; fi;
+if [ $insmod == 0 ]; then echo "{insmod}=Failed" >> $GITHUB_OUTPUT  && echo "{insmodc}=red" >> $GITHUB_OUTPUT; fi;
+if [ $test == 0 ]; then echo "{test}=Failed" >> $GITHUB_OUTPUT && echo "{testc}=red" >> $GITHUB_OUTPUT; fi;
 
 # Remove the test keys
 rm /tmp/test_key* include/key.h
