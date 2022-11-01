@@ -8,6 +8,7 @@
 #include <linux/uio.h>
 #include <linux/version.h>
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 9, 0)
 /**
  *  sk_filter_release_rcu - Release a socket filter by rcu_head
  *  @rcu: rcu_head that contains the sk_filter to free
@@ -131,3 +132,4 @@ int sk_attach_prog(struct bpf_prog *prog, struct sock *sk) {
 
     return 0;
 }
+#endif
