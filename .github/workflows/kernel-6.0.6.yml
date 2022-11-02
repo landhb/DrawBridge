@@ -1,4 +1,4 @@
-name: "5.10"
+name: "6.0.6"
 
 on:
   push:
@@ -48,7 +48,7 @@ jobs:
     # Run the test and obtain badge results via exit code
     - name: Perform the test
       id: run
-      run: cd module; NIXMODULEARGS="-k ${{ github.workflow }}. -c ci-config.toml" ./tests/run.sh
+      run: cd module; NIXMODULEARGS="-k ${{ github.workflow }} -c ci-config.toml" ./tests/run.sh
 
     # Checkout the badges branch
     - uses: actions/checkout@v1
