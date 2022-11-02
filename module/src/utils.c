@@ -22,7 +22,7 @@ void internal_inet_ntoa(char *str_ip, size_t len, __be32 int_ip)
         return;
 
     n = snprintf(str_ip, len, "%d.%d.%d.%d", (int_ip)&0xFF, (int_ip >> 8) & 0xFF,
-            (int_ip >> 16) & 0xFF, (int_ip >> 24) & 0xFF);
+                 (int_ip >> 16) & 0xFF, (int_ip >> 24) & 0xFF);
 
     str_ip[n] = '\0';
 }
