@@ -3,6 +3,7 @@
 * @brief Implements helper utilties for Drawbridge
 *
 * @author Bradley Landherr
+* @author Xiaobo Liu (cppcoffee)
 *
 * @date 04/11/2018
 */

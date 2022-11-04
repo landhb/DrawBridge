@@ -51,7 +51,7 @@ struct task_struct *raw_thread;
 extern conntrack_state *knock_state;
 
 // Global configs
-static unsigned short ports[MAX_PORTS] = { 0 };
+static ushort ports[MAX_PORTS] = { 0 };
 static unsigned int ports_c = 0;
 
 // Define module port list argument
@@ -88,12 +88,18 @@ static unsigned int conn_state_check(parsed_packet *info)
 {
     unsigned int i;
     for (i = 0; i < ports_c && i < MAX_PORTS; i++) {
-        if (info->port == ports[i]) {
-            if (state_lookup(knock_state, info)) {
-                return NF_ACCEPT;
-            }
-            return NF_DROP;
+        // Not a port we're concerned with
+        if (info->port != ports[i]) {
+            continue;
         }
+
+        // If state is verified accept
+        if (state_lookup(knock_state, info)) {
+            return NF_ACCEPT;
+        }
+
+        // Otherwise drop
+        return NF_DROP;
     }
     return NF_ACCEPT;
 }
@@ -209,7 +215,7 @@ static unsigned int pkt_hook_v4(struct sk_buff *skb)
  */
 static int __init nf_conntrack_knock_init(void)
 {
-    int ret, ret6;
+    int ret = 0, ret6 = 0;
     raw_thread = NULL;
 
     // Initialize our memory
