@@ -57,18 +57,19 @@ static void sk_filter_release_rcu(struct rcu_head *rcu) {
 }
 
 /**
- * __sk_filter_charge
+ * db_sk_filter_charge
  *
  * @brief Try to charge the socket memory if there is space available
  * @return true on success, false otherwise
  */
-static bool __sk_filter_charge(struct sock *sk, struct sk_filter *fp)
+static bool db_sk_filter_charge(struct sock *sk, struct sk_filter *fp)
 {
     u32 filter_size = bpf_prog_size(fp->prog->len);
+    int optmem_max = READ_ONCE(sysctl_optmem_max);
 
     // same check as in sock_kmalloc() 
-    if (filter_size <= sysctl_optmem_max &&
-        atomic_read(&sk->sk_omem_alloc) + filter_size < sysctl_optmem_max) {
+    if (filter_size <= optmem_max &&
+        atomic_read(&sk->sk_omem_alloc) + filter_size < optmem_max) {
         atomic_add(filter_size, &sk->sk_omem_alloc);
         return true;
     }
@@ -90,22 +91,6 @@ static void db_sk_filter_uncharge(struct sock *sk, struct sk_filter *fp) {
     if (refcount_dec_and_test(&fp->refcnt)) {
         call_rcu(&fp->rcu, sk_filter_release_rcu);
     }
-}
-
-/**
- * Charge the socket by incrementing it's sk_omem_alloc counter
- * and incrementing the reference count to the new filter.
- */
-static bool db_sk_filter_charge(struct sock *sk, struct sk_filter *fp)
-{
-    if (!refcount_inc_not_zero(&fp->refcnt))
-        return false;
-
-    if (!__sk_filter_charge(sk, fp)) {
-        sk_filter_release(fp);
-        return false;
-    }
-    return true;
 }
 
 /**
@@ -140,7 +125,7 @@ int sk_attach_prog(struct bpf_prog *prog, struct sock *sk) {
         return -ENOMEM;
     }
 
-    // Bump the refcount
+    // Initialize the refcount for the new filter
     refcount_set(&fp->refcnt, 1);
 
     // Obtain a reference to the old filter if set

@@ -128,6 +128,9 @@ int apply_filter(struct socket *sock, struct sock_fprog *fprog) {
 
     // Directly attach to the socket
     ret = sk_attach_prog(prog, sock->sk);
+    if (ret < 0) {
+        bpf_prog_free(prog);
+    }
 #else
     ret = sock_setsockopt(sock, SOL_SOCKET, SO_ATTACH_FILTER,
                         (char __user *)fprog, sizeof(struct sock_fprog));
