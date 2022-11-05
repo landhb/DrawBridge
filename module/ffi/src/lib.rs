@@ -72,8 +72,8 @@ impl fmt::Debug for packet_info {
     }
 }
 
-impl packet_info {
-    pub fn new() -> Self {
+impl Default for packet_info {
+    fn default() -> Self {
         Self {
             version: 0,
             port: 0,

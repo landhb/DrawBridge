@@ -14,7 +14,7 @@ use etherparse::{ethernet::EtherType, InternetSlice, SlicedPacket};
 
 fn main() {
     fuzz!(|data: &[u8]| {
-        let mut info = packet_info::new();
+        let mut info = packet_info::default();
         let res = unsafe { parse_packet(&mut info as *mut _, data.as_ptr() as _, data.len()) };
 
         // Offset should never exceed received length
@@ -33,7 +33,7 @@ fn parse_data(mut offset: usize, input: &[u8]) -> (isize, usize) {
 
     // Timestamp
     let _timestamp = i64::from_be_bytes(input[offset..offset + 8].try_into().unwrap());
-    offset += mem::size_of::<i16>();
+    offset += mem::size_of::<i64>();
 
     // Port
     let _port = u16::from_be_bytes(input[offset..offset + 2].try_into().unwrap());
