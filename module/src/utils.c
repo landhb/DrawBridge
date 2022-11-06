@@ -41,17 +41,15 @@ void internal_inet6_ntoa(char *str_ip, size_t len, struct in6_addr *src_6)
     if (!str_ip || len < INET6_ADDRSTRLEN)
         return;
 
-    n = snprintf(
-        str_ip,
-        len,
-        "%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x",
-        (int)src_6->s6_addr[0], (int)src_6->s6_addr[1], (int)src_6->s6_addr[2],
-        (int)src_6->s6_addr[3], (int)src_6->s6_addr[4], (int)src_6->s6_addr[5],
-        (int)src_6->s6_addr[6], (int)src_6->s6_addr[7], (int)src_6->s6_addr[8],
-        (int)src_6->s6_addr[9], (int)src_6->s6_addr[10],
-        (int)src_6->s6_addr[11], (int)src_6->s6_addr[12],
-        (int)src_6->s6_addr[13], (int)src_6->s6_addr[14],
-        (int)src_6->s6_addr[15]);
+    n = snprintf(str_ip, len,
+                 "%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x",
+                 (int)src_6->s6_addr[0], (int)src_6->s6_addr[1], (int)src_6->s6_addr[2],
+                 (int)src_6->s6_addr[3], (int)src_6->s6_addr[4], (int)src_6->s6_addr[5],
+                 (int)src_6->s6_addr[6], (int)src_6->s6_addr[7], (int)src_6->s6_addr[8],
+                 (int)src_6->s6_addr[9], (int)src_6->s6_addr[10],
+                 (int)src_6->s6_addr[11], (int)src_6->s6_addr[12],
+                 (int)src_6->s6_addr[13], (int)src_6->s6_addr[14],
+                 (int)src_6->s6_addr[15]);
 
     str_ip[n] = '\0';
 }
