@@ -15,7 +15,7 @@ impl Layer2Parser {
         let ethhdr = pkt
             .link
             .as_ref()
-            .ok_or::<Box<dyn Error>>("No ethernet header".into())?
+            .ok_or_else(|| "No ethernet header")?
             .to_header();
 
         // Optional VLAN tags
@@ -32,10 +32,7 @@ impl Layer2Parser {
         if !Self::is_supported(inner_type) {
             return Err("Ethernet type is not supported".into());
         }
-        Ok(Layer2Parser {
-            ethhdr: ethhdr.clone(),
-            vlanhdr: vlanhdr.clone(),
-        })
+        Ok(Layer2Parser { ethhdr, vlanhdr })
     }
 
     // Offset of the payload after the Layer 2 headers
@@ -49,11 +46,9 @@ impl Layer2Parser {
 
     /// Only these types are supported
     fn is_supported(ether_type: u16) -> bool {
-        match EtherType::from_u16(ether_type) {
-            Some(EtherType::Ipv4) => true,
-            Some(EtherType::Ipv6) => true,
-            Some(EtherType::VlanTaggedFrame) => true,
-            _ => false,
-        }
+        matches!(
+            EtherType::from_u16(ether_type),
+            Some(EtherType::Ipv4) | Some(EtherType::Ipv6) | Some(EtherType::VlanTaggedFrame)
+        )
     }
 }

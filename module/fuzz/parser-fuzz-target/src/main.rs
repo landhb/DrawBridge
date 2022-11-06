@@ -16,6 +16,9 @@ use etherparse::{ethernet::EtherType, InternetSlice, SlicedPacket};
 mod layer2;
 use layer2::Layer2Parser;
 
+mod layer3;
+use layer3::Layer3Parser;
+
 fn main() {
     fuzz!(|data: &[u8]| {
         let mut info = packet_info::default();
