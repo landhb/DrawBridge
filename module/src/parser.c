@@ -138,12 +138,12 @@ static ssize_t parse_udp(uintptr_t pkt, parsed_packet * info, size_t maxsize) {
 
     // Verify total length
     udp_hdr = (struct udphdr *)(pkt + info->offset);
-    if (ntohs(udp_hdr->len) + info->offset > maxsize) {
+    if (ntohs(udp_hdr->len) > maxsize + info->offset) {
         return -1;
     }
 
     // Check that there is enough room in the payload
-    if (ntohs(udp_hdr->len) - sizeof(struct udphdr) < sizeof(struct pkey_signature) + sizeof(struct dbpacket)) {
+    if (ntohs(udp_hdr->len) < sizeof(struct pkey_signature) + sizeof(struct dbpacket) + sizeof(struct udphdr)) {
         return -1;
     }
 
