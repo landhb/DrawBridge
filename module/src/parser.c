@@ -138,7 +138,7 @@ static ssize_t parse_udp(uintptr_t pkt, parsed_packet * info, size_t maxsize) {
 
     // Verify total length
     udp_hdr = (struct udphdr *)(pkt + info->offset);
-    if (ntohs(udp_hdr->len) > maxsize + info->offset) {
+    if (ntohs(udp_hdr->len) > maxsize - info->offset) {
         return -1;
     }
 
