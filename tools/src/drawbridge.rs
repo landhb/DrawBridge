@@ -1,6 +1,7 @@
 use crate::errors::DrawBridgeError::*;
 use std::error::Error;
 use std::path::Path;
+use std::time::{SystemTime, UNIX_EPOCH};
 
 use crate::crypto;
 
@@ -37,21 +38,15 @@ pub fn build_packet<'a>(
         return Err(DoesNoteExist.into());
     }
 
-    // Init tempsepc
-    let mut timestamp = libc::timespec {
-        tv_sec: 0,
-        tv_nsec: 0,
-    };
-
-    // get current timestamp
-    unsafe {
-        libc::clock_gettime(libc::CLOCK_REALTIME, &mut timestamp);
-    }
+    let secs = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap()
+        .as_secs();
 
     // initialize the Drawbridge protocol data
     let mut data = DrawBridgeData {
         port: unlock_port,
-        timestamp: timestamp.tv_sec,
+        timestamp: secs as i64,
     }
     .to_network_vec();
 
