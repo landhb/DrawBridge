@@ -15,27 +15,32 @@
 #include <linux/version.h>
 #include "drawbridge.h"
 
-/*
+/**
  * Globally accessed knock_state list head
  */
 conntrack_state *knock_state;
 
-/*
+/**
  * Globally access mutex to protect the list
  */
 DEFINE_SPINLOCK(listmutex);
 
-/*
+/**
  * Reaper thread timer
  */
 struct timer_list *reaper;
 
+// Track recency of port access
+extern ushort ports[MAX_PORTS];
+extern atomic64_t ports_updated[MAX_PORTS];
+extern unsigned int ports_c;
+
 /**
-*  @brief Utility function to compare IPv6 addresses 
-*  @param a1 First address, of type in6_addr to compare
-*  @param a2 Second address, of type in6_addr to compare
-*  @return Zero on a match, otherwise a non-zero integer
-*/
+ *  @brief Utility function to compare IPv6 addresses
+ *  @param a1 First address, of type in6_addr to compare
+ *  @param a2 Second address, of type in6_addr to compare
+ *  @return Zero on a match, otherwise a non-zero integer
+ */
 static inline int ipv6_addr_cmp(const struct in6_addr *a1,
                                 const struct in6_addr *a2)
 {
@@ -69,12 +74,12 @@ static inline int compare_state_info(struct conntrack_state *state, parsed_packe
 }
 
 /**
-*  @brief Utility function to log a new connections to dmesg
-*  @param state The SPA conntrack_state associated with this allowed connection
-*  @param src IPv4 address to log, if connection is IPv4
-*  @param src_6 IPv6 address to log, if connection is IPv6
-*  @return Zero on a match, otherwise a non-zero integer
-*/
+ *  @brief Utility function to log a new connections to dmesg
+ *  @param state The SPA conntrack_state associated with this allowed connection
+ *  @param src IPv4 address to log, if connection is IPv4
+ *  @param src_6 IPv6 address to log, if connection is IPv6
+ *  @return Zero on a match, otherwise a non-zero integer
+ */
 static inline void log_connection(struct conntrack_state *state)
 {
     uint8_t buf[512] = {0};
@@ -97,15 +102,15 @@ static inline void log_connection(struct conntrack_state *state)
 }
 
 /**
-*  @brief Initializes a new conntrack_state node in memory
-*
-*  There will be one conntrack_state per authenticated session 
-*  As the connection remains established, the state will be periodically
-*  updated with a new timestamp to maintain currency and not be destroyed
-*  by the reaper thread.
-*
-*  @return Pointer to the newly allocated conntrack_state struct, NULL on error.
-*/
+ *  @brief Initializes a new conntrack_state node in memory
+ *
+ *  There will be one conntrack_state per authenticated session
+ *  As the connection remains established, the state will be periodically
+ *  updated with a new timestamp to maintain currency and not be destroyed
+ *  by the reaper thread.
+ *
+ *  @return Pointer to the newly allocated conntrack_state struct, NULL on error.
+ */
 conntrack_state *init_state(void)
 {
     conntrack_state *state = NULL;
@@ -124,12 +129,12 @@ conntrack_state *init_state(void)
 }
 
 /**
-*  @brief Callback for call_rcu, asyncronously frees memory when the
-*  RCU grace period ends
-*
-*  @param rcu The rcu_head for the node being freed, contains all the information necessary 
-*  for RCU mechanism to maintain pending updates. 
-*/
+ *  @brief Callback for call_rcu, asyncronously frees memory when the
+ *  RCU grace period ends
+ *
+ *  @param rcu The rcu_head for the node being freed, contains all the information necessary
+ *  for RCU mechanism to maintain pending updates.
+ */
 static void reclaim_state_entry(struct rcu_head *rcu)
 {
     struct conntrack_state *state =
@@ -138,59 +143,65 @@ static void reclaim_state_entry(struct rcu_head *rcu)
 }
 
 /**
-*  @brief Update function, to create a copy of a conntrack_state struct, 
-*  update it, and then free the old state struct with a later call to call_rcu 
-*
-*  This is called when a connection has come in and has an authenticated
-*  conntrack_state. update_state() will be called to update state->time_updated
-*  and maintain currency for ESTABLISHED connections to prevent them from being
-*  dropped by the reaper thread. 
-*
-*  A good reference, on updates in the RCU construct: 
-*  http://lse.sourceforge.net/locking/rcu/HOWTO/descrip.html
-*
-*  @param old_state The conntrack_state to be updated, and later freed
-*/
-static inline void update_state(conntrack_state *old_state)
-{
-    // Create new node
-    conntrack_state *new_state = init_state();
+ *  @brief Lookup the relevant timestamp index with a port number.
+ *
+ *  @param port The port to lookup
+ *
+ *  @returns -1 if no such port entry exists, the index otherwise.
+ */
+int get_port_index(u16 port) {
+    unsigned int i = 0;
+    for (i = 0; i < ports_c; i++) {
+        if (ports[i] == port) {
+            return i;
+        }
+    }
+    return -1;
+}
 
-    if (!new_state) {
+/**
+ *  @brief Update function, to create a copy of a conntrack_state struct,
+ *  update it, and then free the old state struct with a later call to call_rcu
+ *
+ *  This is called when a connection has come in and has an authenticated
+ *  conntrack_state. update_state() will be called to update time_updated
+ *  and maintain currency for ESTABLISHED connections to prevent them from being
+ *  dropped by the reaper thread.
+ *
+ *  A good reference, previously this performed an RCU update. But under high loads
+ *  the frequent replace_rcu opertaions could race. Switched to an atomic per-port
+ *  state.
+ *
+ *  http://lse.sourceforge.net/locking/rcu/HOWTO/descrip.html
+ *
+ *  @param old_state The conntrack_state to be updated, and later freed
+ */
+static inline void update_state(conntrack_state *state)
+{
+    int index = 0;
+
+    // Nothing to do
+    if ((index = get_port_index(state->port)) < 0) {
         return;
     }
 
-    memcpy(new_state, old_state, sizeof(struct conntrack_state));
-    new_state->time_updated = jiffies;
-
-    // obtain lock to list for the replacement
-    spin_lock(&listmutex);
-
-    // Replace the old entry
-    list_replace_rcu(&old_state->list, &new_state->list);
-
-    // Note that the caller is not permitted to immediately free the newly
-    // deleted entry. Instead call_rcu must be used to defer freeing until
-    // an RCU grace period has elapsed.
-    call_rcu(&old_state->rcu, reclaim_state_entry);
-
-    // Release write lock
-    spin_unlock(&listmutex);
+    // Update timestamp
+    atomic64_set(&ports_updated[index], jiffies);
     return;
 }
 
 /**
-*  @brief Function to iterate the conntrack_state list to check
-*  if a IP address has properly authenticated with DrawBridge.
-*  If so, the conntrack_state will be updated to keep the connection
-*  established.
-*
-*  @param head Beginning of the conntrack_state list
-*  @param type IP potocol version, either 4 or 6
-*  @param src IPv4 address to log, if connection is IPv4
-*  @param src_6 IPv6 address to log, if connection is IPv6
-*  @param port Port attempting to be connected to
-*/
+ *  @brief Function to iterate the conntrack_state list to check
+ *  if a IP address has properly authenticated with DrawBridge.
+ *  If so, the conntrack_state will be updated to keep the connection
+ *  established.
+ *
+ *  @param head Beginning of the conntrack_state list
+ *  @param type IP potocol version, either 4 or 6
+ *  @param src IPv4 address to log, if connection is IPv4
+ *  @param src_6 IPv6 address to log, if connection is IPv6
+ *  @param port Port attempting to be connected to
+ */
 int state_lookup(conntrack_state *head, parsed_packet *pktinfo)
 {
     conntrack_state *state;
@@ -202,11 +213,11 @@ int state_lookup(conntrack_state *head, parsed_packet *pktinfo)
 #ifdef DEBUG
             log_connection(state);
 #endif
-            // Release read lock
-            rcu_read_unlock();
-
             // Update the entry
             update_state(state);
+
+            // Release read lock
+            rcu_read_unlock();
             return 1;
         }
     }
@@ -216,15 +227,15 @@ int state_lookup(conntrack_state *head, parsed_packet *pktinfo)
 }
 
 /**
-*  @brief Function to add a new conntrack_state to the list
-*  called upon successful authentication 
-*
-*  @param head Beginning of the conntrack_state list
-*  @param type IP potocol version, either 4 or 6
-*  @param src IPv4 address that authenticated, if connection is IPv4
-*  @param src_6 IPv6 address that authenticated, if connection is IPv6
-*  @param port Port that connections will be allowed to
-*/
+ *  @brief Function to add a new conntrack_state to the list
+ *  called upon successful authentication
+ *
+ *  @param head Beginning of the conntrack_state list
+ *  @param type IP potocol version, either 4 or 6
+ *  @param src IPv4 address that authenticated, if connection is IPv4
+ *  @param src_6 IPv6 address that authenticated, if connection is IPv6
+ *  @param port Port that connections will be allowed to
+ */
 void state_add(conntrack_state *head, parsed_packet *info)
 {
     // Create new node
@@ -239,7 +250,6 @@ void state_add(conntrack_state *head, parsed_packet *info)
     }
     state->port = info->port;
     state->time_added = jiffies;
-    state->time_updated = jiffies;
 
     // add to list
     spin_lock(&listmutex);
@@ -249,6 +259,11 @@ void state_add(conntrack_state *head, parsed_packet *info)
     return;
 }
 
+/**
+ *  @brief Cleanup all state entries.
+ *
+ *  @param head Beginning of the conntrack_state list
+ */
 void cleanup_states(conntrack_state *head)
 {
     conntrack_state *state, *tmp;
@@ -319,6 +334,8 @@ void cleanup_reaper(struct timer_list *my_timer)
 */
 void reap_expired_connections(unsigned long timeout)
 {
+    int index = 0;
+    u64 time_updated = 0;
     conntrack_state *state, *tmp;
 
     DEBUG_PRINT(KERN_INFO "[*] Timer expired, checking connections...\n");
@@ -327,7 +344,16 @@ void reap_expired_connections(unsigned long timeout)
     spin_lock(&listmutex);
 
     list_for_each_entry_safe (state, tmp, &(knock_state->list), list) {
-        if (jiffies - state->time_updated >= msecs_to_jiffies(STATE_TIMEOUT)) {
+        // Nothing to do
+        if ((index = get_port_index(state->port)) < 0) {
+            continue;
+        }
+
+        // Read the relevant atomic
+        time_updated = atomic64_read(&ports_updated[index]);
+
+        // Determine if the connection is stale
+        if (jiffies - time_updated >= msecs_to_jiffies(STATE_TIMEOUT)) {
 
             // Perform cleanup
             list_del_rcu(&(state->list));

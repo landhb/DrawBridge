@@ -42,7 +42,6 @@ MODULE_ALIAS("drawbridge");
 MODULE_ALIAS("ip_conntrack_drawbridge");
 
 #define MODULE_NAME "drawbridge"
-#define MAX_PORTS 10
 
 // Companion thread
 struct task_struct *raw_thread;
@@ -51,8 +50,9 @@ struct task_struct *raw_thread;
 extern conntrack_state *knock_state;
 
 // Global configs
-static ushort ports[MAX_PORTS] = { 0 };
-static unsigned int ports_c = 0;
+ushort ports[MAX_PORTS] = { 0 };
+atomic64_t ports_updated[MAX_PORTS] = { 0 };
+unsigned int ports_c = 0;
 
 // Define module port list argument
 module_param_array(ports, ushort, &ports_c, 0400);
