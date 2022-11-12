@@ -181,7 +181,7 @@ static ssize_t parse_ipv4(uintptr_t pkt, parsed_packet * info, size_t maxsize) {
     }
 
     // Verify Total Length not too large
-    if (ntohs(ip_h->tot_len) + info->offset > maxsize) {
+    if (ntohs(ip_h->tot_len) > maxsize - info->offset) {
         return -1;
     }
 
