@@ -250,7 +250,7 @@ void state_add(conntrack_state *head, parsed_packet *info)
         return;
     }
 
-    // set params
+    // Set params
     state->type = info->version;
     state->port = info->port;
     state->time_added = jiffies;
@@ -266,6 +266,9 @@ void state_add(conntrack_state *head, parsed_packet *info)
         default:
             return;
     }
+
+    // Ensure port is not immediately stale
+    update_state(state);
 
     // Add to list
     spin_lock(&listmutex);
