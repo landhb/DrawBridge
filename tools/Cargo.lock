@@ -81,7 +81,6 @@ name = "dbtools"
 version = "1.0.3"
 dependencies = [
  "clap",
- "libc",
  "openssl",
  "pnet",
  "rand",
