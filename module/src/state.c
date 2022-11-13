@@ -92,10 +92,15 @@ static inline void log_connection(struct conntrack_state *state)
     }
 
     // Convert to human readable to log
-    if (state->type == 4) {
-        internal_inet_ntoa(buf, sizeof(buf), state->src.addr_4);
-    } else if (state->type == 6) {
-        internal_inet6_ntoa(buf, sizeof(buf), &state->src.addr_6);
+    switch(state->type) {
+        case 4:
+            internal_inet_ntoa(buf, sizeof(buf), state->src.addr_4);
+            break;
+        case 6:
+            internal_inet6_ntoa(buf, sizeof(buf), &state->src.addr_6);
+            break;
+        default:
+            return;
     }
 
     DEBUG_PRINT("[+] DrawBridge accepted connection - source: %s\n", buf);
@@ -124,7 +129,6 @@ conntrack_state *init_state(void)
 
     // Init list
     INIT_LIST_HEAD(&(state->list));
-
     return state;
 }
 
@@ -149,7 +153,7 @@ static void reclaim_state_entry(struct rcu_head *rcu)
  *
  *  @returns -1 if no such port entry exists, the index otherwise.
  */
-int get_port_index(u16 port) {
+static inline int get_port_index(u16 port) {
     unsigned int i = 0;
     for (i = 0; i < ports_c; i++) {
         if (ports[i] == port) {
@@ -204,7 +208,7 @@ static inline void update_state(conntrack_state *state)
  */
 int state_lookup(conntrack_state *head, parsed_packet *pktinfo)
 {
-    conntrack_state *state;
+    conntrack_state *state = NULL;
 
     rcu_read_lock();
 
@@ -239,23 +243,34 @@ int state_lookup(conntrack_state *head, parsed_packet *pktinfo)
 void state_add(conntrack_state *head, parsed_packet *info)
 {
     // Create new node
-    conntrack_state *state = init_state();
+    conntrack_state *state = NULL;
+
+    // Ensure state is valid
+    if ((state = init_state()) == NULL) {
+        return;
+    }
 
     // set params
     state->type = info->version;
-    if (state->type == 4) {
-        state->src.addr_4 = info->ip.addr_4;
-    } else if (state->type == 6) {
-        state->src.addr_6 = info->ip.addr_6;
-    }
     state->port = info->port;
     state->time_added = jiffies;
 
-    // add to list
+    // Ensure IP address is set
+    switch(state->type) {
+        case 4:
+            state->src.addr_4 = info->ip.addr_4;
+            break;
+        case 6:
+            state->src.addr_6 = info->ip.addr_6;
+            break;
+        default:
+            return;
+    }
+
+    // Add to list
     spin_lock(&listmutex);
     list_add_rcu(&(state->list), &(head->list));
     spin_unlock(&listmutex);
-
     return;
 }
 
@@ -266,7 +281,7 @@ void state_add(conntrack_state *head, parsed_packet *info)
  */
 void cleanup_states(conntrack_state *head)
 {
-    conntrack_state *state, *tmp;
+    conntrack_state *state = NULL, *tmp = NULL;
 
     // Enter critical section
     spin_lock(&listmutex);
@@ -285,10 +300,12 @@ void cleanup_states(conntrack_state *head)
     spin_unlock(&listmutex);
 }
 
-/* -----------------------------------------------
-				Reaper Timeout Functions
-   ----------------------------------------------- */
-
+/**
+ *  Callback function for the reaper on kernels newer than 4.14.153
+ *  removes expired connections.
+ *
+ *  @param timer The timer_list provided to the callback
+ */
 #if LINUX_VERSION_CODE > KERNEL_VERSION(4, 14, 153)
 void reap_expired_connections_new(struct timer_list *timer)
 {
@@ -297,7 +314,13 @@ void reap_expired_connections_new(struct timer_list *timer)
 }
 #endif
 
-// Initializes the reaper callback
+/**
+ *  Initializes the reaper, which is implemented as a timer.
+ *  Upon expiration of the timer, the reaper will iterate the
+ *  state list and remove connections that have expired.
+ *
+ *  @param timeout The desired timeout period in milliseconds.
+ */
 struct timer_list *init_reaper(unsigned long timeout)
 {
     struct timer_list *my_timer = NULL;
@@ -321,7 +344,11 @@ struct timer_list *init_reaper(unsigned long timeout)
     return my_timer;
 }
 
-// Cleans up and removes the timer
+/**
+ *  Removes and frees the reaper timer.
+ *
+ *  @param timeout The desired timeout period in milliseconds.
+ */
 void cleanup_reaper(struct timer_list *my_timer)
 {
     del_timer(my_timer);
@@ -329,14 +356,14 @@ void cleanup_reaper(struct timer_list *my_timer)
 }
 
 /**
-*  Callback function for the reaper: removes expired connections
-*  @param timeout Conn
-*/
+ *  Callback function for the reaper: removes expired connections.
+ *  @param timeout Conn
+ */
 void reap_expired_connections(unsigned long timeout)
 {
     int index = 0;
     u64 time_updated = 0;
-    conntrack_state *state, *tmp;
+    conntrack_state *state = NULL, *tmp = NULL;
 
     DEBUG_PRINT(KERN_INFO "[*] Timer expired, checking connections...\n");
 
