@@ -38,10 +38,7 @@ pub fn build_packet<'a>(
         return Err(DoesNoteExist.into());
     }
 
-    let secs = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap()
-        .as_secs();
+    let secs = SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs();
 
     // initialize the Drawbridge protocol data
     let mut data = DrawBridgeData {
