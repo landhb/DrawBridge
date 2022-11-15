@@ -36,6 +36,7 @@ impl Route {
 }
 
 impl Interface {
+    /// Use the interface name to initialize a new Interface
     pub fn from_name(name: &str) -> Result<Self, Box<dyn Error>> {
         let interfaces = pnet::datalink::interfaces();
         for i in interfaces {
@@ -46,9 +47,14 @@ impl Interface {
         Err(InvalidInterface.into())
     }
 
-    /// Grab an interface's src IP
+    /// Grab an interface's source IP
     pub fn get_ip(&self) -> Result<IpAddr, Box<dyn Error>> {
         Ok(self.inner.ips.get(0).ok_or(InvalidInterface)?.ip())
+    }
+
+    /// Get the interface's name
+    pub fn get_name(&self) -> &str {
+        &self.inner.name
     }
 
     /// Get a Linux host's default gateway
@@ -57,8 +63,8 @@ impl Interface {
         let mut contents = String::new();
         file.read_to_string(&mut contents)?;
 
-        let iter = contents.lines();
-        for line in iter {
+        for line in contents.lines() {
+            // Ignore bad lines
             let route = match Route::from_line(line) {
                 Ok(r) => r,
                 _ => continue,

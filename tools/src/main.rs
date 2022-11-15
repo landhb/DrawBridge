@@ -113,8 +113,9 @@ fn auth(
     // Determine the source IP of the interface
     let src_ip = iface.get_ip().or(Err(InvalidInterface))?;
     println!(
-        "[+] Selected Interface {:?}, with address {}",
-        iface, src_ip
+        "[+] Selected Interface {}, with address {}",
+        iface.get_name(),
+        src_ip
     );
 
     // Determine the layer 4 protocol
@@ -131,7 +132,7 @@ fn auth(
     };
 
     // Create a new channel, dealing with layer 4 packets
-    let (mut tx, _rx) = transport_channel(MAX_PACKET_SIZE, config).or(Err(NetworkingError))?;
+    let (mut tx, _rx) = transport_channel(MAX_PACKET_SIZE, config).map_err(Io)?;
 
     // Build the Drawbridge specific protocol data
     let data = drawbridge::build_packet(uport, &key).or(Err(NetworkingError))?;
