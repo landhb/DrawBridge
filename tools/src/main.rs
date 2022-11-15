@@ -107,10 +107,8 @@ fn auth(
     let target = server.parse::<IpAddr>().or(Err(InvalidIP))?;
 
     // Determine which interface to use
-    let iface = interface.map_or_else(
-        || route::get_default_iface().or(Err(InvalidInterface)),
-        |v| Ok(v),
-    )?;
+    let iface =
+        interface.map_or_else(|| route::get_default_iface().or(Err(InvalidInterface)), Ok)?;
 
     // Determine the source IP of the interface
     let src_ip = route::get_interface_ip(&iface).or(Err(InvalidInterface))?;
@@ -147,7 +145,7 @@ fn auth(
     );
 
     // Send it
-    let n = tx.send_to(pkt, target).or(Err(NetworkingError));
+    let n = tx.send_to(pkt, target).or(Err(NetworkingError))?;
     println!("[+] Sent {} bytes", n);
     Ok(())
 }

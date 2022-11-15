@@ -34,18 +34,7 @@ impl<'a> UdpBuilder<'a> {
         dport: u16,
         payload: &'a [u8],
     ) -> Result<Self, Box<dyn Error>> {
-        // Layer 2 length
-        let mut length: usize = EthernetPacket::minimum_packet_size();
-
-        // Layer 3 length
-        length += match dst.is_ipv4() {
-            true => Ipv4Packet::minimum_packet_size(),
-            false => Ipv6Packet::minimum_packet_size(),
-        };
-
-        // Layer 4 length + payload
-        length += MutableUdpPacket::minimum_packet_size();
-        length += payload.len();
+        let length = Self::packet_size(payload.len(), dst.is_ipv4());
         Ok(Self {
             pkt: MutableUdpPacket::owned(vec![0; length]).ok_or(OutOfMemory)?,
             length,
@@ -54,6 +43,22 @@ impl<'a> UdpBuilder<'a> {
             dport,
             payload,
         })
+    }
+
+    fn packet_size(payload_len: usize, ipv4: bool) -> usize {
+        // Layer 2 length
+        let mut length: usize = EthernetPacket::minimum_packet_size();
+
+        // Layer 3 length
+        length += match ipv4 {
+            true => Ipv4Packet::minimum_packet_size(),
+            false => Ipv6Packet::minimum_packet_size(),
+        };
+
+        // Layer 4 length + payload
+        length += MutableUdpPacket::minimum_packet_size();
+        length += payload_len;
+        length
     }
 
     pub fn build(mut self) -> Result<PktWrapper<'a>, Box<dyn Error>> {
