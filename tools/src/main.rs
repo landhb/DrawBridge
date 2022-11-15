@@ -1,13 +1,9 @@
-//extern crate failure;
-extern crate pnet;
-extern crate rand;
-
-// Supported layer 3 protocols
+use crate::errors::DrawBridgeError::*;
+use clap::Parser;
+use std::error::Error;
+use std::io::Write;
 use std::net::IpAddr;
-
-// Supported layer 4 protocols
-use pnet::packet::tcp::MutableTcpPacket;
-use pnet::packet::udp::MutableUdpPacket;
+use std::path::Path;
 
 // Transport Channel Types
 use pnet::packet::ip::IpNextHeaderProtocols;
@@ -22,22 +18,10 @@ mod drawbridge;
 mod errors;
 mod protocols;
 mod route;
+use protocols::{PktWrapper, TcpBuilder, UdpBuilder};
 
-use crate::errors::DrawBridgeError::*;
-use clap::Parser;
-use std::error::Error;
-use std::io::Write;
-use std::path::Path;
-
+/// Arbitrary maximum for the auth packet
 const MAX_PACKET_SIZE: usize = 2048;
-
-/// Packet wrapper to pass to TransportSender
-/// This allows us to return both MutableTcpPacket
-/// and MutableUdpPacket from the builders
-enum PktWrapper<'a> {
-    Tcp(MutableTcpPacket<'a>),
-    Udp(MutableUdpPacket<'a>),
-}
 
 /// Supported algorithm types for keys/signing
 #[derive(clap::ValueEnum, Debug, Copy, Clone, Eq, PartialEq)]
@@ -199,18 +183,8 @@ fn auth(
 
     // Create the packet
     let pkt: PktWrapper = match proto {
-        Protocol::Tcp => PktWrapper::Tcp(protocols::build_tcp_packet(
-            data.as_slice(),
-            src_ip,
-            target,
-            dport,
-        )?),
-        Protocol::Udp => PktWrapper::Udp(protocols::build_udp_packet(
-            data.as_slice(),
-            src_ip,
-            target,
-            dport,
-        )?),
+        Protocol::Tcp => TcpBuilder::new(src_ip, target, dport, &data)?.build()?,
+        Protocol::Udp => UdpBuilder::new(src_ip, target, dport, &data)?.build()?,
     };
 
     println!(
