@@ -1,5 +1,6 @@
 use crate::errors::DrawBridgeError::*;
 use std::error::Error;
+use std::ffi::OsStr;
 use std::path::Path;
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -29,9 +30,9 @@ impl DrawBridgeData {
 /// signature: [u8]
 /// digest_size: u32  (must be network byte order)
 /// digest: [u8]
-pub fn build_packet(
+pub fn build_packet<T: AsRef<OsStr>>(
     unlock_port: u16,
-    private_key_path: String,
+    private_key_path: T,
 ) -> Result<Vec<u8>, Box<dyn Error>> {
     let path = Path::new(&private_key_path);
     if !path.exists() {
