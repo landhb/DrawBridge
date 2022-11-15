@@ -48,12 +48,7 @@ pub fn build_packet<'a>(
     .to_network_vec();
 
     // sign the data
-    let signature = match crypto::sign_rsa(&data, path) {
-        Ok(s) => s,
-        Err(e) => {
-            return Err(e);
-        }
-    };
+    let signature = crypto::sign_rsa(&data, path)?;
 
     // hash the data
     let digest = crypto::sha256_digest(&data).or(Err(CryptoError))?;
