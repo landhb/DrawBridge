@@ -138,48 +138,6 @@ static void reclaim_state_entry(struct rcu_head *rcu)
 }
 
 /**
-*  @brief Update function, to create a copy of a conntrack_state struct, 
-*  update it, and then free the old state struct with a later call to call_rcu 
-*
-*  This is called when a connection has come in and has an authenticated
-*  conntrack_state. update_state() will be called to update state->time_updated
-*  and maintain currency for ESTABLISHED connections to prevent them from being
-*  dropped by the reaper thread. 
-*
-*  A good reference, on updates in the RCU construct: 
-*  http://lse.sourceforge.net/locking/rcu/HOWTO/descrip.html
-*
-*  @param old_state The conntrack_state to be updated, and later freed
-*/
-static inline void update_state(conntrack_state *old_state)
-{
-    // Create new node
-    conntrack_state *new_state = init_state();
-
-    if (!new_state) {
-        return;
-    }
-
-    memcpy(new_state, old_state, sizeof(struct conntrack_state));
-    new_state->time_updated = jiffies;
-
-    // obtain lock to list for the replacement
-    spin_lock(&listmutex);
-
-    // Replace the old entry
-    list_replace_rcu(&old_state->list, &new_state->list);
-
-    // Note that the caller is not permitted to immediately free the newly
-    // deleted entry. Instead call_rcu must be used to defer freeing until
-    // an RCU grace period has elapsed.
-    call_rcu(&old_state->rcu, reclaim_state_entry);
-
-    // Release write lock
-    spin_unlock(&listmutex);
-    return;
-}
-
-/**
 *  @brief Function to iterate the conntrack_state list to check
 *  if a IP address has properly authenticated with DrawBridge.
 *  If so, the conntrack_state will be updated to keep the connection
@@ -202,11 +160,11 @@ int state_lookup(conntrack_state *head, parsed_packet *pktinfo)
 #ifdef DEBUG
             log_connection(state);
 #endif
+            // Update the last time
+            atomic64_set(&state->time_updated, jiffies);
+
             // Release read lock
             rcu_read_unlock();
-
-            // Update the entry
-            update_state(state);
             return 1;
         }
     }
@@ -239,7 +197,8 @@ void state_add(conntrack_state *head, parsed_packet *info)
     }
     state->port = info->port;
     state->time_added = jiffies;
-    state->time_updated = jiffies;
+
+    atomic64_set(&state->time_updated, jiffies);
 
     // add to list
     spin_lock(&listmutex);
@@ -319,6 +278,7 @@ void cleanup_reaper(struct timer_list *my_timer)
 */
 void reap_expired_connections(unsigned long timeout)
 {
+    u64 time_updated;
     conntrack_state *state, *tmp;
 
     DEBUG_PRINT(KERN_INFO "[*] Timer expired, checking connections...\n");
@@ -327,7 +287,10 @@ void reap_expired_connections(unsigned long timeout)
     spin_lock(&listmutex);
 
     list_for_each_entry_safe (state, tmp, &(knock_state->list), list) {
-        if (jiffies - state->time_updated >= msecs_to_jiffies(STATE_TIMEOUT)) {
+
+        time_updated = atomic64_read(&state->time_updated);
+
+        if (jiffies - time_updated >= msecs_to_jiffies(STATE_TIMEOUT)) {
 
             // Perform cleanup
             list_del_rcu(&(state->list));
