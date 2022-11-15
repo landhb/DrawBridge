@@ -5,12 +5,12 @@ use std::error::Error;
 use std::net::IpAddr;
 
 // Builds an immutable UdpPacket to drop on the wire
-pub fn build_udp_packet<'a>(
-    data: &'a [u8],
+pub fn build_udp_packet(
+    data: &[u8],
     src_ip: IpAddr,
     dst_ip: IpAddr,
     dst_port: u16,
-) -> Result<MutableUdpPacket<'a>, Box<dyn Error>> {
+) -> Result<MutableUdpPacket<'_>, Box<dyn Error>> {
     // calculate total length
     let mut length: usize = pnet::packet::ethernet::EthernetPacket::minimum_packet_size();
     length += pnet::packet::udp::MutableUdpPacket::minimum_packet_size();
@@ -59,16 +59,16 @@ pub fn build_udp_packet<'a>(
         }
     }
 
-    return Ok(udp);
+    Ok(udp)
 }
 
 // Builds an immutable TcpPacket to drop on the wire
-pub fn build_tcp_packet<'a>(
-    data: &'a [u8],
+pub fn build_tcp_packet(
+    data: &[u8],
     src_ip: IpAddr,
     dst_ip: IpAddr,
     dst_port: u16,
-) -> Result<MutableTcpPacket<'a>, Box<dyn Error>> {
+) -> Result<MutableTcpPacket<'_>, Box<dyn Error>> {
     // calculate total length
     let mut length: usize = pnet::packet::ethernet::EthernetPacket::minimum_packet_size();
     length += pnet::packet::tcp::MutableTcpPacket::minimum_packet_size();
@@ -126,5 +126,5 @@ pub fn build_tcp_packet<'a>(
 
     tcp.set_checksum(checksum);
 
-    return Ok(tcp);
+    Ok(tcp)
 }

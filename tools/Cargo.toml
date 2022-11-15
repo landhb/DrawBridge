@@ -23,7 +23,8 @@ path = "src/main.rs"
 [dependencies]
 pnet = "0.28.0"
 rand = "0.8.5"
-clap = "3.2.22"
+clap = {version = "4.0.24", features = ["derive"]}
 ring = "0.16.20"
 openssl = { version = "0.10.41", features = ["vendored"] }
 shellexpand = "2.0.0"
+thiserror = "1.0.37"

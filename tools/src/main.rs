@@ -1,7 +1,6 @@
 //extern crate failure;
 extern crate pnet;
 extern crate rand;
-//#[macro_use] extern crate failure;
 
 // Supported layer 3 protocols
 use std::net::IpAddr;
@@ -25,26 +24,89 @@ mod protocols;
 mod route;
 
 use crate::errors::DrawBridgeError::*;
-use clap::{App, AppSettings, Arg, SubCommand};
+use clap::Parser;
 use std::error::Error;
 use std::io::Write;
+use std::path::Path;
 
 const MAX_PACKET_SIZE: usize = 2048;
 
-/**
- * Packet wrapper to pass to TransportSender
- * This allows us to return both MutableTcpPacket
- * and MutableUdpPacket from the builders
- */
+/// Packet wrapper to pass to TransportSender
+/// This allows us to return both MutableTcpPacket
+/// and MutableUdpPacket from the builders
 enum PktWrapper<'a> {
     Tcp(MutableTcpPacket<'a>),
     Udp(MutableUdpPacket<'a>),
 }
 
-/**
- * tx.send_to's first argument must implement
- * the pnet::packet::Packet Trait
- */
+/// Supported algorithm types for keys/signing
+#[derive(clap::ValueEnum, Debug, Copy, Clone, Eq, PartialEq)]
+enum Algorithm {
+    Rsa,
+    Ecdsa,
+}
+
+/// Supported layer 4 protocols
+#[derive(clap::ValueEnum, Debug, Copy, Clone, Eq, PartialEq)]
+enum Protocol {
+    Tcp,
+    Udp,
+}
+
+/// Simple program to greet a person
+#[derive(Parser, Debug)]
+#[command(
+    author = "landhb <https://blog.landhb.dev>",
+    version = env!("CARGO_PKG_VERSION"),
+    about = "Drawbridge Client",
+    long_about = None
+)]
+enum Command {
+    /// Generate Drawbridge Keys
+    KeyGen {
+        /// Algorithm to use
+        #[arg(value_enum, short, long, default_value_t = Algorithm::Rsa)]
+        alg: Algorithm,
+
+        /// Key size in bits
+        #[arg(short, long, default_value_t = 4096)]
+        bits: usize,
+
+        /// Output file path
+        #[arg(short, long, default_value = "~/.drawbridge/db_rsa")]
+        out: String,
+    },
+
+    /// Authenticate with a Drawbridge server
+    Auth {
+        /// Address of server running Drawbridge
+        #[arg(short, long)]
+        server: String,
+
+        /// Specify the outgoing interface to use
+        #[arg(short = 'e', long)]
+        interface: Option<String>,
+
+        /// Auth packet Layer 4 protocol (tcp/udp)
+        #[arg(value_enum, short, long)]
+        protocol: Protocol,
+
+        /// Auth packet destination port
+        #[arg(short, long)]
+        dport: u16,
+
+        /// Port to unlock
+        #[arg(short, long)]
+        unlock: u16,
+
+        /// Private key for signing
+        #[arg(short = 'i', long)]
+        key: String,
+    },
+}
+
+/// tx.send_to's first argument must implement
+/// the pnet::packet::Packet Trait
 impl pnet::packet::Packet for PktWrapper<'_> {
     fn packet(&self) -> &[u8] {
         match self {
@@ -60,36 +122,26 @@ impl pnet::packet::Packet for PktWrapper<'_> {
     }
 }
 
-/**
- * Method for the auth subcommand,
- * authenticates with a remote Drawbridge Server
- */
-fn auth(args: &clap::ArgMatches) -> Result<(), Box<dyn Error>> {
-    // required so safe to unwrap
-    let proto = args.value_of("protocol").unwrap();
-    let dtmp = args.value_of("dport").unwrap();
-    let utmp = args.value_of("uport").unwrap();
-    let tmpkey = args.value_of("key").unwrap();
-
-    // expand the path
-    let key = match shellexpand::full(tmpkey) {
+/// Method for the auth subcommand,
+/// authenticates with a remote Drawbridge Server
+fn auth(
+    server: String,
+    interface: Option<String>,
+    proto: Protocol,
+    dport: u16,
+    uport: u16,
+    key: String,
+) -> Result<(), Box<dyn Error>> {
+    // Expand the path
+    let key = match shellexpand::full(&key) {
         Ok(res) => res.to_string(),
         Err(_e) => {
             return Err(InvalidPath.into());
         }
     };
 
-    // check if valid ports were provided
-    let (unlock_port, dport) = match (utmp.parse::<u16>(), dtmp.parse::<u16>()) {
-        (Ok(uport), Ok(dport)) => (uport, dport),
-        _ => {
-            println!("[-] Ports must be between 1-65535");
-            return Err(InvalidPort.into());
-        }
-    };
-
-    // check if a valid IpAddr was provided
-    let target = match args.value_of("server").unwrap().parse::<IpAddr>() {
+    // Check if a valid IpAddr was provided
+    let target = match server.parse::<IpAddr>() {
         Ok(e) => e,
         _ => {
             println!("[-] IP address invalid, must be IPv4 or IPv6");
@@ -97,8 +149,9 @@ fn auth(args: &clap::ArgMatches) -> Result<(), Box<dyn Error>> {
         }
     };
 
-    let iface = match args.value_of("interface") {
-        Some(interface) => interface.to_string(),
+    // Determine which interface to use
+    let iface = match interface {
+        Some(i) => i,
         None => match route::get_default_iface() {
             Ok(res) => res,
             Err(_e) => {
@@ -108,6 +161,7 @@ fn auth(args: &clap::ArgMatches) -> Result<(), Box<dyn Error>> {
         },
     };
 
+    // Determine the source IP of the interface
     let src_ip = match route::get_interface_ip(&iface) {
         Ok(res) => res,
         Err(_e) => {
@@ -118,33 +172,24 @@ fn auth(args: &clap::ArgMatches) -> Result<(), Box<dyn Error>> {
 
     println!("[+] Selected Interface {}, with address {}", iface, src_ip);
 
+    // Determine the layer 4 protocol
+    let layer4 = match proto {
+        Protocol::Tcp => IpNextHeaderProtocols::Tcp,
+        Protocol::Udp => IpNextHeaderProtocols::Udp,
+    };
+
     // Dynamically set the transport protocol, and calculate packet size
     // todo, see if the header size can be calculated and returned in tcp.rs & udp.rs
-    let config: pnet::transport::TransportChannelType = match (proto, target.is_ipv4()) {
-        ("tcp", true) => Layer4(Ipv4(IpNextHeaderProtocols::Tcp)),
-        ("tcp", false) => Layer4(Ipv6(IpNextHeaderProtocols::Tcp)),
-        ("udp", true) => Layer4(Ipv4(IpNextHeaderProtocols::Udp)),
-        ("udp", false) => Layer4(Ipv6(IpNextHeaderProtocols::Udp)),
-        _ => {
-            println!("[-] Protocol/IpAddr pair not supported!");
-            return Err(UnsupportedProtocol.into());
-        }
+    let config: pnet::transport::TransportChannelType = match target.is_ipv4() {
+        true => Layer4(Ipv4(layer4)),
+        false => Layer4(Ipv6(layer4)),
     };
 
     // Create a new channel, dealing with layer 4 packets
-    let (mut tx, _rx) = match transport_channel(MAX_PACKET_SIZE, config) {
-        Ok((tx, rx)) => (tx, rx),
-        Err(e) => {
-            println!(
-                "An error occurred when creating the transport channel: {}",
-                e
-            );
-            return Err(NetworkingError.into());
-        }
-    };
+    let (mut tx, _rx) = transport_channel(MAX_PACKET_SIZE, config).or(Err(NetworkingError))?;
 
-    // build the Drawbridge specific protocol data
-    let data = match drawbridge::build_packet(unlock_port, key) {
+    // Build the Drawbridge specific protocol data
+    let data = match drawbridge::build_packet(uport, key) {
         Ok(res) => res,
         Err(_e) => {
             return Err(NetworkingError.into());
@@ -153,27 +198,23 @@ fn auth(args: &clap::ArgMatches) -> Result<(), Box<dyn Error>> {
 
     // Create the packet
     let pkt: PktWrapper = match proto {
-        "tcp" => PktWrapper::Tcp(protocols::build_tcp_packet(
+        Protocol::Tcp => PktWrapper::Tcp(protocols::build_tcp_packet(
             data.as_slice(),
             src_ip,
             target,
             dport,
         )?),
-        "udp" => PktWrapper::Udp(protocols::build_udp_packet(
+        Protocol::Udp => PktWrapper::Udp(protocols::build_udp_packet(
             data.as_slice(),
             src_ip,
             target,
             dport,
         )?),
-        _ => {
-            println!("[-] not implemented");
-            return Err(UnsupportedProtocol.into());
-        }
     };
 
     println!(
-        "[+] Sending {} packet to {}:{} to unlock port {}",
-        proto, target, dport, unlock_port
+        "[+] Sending {:?} packet to {}:{} to unlock port {}",
+        proto, target, dport, uport
     );
 
     // send it
@@ -190,17 +231,40 @@ fn auth(args: &clap::ArgMatches) -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-/**
- * Method for the keygen subcommand, generate new
- * Drawbridge keys
- */
-fn keygen(args: &clap::ArgMatches) -> Result<(), Box<dyn Error>> {
-    let alg = args.value_of("algorithm").unwrap();
-    let tmpbits = args.value_of("bits").unwrap();
-    let tmpfile = args.value_of("outfile").unwrap();
+/// Helper method to create the .drawbridge parent directory to store
+/// keys and configuration.
+fn create_key_directory(parent: &Path) -> Result<(), Box<dyn Error>> {
+    print!(
+        "[!] {} doesn't exist yet, would you like to create it [Y/n]: ",
+        parent.display()
+    );
 
+    // Flush stdout
+    std::io::stdout().flush()?;
+
+    // Receive answer
+    let mut input = String::new();
+    std::io::stdin().read_line(&mut input)?;
+
+    // Parse answer
+    match input {
+        x if x == "Y\n" || x == "\n" || x == "y\n" => {
+            println!("[*] Creating {:?}", parent.display());
+            std::fs::create_dir(parent)?;
+            Ok(())
+        }
+        _ => {
+            println!("[-] Specify or create a directory for the new keys.");
+            Err(InvalidPath.into())
+        }
+    }
+}
+
+/// Method for the keygen subcommand, generate new
+/// Drawbridge keys
+fn keygen(alg: Algorithm, bits: usize, out: String) -> Result<(), Box<dyn Error>> {
     // expand the path
-    let outfile = match shellexpand::full(tmpfile) {
+    let outfile = match shellexpand::full(&out) {
         Ok(res) => res.to_string(),
         Err(_e) => {
             return Err(InvalidPath.into());
@@ -208,154 +272,44 @@ fn keygen(args: &clap::ArgMatches) -> Result<(), Box<dyn Error>> {
     };
 
     let outfile_pub = outfile.to_owned() + ".pub";
-    let priv_path = std::path::Path::new(&outfile);
-    let pub_path = std::path::Path::new(&outfile_pub);
-    let parent = priv_path.parent().unwrap();
+    let priv_path = Path::new(&outfile);
+    let pub_path = Path::new(&outfile_pub);
+    let parent = priv_path.parent().ok_or(InvalidPath)?;
 
     // create the output directory if it doesn't exist
     if !parent.exists() {
-        print!(
-            "[!] {} doesn't exist yet, would you like to create it [Y/n]: ",
-            parent.display()
-        );
-        std::io::stdout().flush().unwrap();
-        let mut input = String::new();
-        std::io::stdin()
-            .read_line(&mut input)
-            .expect("error: unable to read user input");
-        if input == "Y\n" || input == "\n" || input == "y\n" {
-            println!("[*] Creating {:?}", parent.display());
-            std::fs::create_dir(parent)?;
-        } else {
-            println!("[-] Specify or create a directory for the new keys.");
-            return Err(InvalidPath.into());
-        }
+        create_key_directory(parent)?;
     }
 
-    let bits = match tmpbits.parse::<u32>() {
-        Ok(b) => b,
-        Err(_e) => {
-            return Err(InvalidBits.into());
-        }
-    };
-
-    println!("[*] Generating {} keys...", alg);
+    println!("[*] Generating {:?} keys...", alg);
 
     match alg {
-        "rsa" => crypto::gen_rsa(bits, priv_path, pub_path)?,
-        "ecdsa" => {
+        Algorithm::Rsa => crypto::gen_rsa(bits as u32, priv_path, pub_path)?,
+        Algorithm::Ecdsa => {
             println!("[-] ECDSA is not implemented yet. Stay tuned.");
             return Err(UnsupportedProtocol.into());
         }
-        _ => unreachable!(),
     };
 
-    println!("[+] Generated {} keys w/{} bits", alg, bits);
+    println!("[+] Generated {:?} keys w/{} bits", alg, bits);
     Ok(())
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
-    let args = App::new("db")
-        .version(env!("CARGO_PKG_VERSION"))
-        .author("landhb <https://blog.landhb.dev>")
-        .about("Drawbridge Client")
-        .setting(AppSettings::ArgRequiredElseHelp)
-        .subcommand(
-            SubCommand::with_name("keygen")
-                .about("Generate Drawbridge Keys")
-                .arg(
-                    Arg::with_name("algorithm")
-                        .short('a')
-                        .long("alg")
-                        .takes_value(true)
-                        .required(false)
-                        .possible_values(&["rsa", "ecdsa"])
-                        .default_value("rsa")
-                        .help("Algorithm to use"),
-                )
-                .arg(
-                    Arg::with_name("bits")
-                        .short('b')
-                        .long("bits")
-                        .takes_value(true)
-                        .required(false)
-                        .default_value("4096")
-                        .help("Key size"),
-                )
-                .arg(
-                    Arg::with_name("outfile")
-                        .short('o')
-                        .long("out")
-                        .takes_value(true)
-                        .required(false)
-                        .default_value("~/.drawbridge/db_rsa")
-                        .help("Output file name"),
-                ),
-        )
-        .subcommand(
-            SubCommand::with_name("auth")
-                .about("Authenticate with a Drawbridge server")
-                .arg(
-                    Arg::with_name("server")
-                        .short('s')
-                        .long("server")
-                        .takes_value(true)
-                        .required(true)
-                        .help("Address of server running Drawbridge"),
-                )
-                .arg(
-                    Arg::with_name("interface")
-                        .short('e')
-                        .long("interface")
-                        .takes_value(true)
-                        .help("Specify the outgoing interface to use"),
-                )
-                .arg(
-                    Arg::with_name("protocol")
-                        .short('p')
-                        .long("protocol")
-                        .takes_value(true)
-                        .required(false)
-                        .possible_values(&["tcp", "udp"])
-                        .default_value("tcp")
-                        .help("Auth packet protocol"),
-                )
-                .arg(
-                    Arg::with_name("dport")
-                        .short('d')
-                        .long("dport")
-                        .takes_value(true)
-                        .required(true)
-                        .help("Auth packet destination port"),
-                )
-                .arg(
-                    Arg::with_name("uport")
-                        .short('u')
-                        .long("unlock")
-                        .takes_value(true)
-                        .required(true)
-                        .help("Port to unlock"),
-                )
-                .arg(
-                    Arg::with_name("key")
-                        .short('i')
-                        .long("key")
-                        .takes_value(true)
-                        .required(false)
-                        .default_value("~/.drawbridge/db_rsa")
-                        .help("Private key for signing"),
-                ),
-        )
-        .get_matches();
+    let args = Command::parse();
 
     // Match on each subcommand to handle different functionality
-    match args.subcommand() {
-        Some(("auth", auth_args)) => auth(auth_args)?,
-        Some(("keygen", keygen_args)) => keygen(keygen_args)?,
-        _ => {
-            println!("Please provide a valid subcommand. Run db -h for more information.");
-        }
+    match args {
+        Command::KeyGen { alg, bits, out } => keygen(alg, bits, out)?,
+        Command::Auth {
+            server,
+            interface,
+            protocol,
+            dport,
+            unlock,
+            key,
+        } => auth(server, interface, protocol, dport, unlock, key)?,
     }
 
-    return Ok(());
+    Ok(())
 }

@@ -16,7 +16,7 @@ pub fn get_interface_ip(iface: &String) -> Result<IpAddr, Box<dyn Error>> {
         }
     }
     println!("[-] Could not find interface IP address");
-    return Err(InvalidInterface.into());
+    Err(InvalidInterface.into())
 }
 
 /*
@@ -27,10 +27,10 @@ pub fn get_default_iface() -> Result<String, Box<dyn Error>> {
     let mut contents = String::new();
     file.read_to_string(&mut contents)?;
 
-    let mut iter = contents.lines();
+    let iter = contents.lines();
     let mut res = String::new();
-    while let Some(line) = iter.next() {
-        let v: Vec<&str> = line.split("\t").collect();
+    for line in iter {
+        let v: Vec<&str> = line.split('\t').collect();
         if v.len() < 3 {
             continue;
         }

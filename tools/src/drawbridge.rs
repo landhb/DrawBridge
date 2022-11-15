@@ -29,7 +29,7 @@ impl DrawBridgeData {
 /// signature: [u8]
 /// digest_size: u32  (must be network byte order)
 /// digest: [u8]
-pub fn build_packet<'a>(
+pub fn build_packet(
     unlock_port: u16,
     private_key_path: String,
 ) -> Result<Vec<u8>, Box<dyn Error>> {
@@ -59,5 +59,5 @@ pub fn build_packet<'a>(
     data.extend((digest.len() as u32).to_be_bytes());
     data.extend(digest.iter().cloned());
 
-    return Ok(data);
+    Ok(data)
 }
