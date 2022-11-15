@@ -242,7 +242,7 @@ static char *pkcs_1_v1_5_decode_emsa(unsigned char *EM, unsigned long EMlen,
 // Verify a recieved signature
 int verify_sig_rsa(akcipher_request *req, pkey_signature *sig)
 {
-    int err;
+    int err = 0;
     void *inbuf, *outbuf, *result = NULL;
     op_result res;
     struct scatterlist src, dst;
@@ -250,14 +250,12 @@ int verify_sig_rsa(akcipher_request *req, pkey_signature *sig)
     int MAX_OUT = crypto_akcipher_maxsize(tfm);
 
     inbuf = kzalloc(PAGE_SIZE, GFP_KERNEL);
-
-    err = -ENOMEM;
     if (!inbuf) {
+        err = -ENOMEM;
         return err;
     }
 
     outbuf = kzalloc(MAX_OUT, GFP_KERNEL);
-
     if (!outbuf) {
         kfree(inbuf);
         return err;
@@ -287,10 +285,7 @@ int verify_sig_rsa(akcipher_request *req, pkey_signature *sig)
 
     if (err) {
         DEBUG_PRINT(KERN_INFO "[!] Digest computation failed %d\n", err);
-        kfree(inbuf);
-        kfree(outbuf);
-        kfree(result);
-        return err;
+        goto cleanup;
     }
 
     // Decode the PKCS#1 v1.5 encoding
@@ -299,12 +294,10 @@ int verify_sig_rsa(akcipher_request *req, pkey_signature *sig)
     result = pkcs_1_v1_5_decode_emsa(outbuf, req->dst_len, sha256_template.data,
                                      sha256_template.size, 32);
 
-    err = -EINVAL;
     if (!result) {
         DEBUG_PRINT(KERN_INFO "[!] EMSA PKCS#1 v1.5 decode failed\n");
-        kfree(inbuf);
-        kfree(outbuf);
-        return err;
+        err = -EINVAL;
+        goto cleanup;
     }
 
     /* Do the actual verification step. */
@@ -312,12 +305,12 @@ int verify_sig_rsa(akcipher_request *req, pkey_signature *sig)
         DEBUG_PRINT(KERN_INFO
                     "[!] Signature verification failed - Key Rejected: %d\n",
                     -EKEYREJECTED);
-        kfree(inbuf);
-        kfree(outbuf);
-        return -EKEYREJECTED;
+        err = -EKEYREJECTED;
+        goto cleanup;
     }
 
+cleanup:
     kfree(inbuf);
     kfree(outbuf);
-    return 0;
+    return err;
 }
