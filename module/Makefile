@@ -30,7 +30,6 @@ release:
 ifneq ("$(wildcard ./include/key.h)","")
 	KCPPFLAGS="${KCPPFLAGS}" $(MAKE) -C $(KDIR) M=$(PWD) modules
 	rm -fr *.o .*.cmd Module.symvers modules.order drawbridge.mod.c
-	#cp test.sh $(TARGET).ko_test
 else
 	@echo "[!] Please ensure you've generated a public key, and that key.h is in the include/ directory"
 	exit 1
