@@ -23,6 +23,10 @@ pub enum DrawBridgeError {
     UnsupportedProtocol,
     #[error("The provided algorithm is unsupported.")]
     UnsupportedAlgorithm,
+    #[error("No default interface.")]
+    NoDefaultInterface,
+    #[error("Index out of Bounds.")]
+    IndexBounds,
     #[error("An underlying I/O error occured.")]
     Io(#[from] std::io::Error),
     #[error("The platform is out of memory.")]

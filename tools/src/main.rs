@@ -19,6 +19,7 @@ mod errors;
 mod protocols;
 mod route;
 use protocols::{PktWrapper, TcpBuilder, UdpBuilder};
+use route::Interface;
 
 /// Arbitrary maximum for the auth packet
 const MAX_PACKET_SIZE: usize = 2048;
@@ -107,12 +108,14 @@ fn auth(
     let target = server.parse::<IpAddr>().or(Err(InvalidIP))?;
 
     // Determine which interface to use
-    let iface =
-        interface.map_or_else(|| route::get_default_iface().or(Err(InvalidInterface)), Ok)?;
+    let iface = interface.map_or_else(Interface::try_default, |n| Interface::from_name(&n))?;
 
     // Determine the source IP of the interface
-    let src_ip = route::get_interface_ip(&iface).or(Err(InvalidInterface))?;
-    println!("[+] Selected Interface {}, with address {}", iface, src_ip);
+    let src_ip = iface.get_ip().or(Err(InvalidInterface))?;
+    println!(
+        "[+] Selected Interface {:?}, with address {}",
+        iface, src_ip
+    );
 
     // Determine the layer 4 protocol
     let layer4 = match proto {
