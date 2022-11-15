@@ -2,7 +2,7 @@
 name = "dbtools"
 version = "1.0.3"
 authors = ["landhb <landhb@github>"]
-edition = "2018"
+edition = "2021"
 description = """
 Usermode tools for Drawbridge. A Layer 4 Single Packet Authentication Linux kernel
 module utilizing Netfilter hooks and kernel supported Berkeley Packet Filters (BPF) 

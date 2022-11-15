@@ -9,6 +9,23 @@ pub enum PktWrapper<'a> {
     Udp(MutableUdpPacket<'a>),
 }
 
+/// tx.send_to's first argument must implement
+/// the pnet::packet::Packet Trait
+impl pnet::packet::Packet for PktWrapper<'_> {
+    fn packet(&self) -> &[u8] {
+        match self {
+            PktWrapper::Tcp(pkt) => pkt.packet(),
+            PktWrapper::Udp(pkt) => pkt.packet(),
+        }
+    }
+    fn payload(&self) -> &[u8] {
+        match self {
+            PktWrapper::Tcp(pkt) => pkt.payload(),
+            PktWrapper::Udp(pkt) => pkt.payload(),
+        }
+    }
+}
+
 mod tcp;
 pub use tcp::TcpBuilder;
 

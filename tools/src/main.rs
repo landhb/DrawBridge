@@ -72,7 +72,7 @@ enum Command {
         #[arg(short = 'e', long)]
         interface: Option<String>,
 
-        /// Auth packet Layer 4 protocol (tcp/udp)
+        /// Auth packet Layer 4 protocol
         #[arg(value_enum, short, long)]
         protocol: Protocol,
 
@@ -90,23 +90,6 @@ enum Command {
     },
 }
 
-/// tx.send_to's first argument must implement
-/// the pnet::packet::Packet Trait
-impl pnet::packet::Packet for PktWrapper<'_> {
-    fn packet(&self) -> &[u8] {
-        match self {
-            PktWrapper::Tcp(pkt) => pkt.packet(),
-            PktWrapper::Udp(pkt) => pkt.packet(),
-        }
-    }
-    fn payload(&self) -> &[u8] {
-        match self {
-            PktWrapper::Tcp(pkt) => pkt.payload(),
-            PktWrapper::Udp(pkt) => pkt.payload(),
-        }
-    }
-}
-
 /// Method for the auth subcommand,
 /// authenticates with a remote Drawbridge Server
 fn auth(
@@ -118,43 +101,19 @@ fn auth(
     key: String,
 ) -> Result<(), Box<dyn Error>> {
     // Expand the path
-    let key = match shellexpand::full(&key) {
-        Ok(res) => res.to_string(),
-        Err(_e) => {
-            return Err(InvalidPath.into());
-        }
-    };
+    let key = shellexpand::full(&key).or(Err(InvalidPath))?.to_string();
 
     // Check if a valid IpAddr was provided
-    let target = match server.parse::<IpAddr>() {
-        Ok(e) => e,
-        _ => {
-            println!("[-] IP address invalid, must be IPv4 or IPv6");
-            return Err(InvalidIP.into());
-        }
-    };
+    let target = server.parse::<IpAddr>().or(Err(InvalidIP))?;
 
     // Determine which interface to use
-    let iface = match interface {
-        Some(i) => i,
-        None => match route::get_default_iface() {
-            Ok(res) => res,
-            Err(_e) => {
-                println!("[-] Could not determine default interface");
-                return Err(InvalidInterface.into());
-            }
-        },
-    };
+    let iface = interface.map_or_else(
+        || route::get_default_iface().or(Err(InvalidInterface)),
+        |v| Ok(v),
+    )?;
 
     // Determine the source IP of the interface
-    let src_ip = match route::get_interface_ip(&iface) {
-        Ok(res) => res,
-        Err(_e) => {
-            println!("[-] Could not determine IP for interface {:?}", iface);
-            return Err(InvalidInterface.into());
-        }
-    };
-
+    let src_ip = route::get_interface_ip(&iface).or(Err(InvalidInterface))?;
     println!("[+] Selected Interface {}, with address {}", iface, src_ip);
 
     // Determine the layer 4 protocol
@@ -174,12 +133,7 @@ fn auth(
     let (mut tx, _rx) = transport_channel(MAX_PACKET_SIZE, config).or(Err(NetworkingError))?;
 
     // Build the Drawbridge specific protocol data
-    let data = match drawbridge::build_packet(uport, key) {
-        Ok(res) => res,
-        Err(_e) => {
-            return Err(NetworkingError.into());
-        }
-    };
+    let data = drawbridge::build_packet(uport, &key).or(Err(NetworkingError))?;
 
     // Create the packet
     let pkt: PktWrapper = match proto {
@@ -192,17 +146,9 @@ fn auth(
         proto, target, dport, uport
     );
 
-    // send it
-    match tx.send_to(pkt, target) {
-        Ok(res) => {
-            println!("[+] Sent {} bytes", res);
-        }
-        Err(e) => {
-            println!("[-] Failed to send packet: {}", e);
-            return Err(NetworkingError.into());
-        }
-    }
-
+    // Send it
+    let n = tx.send_to(pkt, target).or(Err(NetworkingError));
+    println!("[+] Sent {} bytes", n);
     Ok(())
 }
 
