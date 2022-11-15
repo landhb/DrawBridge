@@ -91,8 +91,8 @@ enum Command {
     },
 }
 
-/// Method for the auth subcommand,
-/// authenticates with a remote Drawbridge Server
+/// Method for the auth subcommand, authenticates with a remote
+/// Drawbridge module providing access to the unlock port.
 fn auth(
     server: String,
     interface: Option<String>,
@@ -149,7 +149,7 @@ fn auth(
     );
 
     // Send it
-    let n = tx.send_to(pkt, target).or(Err(NetworkingError))?;
+    let n = tx.send_to(pkt, target).map_err(Io)?;
     println!("[+] Sent {} bytes", n);
     Ok(())
 }
@@ -183,17 +183,12 @@ fn create_key_directory(parent: &Path) -> Result<(), Box<dyn Error>> {
     }
 }
 
-/// Method for the keygen subcommand, generate new
-/// Drawbridge keys
+/// Method for the keygen subcommand, generate new Drawbridge keys
 fn keygen(alg: Algorithm, bits: u32, out: String) -> Result<(), Box<dyn Error>> {
-    // expand the path
-    let outfile = match shellexpand::full(&out) {
-        Ok(res) => res.to_string(),
-        Err(_e) => {
-            return Err(InvalidPath.into());
-        }
-    };
+    // Expand the path
+    let outfile = shellexpand::full(&out).or(Err(InvalidPath))?.to_string();
 
+    // Determine paths + directories
     let outfile_pub = outfile.to_owned() + ".pub";
     let priv_path = Path::new(&outfile);
     let pub_path = Path::new(&outfile_pub);
