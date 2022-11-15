@@ -63,6 +63,7 @@ enum Protocol {
 )]
 enum Command {
     /// Generate Drawbridge Keys
+    #[command(name = "keygen")]
     KeyGen {
         /// Algorithm to use
         #[arg(value_enum, short, long, default_value_t = Algorithm::Rsa)]
