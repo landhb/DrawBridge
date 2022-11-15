@@ -55,7 +55,7 @@ enum Command {
 
         /// Key size in bits
         #[arg(short, long, default_value_t = 4096)]
-        bits: usize,
+        bits: u32,
 
         /// Output file path
         #[arg(short, long, default_value = "~/.drawbridge/db_rsa")]
@@ -181,7 +181,7 @@ fn create_key_directory(parent: &Path) -> Result<(), Box<dyn Error>> {
 
 /// Method for the keygen subcommand, generate new
 /// Drawbridge keys
-fn keygen(alg: Algorithm, bits: usize, out: String) -> Result<(), Box<dyn Error>> {
+fn keygen(alg: Algorithm, bits: u32, out: String) -> Result<(), Box<dyn Error>> {
     // expand the path
     let outfile = match shellexpand::full(&out) {
         Ok(res) => res.to_string(),
@@ -201,9 +201,8 @@ fn keygen(alg: Algorithm, bits: usize, out: String) -> Result<(), Box<dyn Error>
     }
 
     println!("[*] Generating {:?} keys...", alg);
-
     match alg {
-        Algorithm::Rsa => crypto::gen_rsa(bits as u32, priv_path, pub_path)?,
+        Algorithm::Rsa => crypto::gen_rsa(bits, priv_path, pub_path)?,
         Algorithm::Ecdsa => {
             println!("[-] ECDSA is not implemented yet. Stay tuned.");
             return Err(UnsupportedProtocol.into());

@@ -7,6 +7,7 @@ use pnet::packet::udp::{self, MutableUdpPacket};
 use std::error::Error;
 use std::net::IpAddr;
 
+/// Builder abstraction to build a raw UDP packet
 pub struct UdpBuilder<'a> {
     /// The packet being constructed
     pkt: MutableUdpPacket<'a>,
@@ -28,6 +29,9 @@ pub struct UdpBuilder<'a> {
 }
 
 impl<'a> UdpBuilder<'a> {
+    /// Begin building a new UDP packet by providing the source and
+    /// destination IP addresses, the destination port, and the
+    /// appropriate payload.
     pub fn new(
         src: IpAddr,
         dst: IpAddr,
@@ -45,6 +49,11 @@ impl<'a> UdpBuilder<'a> {
         })
     }
 
+    /// Determine minimum packet size to allocate an appropriate backing
+    /// store to construct the MutableUdpPacket.
+    ///
+    /// Adds the Ethernet Header + IP Header + UDP Header + Payload to
+    /// determine the minimum length.
     fn packet_size(payload_len: usize, ipv4: bool) -> usize {
         // Layer 2 length
         let mut length: usize = EthernetPacket::minimum_packet_size();
@@ -61,6 +70,11 @@ impl<'a> UdpBuilder<'a> {
         length
     }
 
+    /// Finalize the packet, providing a PktWrapper which can be sent
+    /// out the raw socket opened via the pnet crate.
+    ///
+    /// Sets appropriate UDP header information, and computes the
+    /// appropriate Layer 4 checksum.
     pub fn build(mut self) -> Result<PktWrapper<'a>, Box<dyn Error>> {
         self.pkt.set_source(rand::random::<u16>());
         self.pkt.set_destination(self.dport);

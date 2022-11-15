@@ -41,17 +41,17 @@ pub fn build_packet<T: AsRef<OsStr>>(
 
     let secs = SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs();
 
-    // initialize the Drawbridge protocol data
+    // Initialize the Drawbridge protocol data
     let mut data = DrawBridgeData {
         port: unlock_port,
         timestamp: secs as i64,
     }
     .to_network_vec();
 
-    // sign the data
+    // Sign the data
     let signature = crypto::sign_rsa(&data, path)?;
 
-    // hash the data
+    // Hash the data
     let digest = crypto::sha256_digest(&data).or(Err(CryptoError))?;
 
     // build the final payload
@@ -59,6 +59,5 @@ pub fn build_packet<T: AsRef<OsStr>>(
     data.extend(signature.iter().cloned());
     data.extend((digest.len() as u32).to_be_bytes());
     data.extend(digest.iter().cloned());
-
     Ok(data)
 }
