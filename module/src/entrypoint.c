@@ -42,7 +42,6 @@ MODULE_ALIAS("drawbridge");
 MODULE_ALIAS("ip_conntrack_drawbridge");
 
 #define MODULE_NAME "drawbridge"
-#define MAX_PORTS 10
 
 // Companion thread
 struct task_struct *raw_thread;

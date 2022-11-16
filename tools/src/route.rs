@@ -1,55 +1,81 @@
 use crate::errors::DrawBridgeError::*;
+use pnet::datalink::NetworkInterface;
 use std::error::Error;
 use std::fs::File;
 use std::io::Read;
 use std::net::IpAddr;
 
-/*
-* Grab an interface's src IP
-*/
-pub fn get_interface_ip(iface: &String) -> Result<IpAddr, Box<dyn Error>> {
-    let interfaces = pnet::datalink::interfaces();
-
-    for i in interfaces {
-        if i.name == *iface {
-            return Ok(i.ips[0].ip());
-        }
-    }
-    println!("[-] Could not find interface IP address");
-    return Err(InvalidInterface.into());
+/// Route discovered via /proc
+struct Route {
+    destination: u64,
+    gateway: u64,
+    iface: String,
 }
 
-/*
-* Get a Linux host's default gateway
-*/
-pub fn get_default_iface() -> Result<String, Box<dyn Error>> {
-    let mut file = File::open("/proc/net/route")?;
-    let mut contents = String::new();
-    file.read_to_string(&mut contents)?;
+/// Discovered interface
+#[derive(Debug)]
+pub struct Interface {
+    inner: NetworkInterface,
+}
 
-    let mut iter = contents.lines();
-    let mut res = String::new();
-    while let Some(line) = iter.next() {
-        let v: Vec<&str> = line.split("\t").collect();
-        if v.len() < 3 {
-            continue;
-        }
-        let dst = match u64::from_str_radix(v[1], 16) {
-            Ok(a) => a,
-            Err(_e) => {
-                continue;
-            }
-        };
-        let gateway = match u64::from_str_radix(v[2], 16) {
-            Ok(a) => a,
-            Err(_e) => {
-                continue;
-            }
-        };
-        if dst == 0 && gateway != 0 {
-            res = v[0].to_string();
-            break;
-        }
+impl Route {
+    /// The first few fields of the /proc/net/route table consist of:
+    ///
+    /// Iface   Destination Gateway
+    /// eno1    00000000    0102A8C0
+    ///
+    /// Which tells us the
+    fn from_line(line: &str) -> Result<Self, Box<dyn Error>> {
+        let v: Vec<&str> = line.split('\t').collect();
+        Ok(Self {
+            iface: v.first().ok_or(IndexBounds)?.to_string(),
+            destination: u64::from_str_radix(v.get(1).ok_or(IndexBounds)?, 16)?,
+            gateway: u64::from_str_radix(v.get(2).ok_or(IndexBounds)?, 16)?,
+        })
     }
-    Ok(res)
+}
+
+impl Interface {
+    /// Use the interface name to initialize a new Interface
+    pub fn from_name(name: &str) -> Result<Self, Box<dyn Error>> {
+        let interfaces = pnet::datalink::interfaces();
+        for i in interfaces {
+            if i.name == name {
+                return Ok(Self { inner: i });
+            }
+        }
+        Err(InvalidInterface.into())
+    }
+
+    /// Grab an interface's source IP
+    pub fn get_ip(&self) -> Result<IpAddr, Box<dyn Error>> {
+        Ok(self.inner.ips.get(0).ok_or(InvalidInterface)?.ip())
+    }
+
+    /// Get the interface's name
+    pub fn get_name(&self) -> &str {
+        &self.inner.name
+    }
+
+    /// Get a Linux host's default gateway
+    pub fn try_default() -> Result<Self, Box<dyn Error>> {
+        let mut file = File::open("/proc/net/route")?;
+        let mut contents = String::new();
+        file.read_to_string(&mut contents)?;
+
+        for line in contents.lines() {
+            // Ignore bad lines
+            let route = match Route::from_line(line) {
+                Ok(r) => r,
+                _ => continue,
+            };
+
+            // A destination address of 0.0.0.0 implies the default
+            // gateway
+            if route.destination == 0 && route.gateway != 0 {
+                return Self::from_name(&route.iface);
+            }
+        }
+        Err(NoDefaultInterface.into())
+    }
 }

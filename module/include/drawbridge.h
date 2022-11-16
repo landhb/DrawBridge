@@ -29,6 +29,9 @@
 // Include the parser headers
 #include "parser.h"
 
+// TODO: Move to settings
+#define MAX_PORTS 10
+
 #ifdef DEBUG
 #define DEBUG_PRINT(fmt, args...) printk(KERN_DEBUG fmt, ##args)
 #else
@@ -55,12 +58,11 @@ typedef struct conntrack_state {
 
     // Timestamps
     unsigned long time_added;
-    unsigned long time_updated;
+    atomic64_t time_updated;
 
     // List entry
     struct list_head list;
     struct rcu_head rcu;
-
 } conntrack_state;
 
 

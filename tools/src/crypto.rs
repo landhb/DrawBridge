@@ -4,30 +4,24 @@ use ring::{digest, rand, signature};
 use std::error::Error;
 use std::io::{Read, Write};
 
-/**
- * Private method to read in a file
- */
+/// Private method to read in a file
 fn read_file(path: &std::path::Path) -> Result<Vec<u8>, Box<dyn Error>> {
-    let mut file = std::fs::File::open(path).map_err(|e| Io(e))?;
+    let mut file = std::fs::File::open(path).map_err(Io)?;
     let mut contents: Vec<u8> = Vec::new();
-    file.read_to_end(&mut contents).map_err(|e| Io(e))?;
+    file.read_to_end(&mut contents).map_err(Io)?;
     Ok(contents)
 }
 
-/**
- * Private method to write to a file
- */
+/// Private method to write to a file
 fn write_file(contents: Vec<u8>, path: &std::path::Path) -> Result<(), Box<dyn Error>> {
-    let mut file = std::fs::File::create(path).map_err(|e| Io(e))?;
-    file.write_all(&contents).map_err(|e| Io(e))?;
+    let mut file = std::fs::File::create(path).map_err(Io)?;
+    file.write_all(&contents).map_err(Io)?;
     Ok(())
 }
 
-/**
- * Private method to convert a DER public key
- * to a C header
- */
-fn public_key_to_c_header(contents: &Vec<u8>) -> String {
+/// Private method to convert a DER public key
+/// to a C header
+fn public_key_to_c_header(contents: &[u8]) -> String {
     let mut res = String::from("void * public_key = \n\"");
     let mut count = 1;
     for i in contents[24..].iter() {
@@ -40,21 +34,17 @@ fn public_key_to_c_header(contents: &Vec<u8>) -> String {
         count += 1;
     }
     res.push_str("\";\n");
-    return res;
+    res
 }
 
-/**
- * Generate a SHA256 digest
- */
-pub fn sha256_digest<'a>(data: &[u8]) -> Result<Vec<u8>, Box<dyn Error>> {
+/// Generate a SHA256 digest
+pub fn sha256_digest(data: &[u8]) -> Result<Vec<u8>, Box<dyn Error>> {
     let res = digest::digest(&digest::SHA256, data);
-    return Ok(res.as_ref().to_vec());
+    Ok(res.as_ref().to_vec())
 }
 
-/**
- * Sign data with an RSA private key
- */
-pub fn sign_rsa<'a>(
+/// Sign data with an RSA private key
+pub fn sign_rsa(
     data: &[u8],
     private_key_path: &std::path::Path,
 ) -> Result<Vec<u8>, Box<dyn Error>> {
@@ -69,15 +59,13 @@ pub fn sign_rsa<'a>(
         .sign(&signature::RSA_PKCS1_SHA256, &rng, data, &mut signature)
         .map_err(|_| OutOfMemory)?;
 
-    return Ok(signature);
+    Ok(signature)
 }
 
-/**
- * Generate a new RSA key pair
- *
- * Currently relies on openssl, because Ring hasn't
- * implemented RSA key generation yet
- */
+/// Generate a new RSA key pair
+///
+/// Currently relies on openssl, because Ring hasn't
+/// implemented RSA key generation yet
 pub fn gen_rsa(
     bits: u32,
     private_path: &std::path::Path,
@@ -117,6 +105,5 @@ pub fn gen_rsa(
     // Write public key to file
     write_file(header.as_bytes().to_vec(), key_path)?;
     println!("\t[+] created ./key.h");
-
     Ok(())
 }
