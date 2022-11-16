@@ -50,9 +50,8 @@ struct task_struct *raw_thread;
 extern conntrack_state *knock_state;
 
 // Global configs
-ushort ports[MAX_PORTS] = { 0 };
-atomic64_t ports_updated[MAX_PORTS] = { 0 };
-unsigned int ports_c = 0;
+static ushort ports[MAX_PORTS] = { 0 };
+static unsigned int ports_c = 0;
 
 // Define module port list argument
 module_param_array(ports, ushort, &ports_c, 0400);

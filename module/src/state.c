@@ -30,11 +30,6 @@ DEFINE_SPINLOCK(listmutex);
  */
 struct timer_list *reaper;
 
-// Track recency of port access
-extern ushort ports[MAX_PORTS];
-extern atomic64_t ports_updated[MAX_PORTS];
-extern unsigned int ports_c;
-
 /**
  *  @brief Utility function to compare IPv6 addresses
  *  @param a1 First address, of type in6_addr to compare
@@ -147,54 +142,6 @@ static void reclaim_state_entry(struct rcu_head *rcu)
 }
 
 /**
- *  @brief Lookup the relevant timestamp index with a port number.
- *
- *  @param port The port to lookup
- *
- *  @returns -1 if no such port entry exists, the index otherwise.
- */
-static inline int get_port_index(u16 port) {
-    unsigned int i = 0;
-    for (i = 0; i < ports_c; i++) {
-        if (ports[i] == port) {
-            return i;
-        }
-    }
-    return -1;
-}
-
-/**
- *  @brief Update function, to create a copy of a conntrack_state struct,
- *  update it, and then free the old state struct with a later call to call_rcu
- *
- *  This is called when a connection has come in and has an authenticated
- *  conntrack_state. update_state() will be called to update time_updated
- *  and maintain currency for ESTABLISHED connections to prevent them from being
- *  dropped by the reaper thread.
- *
- *  A good reference, previously this performed an RCU update. But under high loads
- *  the frequent replace_rcu opertaions could race. Switched to an atomic per-port
- *  state.
- *
- *  http://lse.sourceforge.net/locking/rcu/HOWTO/descrip.html
- *
- *  @param old_state The conntrack_state to be updated, and later freed
- */
-static inline void update_state(conntrack_state *state)
-{
-    int index = 0;
-
-    // Nothing to do
-    if ((index = get_port_index(state->port)) < 0) {
-        return;
-    }
-
-    // Update timestamp
-    atomic64_set(&ports_updated[index], jiffies);
-    return;
-}
-
-/**
  *  @brief Function to iterate the conntrack_state list to check
  *  if a IP address has properly authenticated with DrawBridge.
  *  If so, the conntrack_state will be updated to keep the connection
@@ -218,7 +165,7 @@ int state_lookup(conntrack_state *head, parsed_packet *pktinfo)
             log_connection(state);
 #endif
             // Update the entry
-            update_state(state);
+            atomic64_set(&state->time_updated, jiffies);
 
             // Release read lock
             rcu_read_unlock();
@@ -268,7 +215,7 @@ void state_add(conntrack_state *head, parsed_packet *info)
     }
 
     // Ensure port is not immediately stale
-    update_state(state);
+    atomic64_set(&state->time_updated, jiffies);
 
     // Add to list
     spin_lock(&listmutex);
@@ -364,7 +311,6 @@ void cleanup_reaper(struct timer_list *my_timer)
  */
 void reap_expired_connections(unsigned long timeout)
 {
-    int index = 0;
     u64 time_updated = 0;
     conntrack_state *state = NULL, *tmp = NULL;
 
@@ -374,13 +320,8 @@ void reap_expired_connections(unsigned long timeout)
     spin_lock(&listmutex);
 
     list_for_each_entry_safe (state, tmp, &(knock_state->list), list) {
-        // Nothing to do
-        if ((index = get_port_index(state->port)) < 0) {
-            continue;
-        }
-
         // Read the relevant atomic
-        time_updated = atomic64_read(&ports_updated[index]);
+        time_updated = atomic64_read(&state->time_updated);
 
         // Determine if the connection is stale
         if (jiffies - time_updated >= msecs_to_jiffies(STATE_TIMEOUT)) {

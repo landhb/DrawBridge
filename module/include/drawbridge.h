@@ -58,6 +58,7 @@ typedef struct conntrack_state {
 
     // Timestamps
     unsigned long time_added;
+    atomic64_t time_updated;
 
     // List entry
     struct list_head list;
