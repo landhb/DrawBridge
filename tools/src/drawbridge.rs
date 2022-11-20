@@ -1,5 +1,6 @@
 use crate::errors::DrawBridgeError::*;
 use std::error::Error;
+use std::ffi::OsStr;
 use std::path::Path;
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -29,9 +30,9 @@ impl DrawBridgeData {
 /// signature: [u8]
 /// digest_size: u32  (must be network byte order)
 /// digest: [u8]
-pub fn build_packet<'a>(
+pub fn build_packet<T: AsRef<OsStr>>(
     unlock_port: u16,
-    private_key_path: String,
+    private_key_path: T,
 ) -> Result<Vec<u8>, Box<dyn Error>> {
     let path = Path::new(&private_key_path);
     if !path.exists() {
@@ -40,22 +41,17 @@ pub fn build_packet<'a>(
 
     let secs = SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs();
 
-    // initialize the Drawbridge protocol data
+    // Initialize the Drawbridge protocol data
     let mut data = DrawBridgeData {
         port: unlock_port,
         timestamp: secs as i64,
     }
     .to_network_vec();
 
-    // sign the data
-    let signature = match crypto::sign_rsa(&data, path) {
-        Ok(s) => s,
-        Err(e) => {
-            return Err(e);
-        }
-    };
+    // Sign the data
+    let signature = crypto::sign_rsa(&data, path)?;
 
-    // hash the data
+    // Hash the data
     let digest = crypto::sha256_digest(&data).or(Err(CryptoError))?;
 
     // build the final payload
@@ -63,6 +59,5 @@ pub fn build_packet<'a>(
     data.extend(signature.iter().cloned());
     data.extend((digest.len() as u32).to_be_bytes());
     data.extend(digest.iter().cloned());
-
-    return Ok(data);
+    Ok(data)
 }
