@@ -30,7 +30,9 @@ jobs:
 
     # Requires qemu-system and musl linker
     - name: Install deps
-      run: sudo apt install qemu-system musl-tools
+      run: |
+        sudo apt update
+        sudo apt install qemu-system musl-tools
 
     # Currently requires nixmodule >= 0.4.0 to use initrd
     - name: Install or upgrade nixmodule
