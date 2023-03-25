@@ -1,4 +1,5 @@
 use core::fmt;
+use std::error::Error;
 use libc::{
     size_t,
     ssize_t,
@@ -9,6 +10,7 @@ pub const SIG_SIZE: usize = 512;
 pub const DIGEST_SIZE: usize = 32;
 
 #[repr(C)]
+#[derive(Debug)]
 pub struct dbpacket {
     pub timestamp: i64,
     pub port: u16,
@@ -72,8 +74,28 @@ impl fmt::Debug for packet_info {
     }
 }
 
-impl packet_info {
-    pub fn new() -> Self {
+impl Default for pkey_signature {
+    fn default() -> Self {
+        Self {
+            s: [0u8; SIG_SIZE],
+            s_size: 0,
+            digest: [0u8; DIGEST_SIZE],
+            digest_size: 0,
+        }
+    }
+}
+
+impl Default for dbpacket {
+    fn default() -> Self {
+        Self {
+            timestamp: 0,
+            port: 0,
+        }
+    }
+}
+
+impl Default for packet_info {
+    fn default() -> Self {
         Self {
             version: 0,
             port: 0,
@@ -84,16 +106,76 @@ impl packet_info {
                     s6_addr: [0u8; 16],
                 }
             },
-            sig: pkey_signature {
-                s: [0u8; SIG_SIZE],
-                s_size: 0,
-                digest: [0u8; DIGEST_SIZE],
-                digest_size: 0,
-            },
-            metadata: dbpacket {
-                timestamp: 0,
-                port: 0,
-            },
+            sig: pkey_signature::default(),
+            metadata: dbpacket::default(),
         }
+    }
+}
+
+impl dbpacket {
+    pub fn from_slice(raw: &[u8]) -> Result<Self, Box<dyn Error>> {
+        if raw.len() < std::mem::size_of::<Self>() {
+            return Err("Not enough data for payload".into());
+        }
+
+        // Attempt to parse the timestamp
+        let tsize = std::mem::size_of::<i64>();
+        if tsize != SIG_SIZE {
+            return Err("Invalid signature lenght".into());
+        }
+
+        let timestamp = i64::from_be_bytes(raw[0..tsize].try_into()?);
+
+        // Attempt to parse the unlock port
+        let psize = std::mem::size_of::<u16>();
+        let port = u16::from_be_bytes(raw[tsize..tsize + psize].try_into()?);
+
+        Ok(Self {
+            timestamp,
+            port,
+        })
+    }
+
+    pub fn serialized_size(&self) -> usize {
+        std::mem::size_of::<Self>()
+    }
+}
+
+impl pkey_signature {
+    pub fn from_slice(raw: &[u8]) -> Result<Self, Box<dyn Error>> {
+        let mut item = pkey_signature::default();
+        if raw.len() < std::mem::size_of::<Self>() {
+            return Err("Not enough data for signature + digest".into());
+        }
+
+        // All sizes are 32bit big endian integers
+        let lensize = std::mem::size_of::<u32>();
+        let mut offset = 0;
+
+        // Parse and verify the signature length
+        item.s_size = u32::from_be_bytes(raw[offset..offset + lensize].try_into()?);
+        if item.s_size as usize != SIG_SIZE {
+            return Err("Signature length is invalid".into());
+        }
+
+        // Copy the signature
+        offset = lensize;
+        item.s.copy_from_slice(&raw[offset..offset + SIG_SIZE]);
+
+        // Parse and verify the digest length
+        offset += SIG_SIZE;
+        item.digest_size = u32::from_be_bytes(raw[offset..offset + lensize].try_into()?);
+        if item.digest_size as usize != DIGEST_SIZE {
+            return Err("Digest length is invalid".into());
+        }
+
+        // Copy the digest
+        offset += lensize;
+        item.digest.copy_from_slice(&raw[offset..offset + DIGEST_SIZE]);
+        Ok(item)
+    }
+
+    pub fn serialized_size(&self) -> usize {
+        std::mem::size_of::<Self>()
     }
 }
