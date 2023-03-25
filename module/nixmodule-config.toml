@@ -25,6 +25,25 @@ local = "/tmp/test_key"
 remote = "/root/test_key"
 
 #######################################################
+# 6.0.6 Test
+#######################################################
+[[kernels]]
+version = "6.0.6"
+url_base = "https://files.sboc.dev"
+headers = "linux-headers/linux-6.0.6-headers.tar.gz"
+kernel = "linux-kernels/bzImage-linux-6.0.6"
+runner = "qemu-system-x86_64"
+kvm = false
+timeout = 120
+
+[kernels.disk]
+name = "stretch"
+url_base = "https://files.sboc.dev"
+path = "images/syzkaller-stretch/stretch.img"
+sshkey = "images/syzkaller-stretch/stretch.id_rsa"
+boot = "/dev/sda"
+
+#######################################################
 # 5.17.2 Test
 #######################################################
 [[kernels]]

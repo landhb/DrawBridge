@@ -23,10 +23,12 @@ fn parse_payload(mut offset: usize, input: &[u8]) -> Result<(isize, usize), Box<
     // Metadata
     let metadata = dbpacket::from_slice(&input[offset..])?;
     offset += metadata.serialized_size();
+    println!("{:?}", metadata);
 
     // Signature + Digest
     let sig = pkey_signature::from_slice(&input[offset..])?;
     offset += sig.serialized_size();
+    println!("{:?}", sig);
     Ok((0, offset))
 }
 
@@ -121,7 +123,7 @@ fn main() {
         assert!(info.offset <= data.len());
 
         // Double check the parsed protocol information
-        compare_results(res, &info, &data);
+        _ = compare_results(res, &info, data);
     });
 }
 

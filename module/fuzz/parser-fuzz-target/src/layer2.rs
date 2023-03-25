@@ -12,11 +12,7 @@ impl Layer2Parser {
     // Determines
     pub fn from_packet(pkt: &SlicedPacket) -> Result<Self, Box<dyn Error>> {
         // Mandatory
-        let ethhdr = pkt
-            .link
-            .as_ref()
-            .ok_or_else(|| "No ethernet header")?
-            .to_header();
+        let ethhdr = pkt.link.as_ref().ok_or("No ethernet header")?.to_header();
 
         // Optional VLAN tags
         let vlanhdr = pkt.vlan.as_ref().map(|v| v.to_header());

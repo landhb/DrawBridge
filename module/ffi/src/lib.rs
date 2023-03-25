@@ -10,6 +10,7 @@ pub const SIG_SIZE: usize = 512;
 pub const DIGEST_SIZE: usize = 32;
 
 #[repr(C)]
+#[derive(Debug)]
 pub struct dbpacket {
     pub timestamp: i64,
     pub port: u16,
@@ -119,6 +120,10 @@ impl dbpacket {
 
         // Attempt to parse the timestamp
         let tsize = std::mem::size_of::<i64>();
+        if tsize != SIG_SIZE {
+            return Err("Invalid signature lenght".into());
+        }
+
         let timestamp = i64::from_be_bytes(raw[0..tsize].try_into()?);
 
         // Attempt to parse the unlock port
