@@ -8,13 +8,6 @@ jobs:
   setup:
     runs-on: ubuntu-latest
     steps:
-      # Requires qemu-system and musl linker
-      - name: Install deps
-        shell: bash
-        run: |
-          sudo apt update
-          sudo apt install qemu-system musl-tools
-
       # Currently requires nixmodule >= 0.4.0 to use initrd
       - name: Install or upgrade nixmodule
         shell: bash
@@ -47,6 +40,13 @@ jobs:
             toolchain: stable
             target: x86_64-unknown-linux-musl
             override: true
+
+      # Requires qemu-system and musl linker
+      - name: Install deps
+        shell: bash
+        run: |
+          sudo apt update
+          sudo apt install qemu-system musl-tools
 
       # Install nixmodule from cache installation
       - name: Cache Nixmodule Artifacts
