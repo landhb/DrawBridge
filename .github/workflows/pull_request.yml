@@ -13,7 +13,40 @@ jobs:
         version: ["6.0.6", "5.17"]
     steps:
       - uses: actions/checkout@v3
-      - id: run_test
+      - uses: actions-rs/toolchain@v1
+        with:
+            profile: minimal
+            toolchain: stable
+            target: x86_64-unknown-linux-musl
+            override: true
+
+      # Requires qemu-system and musl linker
+      - name: Install deps
+        shell: bash
+        run: |
+          sudo apt update
+          sudo apt install qemu-system musl-tools
+
+      # Currently requires nixmodule >= 0.4.0 to use initrd
+      - name: Install or upgrade nixmodule
+        shell: bash
+        run: |
+          if ! command -v nixmodule; then cargo install nixmodule; fi; \
+          nixmodule -V; \
+          if [ $(printf '%s\n' $(nixmodule -V | cut -d " " -f 2) "0.4.0" | sort -V | head -n1) != "0.4.0" ]; then cargo install -f nixmodule; fi
+
+      # Cache installation
+      - name: Cache Nixmodule Artifacts
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cache/nixmodule
+            ~/.cargo/
+          key: ${{ runner.os }}-nixmodule-v1
+
+      # Run the composite action
+      - name: Run Test
+        id: run_test
         uses: ./.github/actions/test
         with:
           kernel: ${{ matrix.version }}
