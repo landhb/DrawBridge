@@ -22,7 +22,6 @@ inputs:
 runs:
   using: "composite"
   steps:
-  - uses: actions/checkout@v1
     # Get current banch name to use it as dest directory
     - name: Extract branch name
       shell: bash
