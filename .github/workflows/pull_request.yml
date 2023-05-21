@@ -5,21 +5,9 @@ on:
     branches: [ master ]
 
 jobs:
-  test:
+  setup:
     runs-on: ubuntu-latest
-    name: Test all the kernels
-    strategy:
-      matrix:
-        version: ["6.0.6", "5.17"]
     steps:
-      - uses: actions/checkout@v3
-      - uses: actions-rs/toolchain@v1
-        with:
-            profile: minimal
-            toolchain: stable
-            target: x86_64-unknown-linux-musl
-            override: true
-
       # Requires qemu-system and musl linker
       - name: Install deps
         shell: bash
@@ -36,6 +24,31 @@ jobs:
           if [ $(printf '%s\n' $(nixmodule -V | cut -d " " -f 2) "0.4.0" | sort -V | head -n1) != "0.4.0" ]; then cargo install -f nixmodule; fi
 
       # Cache installation
+      - name: Cache Nixmodule Artifacts
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cache/nixmodule
+            ~/.cargo/
+          key: ${{ runner.os }}-nixmodule-v1
+
+  test:
+    runs-on: ubuntu-latest
+    name: Test
+    needs: setup
+    strategy:
+      matrix:
+        version: ["6.0.6", "5.17", "5.15", "5.10", "5.8", "5.4", "4.19", "4.14", "4.9", "4.4"]
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions-rs/toolchain@v1
+        with:
+            profile: minimal
+            toolchain: stable
+            target: x86_64-unknown-linux-musl
+            override: true
+
+      # Install nixmodule from cache installation
       - name: Cache Nixmodule Artifacts
         uses: actions/cache@v3
         with:
