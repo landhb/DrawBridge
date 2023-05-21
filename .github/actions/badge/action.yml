@@ -30,18 +30,20 @@ runs:
       id: extract_branch
 
     # Checkout the badges branch
-    - uses: actions/checkout@v1
+    - uses: actions/checkout@v3
       with:
         ref: badges
 
     # Create the directory where badges will be saved, if needed
     - name: Create destination directory
+      shell: bash
       env:
         BADGE_PATH: ${{ steps.extract_branch.outputs.branch }}
       run: mkdir -p "${BADGE_PATH%/*}";
 
     # Generate the build badge
     - name: Build badge
+      shell: bash
       uses: emibcn/badge-action@v1.2.4
       with:
         label: 'Build'
@@ -51,6 +53,7 @@ runs:
 
     # Generate the insmod badge
     - name: Insmod badge
+      shell: bash
       uses: emibcn/badge-action@v1.2.4
       with:
         label: 'Insmod'
@@ -60,6 +63,7 @@ runs:
 
     # Generate the test badge
     - name: Test badge
+      shell: bash
       uses: emibcn/badge-action@v1.2.4
       with:
         label: 'Test'
@@ -69,6 +73,7 @@ runs:
 
     # Commit the badge
     - name: Commit badge
+      shell: bash
       continue-on-error: true
       env:
         BUILD_BADGE: ${{ steps.extract_branch.outputs.branch }}/build-${{ github.workflow }}-badge.svg
@@ -82,7 +87,10 @@ runs:
         git add "${INSMOD_BADGE}"
         git add "${TEST_BADGE}"
         git commit -m "Add/Update badge"
+
+    # Push the badge
     - name: Push badge commit
+      shell: bash
       uses: ad-m/github-push-action@master
       if: ${{ success() }}
       with:
