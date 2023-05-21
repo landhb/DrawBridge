@@ -1,0 +1,23 @@
+name: "Pull Request"
+
+on:
+  pull_request:
+    branches: [ master ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    name: Test all the kernels
+    strategy:
+      matrix:
+        version: ["6.0.6", "5.17"]
+    steps:
+      - uses: actions/checkout@v3
+      - id: run_test
+        uses: composite/test
+        with:
+          kernel: ${{ matrix.version }}
+
+    # Pass/Fail based on original test exit code
+    - name: Exit
+      run: exit ${{ steps.run.outputs.realexit }}

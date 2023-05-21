@@ -1,58 +1,33 @@
-name: "6.0.6"
-
-on:
-  push:
-    branches:
-    - '*'
-    - '!badges'
-  pull_request:
-    branches: [ master ]
-
-jobs:
-
-  build:
-
-    runs-on: ubuntu-latest
-    
-    steps:
-    - uses: actions/checkout@v1
-    - uses: actions-rs/toolchain@v1
-      with:
-          profile: minimal
-          toolchain: stable
-          target: x86_64-unknown-linux-musl
-          override: true
-    - name: Cache Nixmodule Artifacts
-      uses: actions/cache@v3
-      with:
-        path: |
-          ~/.cache/nixmodule
-          ~/.cargo/
-        key: ${{ runner.os }}-nixmodule-v1
-
-    # Requires qemu-system and musl linker
-    - name: Install deps
-      run: |
-        sudo apt update
-        sudo apt install qemu-system musl-tools
-
-    # Currently requires nixmodule >= 0.4.0 to use initrd
-    - name: Install or upgrade nixmodule
-      run: |
-        if ! command -v nixmodule; then cargo install nixmodule; fi; \
-        nixmodule -V; \
-        if [ $(printf '%s\n' $(nixmodule -V | cut -d " " -f 2) "0.4.0" | sort -V | head -n1) != "0.4.0" ]; then cargo install -f nixmodule; fi
-
+name: 'Create Status Badges'
+description: 'Create status badges from the test results.'
+inputs:
+  test-status:
+    description: "Test Status"
+    required: true
+  test-color:
+    description: "Test Badge Color"
+    required: true
+  insmod-status:
+    description: "Insmod Status"
+    required: true
+  insmod-color:
+    description: "Insmod Badge Color"
+    required: true
+  build-status:
+    description: "Insmod Status"
+    required: true
+  build-color:
+    description: "Insmod Badge Color"
+    required: true
+runs:
+  using: "composite"
+  steps:
+  - uses: actions/checkout@v1
     # Get current banch name to use it as dest directory
     - name: Extract branch name
       shell: bash
       run: echo "##[set-output name=branch;]$(echo ${GITHUB_REF#refs/heads/})"
       id: extract_branch
-
-    # Run the test and obtain badge results via exit code
-    - name: Perform the test
-      id: run
-      run: cd module; NIXMODULEARGS="-k ${{ github.workflow }} -c ci-config.toml" ./tests/run.sh
 
     # Checkout the badges branch
     - uses: actions/checkout@v1
@@ -70,8 +45,8 @@ jobs:
       uses: emibcn/badge-action@v1.2.4
       with:
         label: 'Build'
-        status: ${{ steps.run.outputs.build }}
-        color: ${{ steps.run.outputs.buildc }}
+        status: ${{ inputs.build-status }}
+        color: ${{ inputs.build-color }}
         path: ${{ steps.extract_branch.outputs.branch }}/build-${{ github.workflow }}-badge.svg
 
     # Generate the insmod badge
@@ -79,8 +54,8 @@ jobs:
       uses: emibcn/badge-action@v1.2.4
       with:
         label: 'Insmod'
-        status: ${{ steps.run.outputs.insmod }}
-        color: ${{ steps.run.outputs.insmodc }}
+        status: ${{ inputs.insmod-status }}
+        color: ${{ inputs.insmod-color }}
         path: ${{ steps.extract_branch.outputs.branch }}/insmod-${{ github.workflow }}-badge.svg
 
     # Generate the test badge
@@ -88,8 +63,8 @@ jobs:
       uses: emibcn/badge-action@v1.2.4
       with:
         label: 'Test'
-        status: ${{ steps.run.outputs.test }}
-        color: ${{ steps.run.outputs.testc }}
+        status: ${{ inputs.test-status }}
+        color: ${{ inputs.test-color }}
         path: ${{ steps.extract_branch.outputs.branch }}/test-${{ github.workflow }}-badge.svg
 
     # Commit the badge
@@ -113,7 +88,3 @@ jobs:
       with:
         github_token: ${{ secrets.GITHUB_TOKEN }}
         branch: badges
-
-    # Pass/Fail based on original test exit code
-    - name: Exit
-      run: exit ${{ steps.run.outputs.realexit }}
