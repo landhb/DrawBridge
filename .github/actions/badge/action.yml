@@ -75,9 +75,9 @@ runs:
       shell: bash
       continue-on-error: true
       env:
-        BUILD_BADGE: ${{ steps.extract_branch.outputs.branch }}/build-${{ input.kernel }}-badge.svg
-        INSMOD_BADGE: ${{ steps.extract_branch.outputs.branch }}/insmod-${{ input.kernel }}-badge.svg
-        TEST_BADGE: ${{ steps.extract_branch.outputs.branch }}/test-${{ input.kernel }}-badge.svg
+        BUILD_BADGE: ${{ steps.extract_branch.outputs.branch }}/build-${{ inputs.kernel }}-badge.svg
+        INSMOD_BADGE: ${{ steps.extract_branch.outputs.branch }}/insmod-${{ inputs.kernel }}-badge.svg
+        TEST_BADGE: ${{ steps.extract_branch.outputs.branch }}/test-${{ inputs.kernel }}-badge.svg
       run: |
         git config --local user.email "action@github.com"
         git config --local user.name "GitHub Action"
@@ -89,7 +89,6 @@ runs:
 
     # Push the badge
     - name: Push badge commit
-      shell: bash
       uses: ad-m/github-push-action@master
       if: ${{ success() }}
       with:
