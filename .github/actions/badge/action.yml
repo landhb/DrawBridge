@@ -53,7 +53,7 @@ runs:
         label: 'Build'
         status: ${{ inputs.build-status }}
         color: ${{ inputs.build-color }}
-        path: ${{ steps.extract_branch.outputs.branch }}/build-${{ github.workflow }}-badge.svg
+        path: ${{ steps.extract_branch.outputs.branch }}/build-${{ inputs.kernel }}-badge.svg
 
     # Generate the insmod badge
     - name: Insmod badge
@@ -62,7 +62,7 @@ runs:
         label: 'Insmod'
         status: ${{ inputs.insmod-status }}
         color: ${{ inputs.insmod-color }}
-        path: ${{ steps.extract_branch.outputs.branch }}/insmod-${{ github.workflow }}-badge.svg
+        path: ${{ steps.extract_branch.outputs.branch }}/insmod-${{ inputs.kernel }}-badge.svg
 
     # Generate the test badge
     - name: Test badge
@@ -71,7 +71,7 @@ runs:
         label: 'Test'
         status: ${{ inputs.test-status }}
         color: ${{ inputs.test-color }}
-        path: ${{ steps.extract_branch.outputs.branch }}/test-${{ github.workflow }}-badge.svg
+        path: ${{ steps.extract_branch.outputs.branch }}/test-${{ inputs.kernel }}-badge.svg
 
     # Commit the badge
     - name: Commit badge
@@ -97,3 +97,8 @@ runs:
       with:
         github_token: ${{ inputs.token }}
         branch: badges
+
+    # Checkout the original branch
+    - uses: actions/checkout@v3
+      with:
+        ref: ${{ steps.extract_branch.outputs.branch }}
