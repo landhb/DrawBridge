@@ -2,9 +2,7 @@ name: "Main"
 
 on:
   push:
-    branches:
-    - '*'
-    - '!badges'
+    branches: [ "master" ]
 
 jobs:
   setup:
