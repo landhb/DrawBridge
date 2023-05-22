@@ -1,0 +1,104 @@
+name: 'Create Status Badges'
+description: 'Create status badges from the test results.'
+inputs:
+  kernel:
+    description: "Kernel Version"
+    required: true
+  test-status:
+    description: "Test Status"
+    required: true
+  test-color:
+    description: "Test Badge Color"
+    required: true
+  insmod-status:
+    description: "Insmod Status"
+    required: true
+  insmod-color:
+    description: "Insmod Badge Color"
+    required: true
+  build-status:
+    description: "Insmod Status"
+    required: true
+  build-color:
+    description: "Insmod Badge Color"
+    required: true
+  token:
+    description: 'A Github PAT'
+    required: true
+runs:
+  using: "composite"
+  steps:
+    # Get current banch name to use it as dest directory
+    - name: Extract branch name
+      shell: bash
+      run: echo "##[set-output name=branch;]$(echo ${GITHUB_REF#refs/heads/})"
+      id: extract_branch
+
+    # Checkout the badges branch
+    - uses: actions/checkout@v3
+      with:
+        ref: badges
+
+    # Create the directory where badges will be saved, if needed
+    - name: Create destination directory
+      shell: bash
+      env:
+        BADGE_PATH: ${{ steps.extract_branch.outputs.branch }}
+      run: mkdir -p "${BADGE_PATH%/*}";
+
+    # Generate the build badge
+    - name: Build badge
+      uses: emibcn/badge-action@v1.2.4
+      with:
+        label: 'Build'
+        status: ${{ inputs.build-status }}
+        color: ${{ inputs.build-color }}
+        path: ${{ steps.extract_branch.outputs.branch }}/build-${{ inputs.kernel }}-badge.svg
+
+    # Generate the insmod badge
+    - name: Insmod badge
+      uses: emibcn/badge-action@v1.2.4
+      with:
+        label: 'Insmod'
+        status: ${{ inputs.insmod-status }}
+        color: ${{ inputs.insmod-color }}
+        path: ${{ steps.extract_branch.outputs.branch }}/insmod-${{ inputs.kernel }}-badge.svg
+
+    # Generate the test badge
+    - name: Test badge
+      uses: emibcn/badge-action@v1.2.4
+      with:
+        label: 'Test'
+        status: ${{ inputs.test-status }}
+        color: ${{ inputs.test-color }}
+        path: ${{ steps.extract_branch.outputs.branch }}/test-${{ inputs.kernel }}-badge.svg
+
+    # Commit the badge
+    - name: Commit badge
+      shell: bash
+      continue-on-error: true
+      env:
+        BUILD_BADGE: ${{ steps.extract_branch.outputs.branch }}/build-${{ inputs.kernel }}-badge.svg
+        INSMOD_BADGE: ${{ steps.extract_branch.outputs.branch }}/insmod-${{ inputs.kernel }}-badge.svg
+        TEST_BADGE: ${{ steps.extract_branch.outputs.branch }}/test-${{ inputs.kernel }}-badge.svg
+      run: |
+        git config --local user.email "action@github.com"
+        git config --local user.name "GitHub Action"
+        echo "${BUILD_BADGE}"
+        git add "${BUILD_BADGE}"
+        git add "${INSMOD_BADGE}"
+        git add "${TEST_BADGE}"
+        git commit -m "Add/Update badge"
+
+    # Push the badge
+    - name: Push badge commit
+      uses: ad-m/github-push-action@master
+      if: ${{ success() }}
+      with:
+        github_token: ${{ inputs.token }}
+        branch: badges
+
+    # Checkout the original branch
+    - uses: actions/checkout@v3
+      with:
+        ref: ${{ steps.extract_branch.outputs.branch }}

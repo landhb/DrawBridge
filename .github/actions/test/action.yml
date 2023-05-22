@@ -1,0 +1,37 @@
+name: 'Build and Test'
+description: 'Build a test against a specified kernel version.'
+inputs:
+  kernel:
+    description: 'Target kernel version.'
+    required: true
+outputs:
+  exit-code:
+    description: "Exit Code"
+    value: ${{ steps.run.outputs.realexit }}
+  test-status:
+    description: "Test Status"
+    value: ${{ steps.run.outputs.test }}
+  test-color:
+    description: "Test Badge Color"
+    value: ${{ steps.run.outputs.testc }}
+  insmod-status:
+    description: "Insmod Status"
+    value: ${{ steps.run.outputs.insmod }}
+  insmod-color:
+    description: "Insmod Badge Color"
+    value: ${{ steps.run.outputs.insmodc }}
+  build-status:
+    description: "Insmod Status"
+    value: ${{ steps.run.outputs.build }}
+  build-color:
+    description: "Insmod Badge Color"
+    value: ${{ steps.run.outputs.buildc }}
+runs:
+  using: "composite"
+  steps:
+  
+  # Run the test and obtain badge results via exit code
+  - name: Perform the test
+    id: run
+    shell: bash
+    run: cd module; NIXMODULEARGS="-k ${{ inputs.kernel }} -c ci-config.toml" ./tests/run.sh
