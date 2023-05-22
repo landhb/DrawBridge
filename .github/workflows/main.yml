@@ -71,6 +71,7 @@ jobs:
         id: create_badges
         uses: ./.github/actions/badge
         with:
+          kernel: ${{ matrix.version }}
           build-status: ${{ steps.run_test.outputs.build-status }}
           build-color: ${{ steps.run_test.outputs.build-color }}
           insmod-status: ${{ steps.run_test.outputs.insmod-status }}

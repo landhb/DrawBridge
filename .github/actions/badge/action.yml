@@ -1,6 +1,9 @@
 name: 'Create Status Badges'
 description: 'Create status badges from the test results.'
 inputs:
+  kernel:
+    description: "Kernel Version"
+    required: true
   test-status:
     description: "Test Status"
     required: true
@@ -42,7 +45,6 @@ runs:
 
     # Generate the build badge
     - name: Build badge
-      shell: bash
       uses: emibcn/badge-action@v1.2.4
       with:
         label: 'Build'
@@ -52,7 +54,6 @@ runs:
 
     # Generate the insmod badge
     - name: Insmod badge
-      shell: bash
       uses: emibcn/badge-action@v1.2.4
       with:
         label: 'Insmod'
@@ -62,7 +63,6 @@ runs:
 
     # Generate the test badge
     - name: Test badge
-      shell: bash
       uses: emibcn/badge-action@v1.2.4
       with:
         label: 'Test'
@@ -75,9 +75,9 @@ runs:
       shell: bash
       continue-on-error: true
       env:
-        BUILD_BADGE: ${{ steps.extract_branch.outputs.branch }}/build-${{ github.workflow }}-badge.svg
-        INSMOD_BADGE: ${{ steps.extract_branch.outputs.branch }}/insmod-${{ github.workflow }}-badge.svg
-        TEST_BADGE: ${{ steps.extract_branch.outputs.branch }}/test-${{ github.workflow }}-badge.svg
+        BUILD_BADGE: ${{ steps.extract_branch.outputs.branch }}/build-${{ input.kernel }}-badge.svg
+        INSMOD_BADGE: ${{ steps.extract_branch.outputs.branch }}/insmod-${{ input.kernel }}-badge.svg
+        TEST_BADGE: ${{ steps.extract_branch.outputs.branch }}/test-${{ input.kernel }}-badge.svg
       run: |
         git config --local user.email "action@github.com"
         git config --local user.name "GitHub Action"
