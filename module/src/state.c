@@ -13,6 +13,7 @@
 #include <linux/rculist.h>
 #include <linux/timer.h>
 #include <linux/version.h>
+#include <net/ipv6.h>
 #include "drawbridge.h"
 
 /**
@@ -29,21 +30,6 @@ DEFINE_SPINLOCK(listmutex);
  * Reaper thread timer
  */
 struct timer_list *reaper;
-
-/**
- *  @brief Utility function to compare IPv6 addresses
- *  @param a1 First address, of type in6_addr to compare
- *  @param a2 Second address, of type in6_addr to compare
- *  @return Zero on a match, otherwise a non-zero integer
- */
-static inline int ipv6_addr_cmp(const struct in6_addr *a1,
-                                const struct in6_addr *a2)
-{
-    if (a2 == NULL || a1 == NULL) {
-        return -1;
-    }
-    return memcmp(a1, a2, sizeof(struct in6_addr));
-}
 
 /**
  *  @brief Utility function to compare state with parsed_packet
