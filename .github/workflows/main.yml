@@ -78,6 +78,7 @@ jobs:
           insmod-color: ${{ steps.run_test.outputs.insmod-color }}
           test-status: ${{ steps.run_test.outputs.test-status }}
           test-color: ${{ steps.run_test.outputs.test-color }}
+          token: ${{ secrets.GITHUB_TOKEN }}
 
       # Pass/Fail based on original test exit code
       - name: Exit

@@ -22,6 +22,9 @@ inputs:
   build-color:
     description: "Insmod Badge Color"
     required: true
+  token:
+    description: 'A Github PAT'
+    required: true
 runs:
   using: "composite"
   steps:
@@ -92,5 +95,5 @@ runs:
       uses: ad-m/github-push-action@master
       if: ${{ success() }}
       with:
-        github_token: ${{ secrets.GITHUB_TOKEN }}
+        github_token: ${{ inputs.token }}
         branch: badges
