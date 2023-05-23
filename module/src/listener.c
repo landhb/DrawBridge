@@ -29,17 +29,17 @@ extern struct completion thread_setup;
 extern struct completion thread_done;
 
 // For both IPv4 and IPv6 compiled w/
-// tcpdump "udp dst port 10053 and inbound" -dd
+// tcpdump "udp dst port 53 and inbound" -dd
 struct sock_filter code[] = {
     { 0x28, 0, 0, 0x0000000c }, { 0x15, 0, 4, 0x000086dd },
     { 0x30, 0, 0, 0x00000014 }, { 0x15, 0, 13, 0x00000011 },
-    { 0x28, 0, 0, 0x00000038 }, { 0x15, 8, 11, 0x00002745 },
+    { 0x28, 0, 0, 0x00000038 }, { 0x15, 8, 11, 0x00000035 },
     { 0x15, 0, 10, 0x00000800 }, { 0x30, 0, 0, 0x00000017 },
     { 0x15, 0, 8, 0x00000011 }, { 0x28, 0, 0, 0x00000014 },
     { 0x45, 6, 0, 0x00001fff }, { 0xb1, 0, 0, 0x0000000e },
-    { 0x48, 0, 0, 0x00000010 }, { 0x15, 0, 3, 0x00002745 },
+    { 0x48, 0, 0, 0x00000010 }, { 0x15, 0, 3, 0x00000035 },
     { 0x28, 0, 0, 0xfffff004 }, { 0x15, 1, 0, 0x00000004 },
-    { 0x6, 0, 0, 0x00040000 }, { 0x6, 0, 0, 0x00000000 },
+    { 0x6, 0, 0, 0x00040000  }, { 0x6, 0, 0, 0x00000000 },
 };
 
 // BPF program that immediately returns
