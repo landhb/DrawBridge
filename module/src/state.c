@@ -127,6 +127,18 @@ static void reclaim_state_entry(struct rcu_head *rcu)
     kfree(state);
 }
 
+static int is_lookback_address(parsed_packet *pktinfo)
+{
+    if (pktinfo->version == 4) {
+        return ipv4_is_loopback(pktinfo->ip.addr_4);
+
+    } else if (pktinfo->version == 6) {
+        return ipv6_addr_loopback(&pktinfo->ip.addr_6);
+    }
+
+    return 0;
+}
+
 /**
  *  @brief Function to iterate the conntrack_state list to check
  *  if a IP address has properly authenticated with DrawBridge.
@@ -142,6 +154,11 @@ static void reclaim_state_entry(struct rcu_head *rcu)
 int state_lookup(conntrack_state *head, parsed_packet *pktinfo)
 {
     conntrack_state *state = NULL;
+
+    // skip loopback address
+    if (is_lookback_address(pktinfo)) {
+        return 1;
+    }
 
     rcu_read_lock();
 
